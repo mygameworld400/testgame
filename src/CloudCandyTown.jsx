@@ -245,6 +245,8 @@ function Stick({ onMove }) {
   };
 
   const start = (e) => {
+    /* 채팅 입력 중이었다면 키보드를 내려서 조작을 막지 않게 합니다 */
+    if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
     ptr.current = e.pointerId;
     e.currentTarget.setPointerCapture(e.pointerId);
     apply(e);
@@ -584,6 +586,16 @@ function Town({ me, setMe, onKick }) {
 
   /* 화면 크기 */
   useEffect(() => {
+    const vv = window.visualViewport;
+    const onKeyboard = () => {
+      /* 키보드 높이만큼 조이스틱·채팅바를 올려줍니다 */
+      const gap = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+      document.documentElement.style.setProperty("--kb", `${Math.round(gap)}px`);
+    };
+    onKeyboard();
+    vv?.addEventListener("resize", onKeyboard);
+    vv?.addEventListener("scroll", onKeyboard);
+
     const onResize = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
@@ -593,7 +605,11 @@ function Town({ me, setMe, onKick }) {
     };
     onResize();
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      vv?.removeEventListener("resize", onKeyboard);
+      vv?.removeEventListener("scroll", onKeyboard);
+    };
   }, []);
 
   /* 키 입력 */
@@ -804,10 +820,8 @@ function Town({ me, setMe, onKick }) {
   const sendChat = useCallback(() => {
     const t = chatText.trim().slice(0, 60);
     setChatText("");
-    if (!t) {
-      chatBox.current?.blur();
-      return;
-    }
+    chatBox.current?.blur();          // 폰에서 키보드가 조이스틱을 가리지 않게
+    if (!t) return;
     chanRef.current?.chat(t, sceneRef.current || "");
     setMyMsg(t);
     clearTimeout(myMsgTimer.current);
@@ -1275,7 +1289,7 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
   border:6px solid transparent;border-top-color:${C.line}}
 @keyframes ccPop{from{transform:translateY(6px)}to{transform:translateY(0)}}
 
-.ccChatBar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px;
+.ccChatBar{position:absolute;left:50%;bottom:calc(14px + var(--kb, 0px));transform:translateX(-50%);display:flex;gap:6px;
   width:min(420px,86vw)}
 .ccChatInput{flex:1;border:3px solid ${C.line};background:rgba(255,255,255,.95);padding:9px 11px;
   font-size:13px;font-weight:700;color:${C.ink};font-family:inherit;outline:none;
@@ -1401,12 +1415,12 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 
 /* 모바일 조작 */
 .ccTouch{display:none}
-.ccStick{position:absolute;left:20px;bottom:20px;width:124px;height:124px;border-radius:50%;
+.ccStick{position:absolute;left:20px;bottom:calc(20px + var(--kb, 0px));width:124px;height:124px;border-radius:50%;
   border:4px solid ${C.line};background:rgba(255,255,255,.72);touch-action:none;
   box-shadow:4px 4px 0 rgba(91,74,99,.25);display:flex;align-items:center;justify-content:center}
 .ccStickKnob{width:52px;height:52px;border-radius:50%;border:4px solid ${C.line};background:#ffd45e;
   box-shadow:3px 3px 0 rgba(91,74,99,.25);pointer-events:none;transition:transform .04s linear}
-.ccActs{position:absolute;right:20px;bottom:22px;display:flex;align-items:flex-end;gap:10px}
+.ccActs{position:absolute;right:20px;bottom:calc(22px + var(--kb, 0px));display:flex;align-items:flex-end;gap:10px}
 .ccAct{border:4px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
   font-size:13px;padding:0 14px;height:56px;min-width:56px;box-shadow:4px 4px 0 rgba(91,74,99,.25);
   touch-action:none;cursor:pointer}
@@ -1430,7 +1444,7 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 @media (hover:none) and (pointer:coarse) and (orientation:portrait){
   .ccRotate{display:flex}
 }
-  .ccChatBar{left:14px;transform:none;width:min(320px,56vw)}}
+  .ccChatBar{left:14px;transform:none;width:min(320px,56vw);bottom:calc(16px + var(--kb, 0px))}}
 
 .ccBtn{border:3px solid ${C.line};background:#ff8fb6;color:#fff;font-weight:700;font-size:13px;
   padding:11px 18px;cursor:pointer;font-family:inherit;box-shadow:4px 4px 0 rgba(91,74,99,.3)}
