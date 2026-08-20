@@ -19,9 +19,10 @@ export function proj(x, y) {
 const PLAY = { x0: 90, x1: ROOM.w - 90, y0: 40, y1: ROOM.d - 30 };
 
 /* 리스닝바 의자 6개 — 그리기와 착석 판정이 같은 좌표를 씁니다 */
+export const TABLE = { x: 500, y: 250 };
 export const CHAIRS = Array.from({ length: 6 }, (_, i) => {
   const a = (Math.PI * 2 * i) / 6 + Math.PI / 6;
-  return { i, a, x: 500 + Math.cos(a) * 210, y: 210 + Math.sin(a) * 120 };
+  return { i, a, x: TABLE.x + Math.cos(a) * 200, y: TABLE.y + Math.sin(a) * 105 };
 });
 
 /* 원형 장애물을 사각 박스로 */
@@ -41,7 +42,7 @@ export const ROOMS = {
     accent: "#ff8fb6",
     hint: "가운데는 바, 오른쪽 LP 를 누르면 플레이리스트가 열려요",
     play: PLAY,
-    blocks: [box(500, 210, 300, 150), box(500, 60, 420, 90)],
+    blocks: [box(TABLE.x, TABLE.y, 290, 130), box(500, 60, 420, 80)],
     chairs: CHAIRS,
     zones: [
       { id: "lp", x: 880, y: 300, r: 90, label: "LP 플레이어" },
@@ -177,7 +178,7 @@ function Door() {
 /* 리스닝바 — 바텐더 자리, 원형 테이블, 의자 6개, LP */
 function BarProps({ seats = [] }) {
   const bar = proj(500, 60);
-  const table = proj(500, 210);
+  const table = proj(TABLE.x, TABLE.y);
   const chairs = CHAIRS.map((c) => {
     const p = proj(c.x, c.y);
     const taken = seats.includes(c.i);
@@ -215,8 +216,8 @@ function BarProps({ seats = [] }) {
       {seats.map((i) => {
         const c = CHAIRS[i];
         if (!c) return null;
-        const jx = 500 + Math.cos(c.a) * 105;
-        const jy = 210 + Math.sin(c.a) * 58;
+        const jx = TABLE.x + Math.cos(c.a) * 100;
+        const jy = TABLE.y + Math.sin(c.a) * 52;
         const p = proj(jx, jy);
         const k = p.k;
         return (

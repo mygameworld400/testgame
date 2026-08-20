@@ -133,6 +133,23 @@ function inWater(room, x, y) {
   return Math.abs(x - w.x) < w.w / 2 && Math.abs(y - w.y) < w.d / 2;
 }
 
+/* 막힌 곳에 서지 않도록, 의자에서 일어날 자리를 찾아줍니다 */
+function freeSpot(room, cx, cy) {
+  const R = 15;
+  const blocked = (x, y) =>
+    (room.blocks || []).some((b) => x + R > b.x1 && x - R < b.x2 && y + R > b.y1 && y - R < b.y2);
+  const tries = [
+    [0, 62], [0, -62], [70, 0], [-70, 0],
+    [56, 48], [-56, 48], [56, -48], [-56, -48], [0, 110],
+  ];
+  for (const [dx, dy] of tries) {
+    const x = clamp(cx + dx, room.play.x0, room.play.x1);
+    const y = clamp(cy + dy, room.play.y0, room.play.y1);
+    if (!blocked(x, y)) return { x, y };
+  }
+  return { x: ROOM.w / 2, y: ROOM.d - 60 };   // 최후에는 문 앞으로
+}
+
 function blockBox(b) {
   const w = 24 * b.scale;
   const h = 22 * b.scale;
@@ -519,7 +536,8 @@ function Town({ me }) {
       const c = CHAIRS[sitRef.current];
       sitRef.current = null;
       setSit(null);
-      const back = { x: c.x, y: Math.min(ROOM.d - 40, c.y + 46) };
+      const room = ROOMS[sceneRef.current];
+      const back = room ? freeSpot(room, c.x, c.y) : { x: c.x, y: c.y + 60 };
       posRef.current = back;
       setPos(back);
       return;
