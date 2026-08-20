@@ -102,6 +102,13 @@ export function QuizSheet({ hostCode, isHost, onClose }) {
         <button className="ccX" onClick={onClose}>✕</button>
       </div>
 
+      {isHost && !adding && (
+        <div className="ccRow ccHostRow ccHostTop">
+          <button className="ccBtn ccMiniBtn ccAddBtn" onClick={() => setAdding(true)}>+ 문제 추가</button>
+          {q && <button className="ccMini ccDanger" onClick={remove}>이 문제 삭제</button>}
+        </div>
+      )}
+
       {list === null && <p className="ccSheetEmpty">불러오는 중…</p>}
 
       {list && list.length === 0 && !adding && (
@@ -156,11 +163,8 @@ export function QuizSheet({ hostCode, isHost, onClose }) {
 
       {err && <div className="ccErr">{err}</div>}
 
-      {isHost && !adding && (
-        <div className="ccRow ccHostRow">
-          <button className="ccMini" onClick={() => setAdding(true)}>+ 문제 추가</button>
-          {q && <button className="ccMini ccDanger" onClick={remove}>이 문제 삭제</button>}
-        </div>
+      {!isHost && (
+        <p className="ccSheetNote">문제 추가는 호스트만 할 수 있어요.</p>
       )}
     </div>
   );
@@ -219,6 +223,17 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
         <button className="ccX" onClick={onClose}>✕</button>
       </div>
 
+      {isHost && !adding && (
+        <div className="ccRow ccHostRow ccHostTop">
+          <button className="ccBtn ccMiniBtn ccAddBtn" onClick={() => setAdding(true)}>+ 곡 · 효과음 추가</button>
+          {sfx.map((t) => (
+            <button key={t.id} className="ccMini ccDanger" onClick={() => remove(t.id)} disabled={busy}>
+              {t.title.replace("sfx:", "효과음 ")} 삭제
+            </button>
+          ))}
+        </div>
+      )}
+
       {list === null && <p className="ccSheetEmpty">불러오는 중…</p>}
       {list && songs.length === 0 && !adding && (
         <p className="ccSheetEmpty">
@@ -274,16 +289,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
 
       {err && <div className="ccErr">{err}</div>}
 
-      {isHost && !adding && (
-        <div className="ccRow ccHostRow">
-          <button className="ccMini" onClick={() => setAdding(true)}>+ 곡 · 효과음 추가</button>
-          {sfx.map((t) => (
-            <button key={t.id} className="ccMini ccDanger" onClick={() => remove(t.id)} disabled={busy}>
-              {t.title.replace("sfx:", "효과음 ")} 삭제
-            </button>
-          ))}
-        </div>
-      )}
+      {!isHost && <p className="ccSheetNote">곡 추가는 호스트만 할 수 있어요.</p>}
     </div>
   );
 }

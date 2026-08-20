@@ -1306,7 +1306,7 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
   font-weight:700;box-shadow:3px 3px 0 rgba(91,74,99,.2)}
 .ccLogLine b{margin-right:5px}
 .ccLogRoom{background:#ffe9a8;border:2px solid ${C.line};padding:0 5px;margin-right:6px;font-size:10px}
-.ccSheet{width:min(420px,92vw);padding:22px;text-align:center}
+.ccSheet{width:min(420px,92vw);max-height:86vh;overflow:auto;padding:18px;text-align:center}
 .ccSheetTitle{margin:0 0 12px;font-size:19px;font-weight:900}
 .ccSheetEmpty{margin:0 0 8px;font-size:14px;font-weight:700;color:${C.ink}}
 .ccSheetNote{margin:0 0 18px;font-size:11.5px;line-height:1.6;font-weight:700;color:${C.inkSoft}}
@@ -1317,13 +1317,15 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
   width:30px;height:30px;font-size:13px;box-shadow:2px 2px 0 rgba(91,74,99,.25)}
 .ccRow{display:flex;gap:6px;align-items:center;justify-content:center}
 .ccHostRow{margin-top:12px;flex-wrap:wrap}
+.ccHostTop{margin:0 0 12px}
+.ccAddBtn{background:#ffd45e;color:${C.line}}
 .ccMini{border:3px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
   font-size:11.5px;padding:7px 10px;cursor:pointer;box-shadow:2px 2px 0 rgba(91,74,99,.25)}
 .ccMini:active{transform:translate(2px,2px);box-shadow:0 0 0}
 .ccDanger{background:#ffe0e0}
 .ccMiniBtn{font-size:12px;padding:9px 14px}
 .ccQuizImg{position:relative;border:4px solid ${C.line};background:#f4eef6;margin-bottom:10px}
-.ccQuizImg img{display:block;width:100%;max-height:44vh;object-fit:contain}
+.ccQuizImg img{display:block;width:100%;max-height:38vh;object-fit:contain}
 .ccMark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:96px;font-weight:900}
 .ccMarkO{color:#2e9e78}
 .ccMarkX{color:#e0685f}
