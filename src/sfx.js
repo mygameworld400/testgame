@@ -3,6 +3,25 @@
    =========================================================== */
 
 let ctx = null;
+let unlocked = false;
+
+/* 사파리(맥·아이폰)는 사용자가 화면을 건드리기 전에는 소리를 못 냅니다.
+   첫 클릭·터치·키 입력 때 오디오를 깨워두면 그 뒤로는 정상 재생돼요. */
+export function unlockAudio() {
+  if (unlocked) return;
+  const ac = audio();
+  if (!ac) return;
+  unlocked = true;
+  try {
+    const b = ac.createBuffer(1, 1, 22050);
+    const src = ac.createBufferSource();
+    src.buffer = b;
+    src.connect(ac.destination);
+    src.start(0);
+  } catch {
+    /* 무시 */
+  }
+}
 
 function audio() {
   if (typeof window === "undefined") return null;

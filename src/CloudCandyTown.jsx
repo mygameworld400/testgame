@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CHAIRS, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, depth, keyCount, keyPos, proj } from "./rooms.jsx";
-import { blip, crack, crunch, keyclick, splash } from "./sfx.js";
+import { blip, crack, crunch, keyclick, splash, unlockAudio } from "./sfx.js";
 import { FortuneSheet, GachaSheet, MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
 import { findSfx, quizPacks, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
@@ -639,6 +639,19 @@ function Town({ me, setMe, onKick }) {
     if (b.sheet) { setSheet(b.sheet); return; }   /* 방이 없는 건물은 바로 창을 엽니다 */
     enterRoom(id);
   }, [enterRoom]);
+
+  /* 첫 입력 때 오디오를 깨웁니다 (사파리 대응) */
+  useEffect(() => {
+    const wake = () => unlockAudio();
+    window.addEventListener("pointerdown", wake, { once: true });
+    window.addEventListener("touchstart", wake, { once: true });
+    window.addEventListener("keydown", wake, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", wake);
+      window.removeEventListener("touchstart", wake);
+      window.removeEventListener("keydown", wake);
+    };
+  }, []);
 
   /* 화면 크기 */
   useEffect(() => {
