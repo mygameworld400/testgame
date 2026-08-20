@@ -221,19 +221,33 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = f
 
 /* ============================ 조이스틱 ============================ */
 
-const STICK_R = 44;     // 손잡이가 움직일 수 있는 반경
-const DEADZONE = 0.18;
+const STICK_R = 46;     // 손잡이가 움직일 수 있는 반경
+const DEADZONE = 0.16;
 
+/* 포인터 이벤트를 지원하는지 — 카카오톡·인스타 같은 인앱 브라우저에서는
+   포인터 이벤트가 제대로 안 오는 경우가 있어 터치 이벤트로 넘어갑니다. */
+const HAS_POINTER = typeof window !== "undefined" && "onpointerdown" in window;
+
+/* 왼쪽 아래 아무 데나 눌러도 그 자리에 조이스틱이 생깁니다 */
 function Stick({ onMove }) {
-  const base = useRef(null);
-  const ptr = useRef(null);
+  const home = useRef({ x: 0, y: 0 });
+  const origin = useRef(null);
+  const active = useRef(false);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
+  const [base, setBase] = useState(null);   // 지금 잡고 있는 위치
 
-  const apply = (e) => {
-    const r = base.current?.getBoundingClientRect();
-    if (!r) return;
-    let dx = e.clientX - (r.left + r.width / 2);
-    let dy = e.clientY - (r.top + r.height / 2);
+  const begin = (x, y) => {
+    if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
+    active.current = true;
+    origin.current = { x, y };
+    setBase({ x, y });
+    setKnob({ x: 0, y: 0 });
+  };
+
+  const move = (x, y) => {
+    if (!active.current || !origin.current) return;
+    let dx = x - origin.current.x;
+    let dy = y - origin.current.y;
     const d = Math.hypot(dx, dy) || 1;
     const cap = Math.min(1, d / STICK_R);
     dx = (dx / d) * STICK_R * cap;
@@ -244,34 +258,39 @@ function Stick({ onMove }) {
     onMove(Math.hypot(nx, ny) < DEADZONE ? { x: 0, y: 0 } : { x: nx, y: ny });
   };
 
-  const start = (e) => {
-    /* 채팅 입력 중이었다면 키보드를 내려서 조작을 막지 않게 합니다 */
-    if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
-    ptr.current = e.pointerId;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    apply(e);
-  };
-  const move = (e) => {
-    if (ptr.current !== e.pointerId) return;
-    apply(e);
-  };
-  const end = (e) => {
-    if (ptr.current !== e.pointerId) return;
-    ptr.current = null;
+  const end = () => {
+    active.current = false;
+    origin.current = null;
+    setBase(null);
     setKnob({ x: 0, y: 0 });
     onMove({ x: 0, y: 0 });
   };
 
+  /* 포인터가 되면 포인터로, 안 되면 터치로 — 둘 다 달면 두 번 처리됩니다 */
+  const handlers = HAS_POINTER
+    ? {
+        onPointerDown: (e) => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 무시 */ } begin(e.clientX, e.clientY); },
+        onPointerMove: (e) => move(e.clientX, e.clientY),
+        onPointerUp: end,
+        onPointerCancel: end,
+        onPointerLeave: end,
+      }
+    : {
+        onTouchStart: (e) => { const t = e.changedTouches[0]; begin(t.clientX, t.clientY); },
+        onTouchMove: (e) => { const t = e.changedTouches[0]; move(t.clientX, t.clientY); },
+        onTouchEnd: end,
+        onTouchCancel: end,
+      };
+
+  const pos = base || home.current;
   return (
-    <div
-      className="ccStick"
-      ref={base}
-      onPointerDown={start}
-      onPointerMove={move}
-      onPointerUp={end}
-      onPointerCancel={end}
-    >
-      <div className="ccStickKnob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
+    <div className="ccStickZone" {...handlers}>
+      <div
+        className={"ccStick" + (base ? " ccStickOn" : "")}
+        style={base ? { left: pos.x, top: pos.y, bottom: "auto", transform: "translate(-50%,-50%)" } : undefined}
+      >
+        <div className="ccStickKnob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
+      </div>
     </div>
   );
 }
@@ -472,6 +491,7 @@ function Town({ me, setMe, onKick }) {
   const [toast, setToast] = useState("");
   const [room, setRoom] = useState(null);
   const [peers, setPeers] = useState([]);
+  const [peerView, setPeerView] = useState([]);   // 화면에 그릴 위치(보간됨)
   const [panel, setPanel] = useState(false);
   const [chatText, setChatText] = useState("");
   const [scene, setScene] = useState(null);      // null = 마을, 아니면 건물 id
@@ -510,6 +530,8 @@ function Town({ me, setMe, onKick }) {
   const swimRef = useRef(false);
   const sheetRef = useRef(null);
   const sitRef = useRef(null);
+  const peersRef = useRef([]);
+  const smooth = useRef(new Map());
   const splashUrl = useRef(null);
   const chairRef = useRef(null);
   const audio = useRef(null);
@@ -519,6 +541,7 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { openRef.current = !!sheet; sheetRef.current = sheet; }, [sheet]);
   useEffect(() => { viewRef.current = { ...view, z: zoom }; }, [view, zoom]);
   useEffect(() => { starsRef.current = stars; }, [stars]);
+  useEffect(() => { peersRef.current = peers; }, [peers]);
 
   const collected = stars.filter(Boolean).length;
   const online = me.role === "solo" ? 1 : peers.length + 1;
@@ -698,6 +721,32 @@ function Town({ me, setMe, onKick }) {
       if (isMoving !== movingRef.current) {
         movingRef.current = isMoving;
         setMoving(isMoving);
+      }
+
+      /* 다른 사람 위치 부드럽게 — 초당 8번 오는 좌표 사이를 채워줍니다 */
+      const targets = peersRef.current;
+      if (targets.length || smooth.current.size) {
+        const out = [];
+        const alive = new Set();
+        for (const t of targets) {
+          alive.add(t.id);
+          let v = smooth.current.get(t.id);
+          if (!v) v = { x: t.x, y: t.y, r: t.r };
+          const far = Math.hypot(t.x - v.x, t.y - v.y) > 320;
+          if (far || v.r !== t.r) {          // 방을 옮겼거나 너무 멀면 바로 붙입니다
+            v.x = t.x;
+            v.y = t.y;
+          } else {
+            const f = Math.min(1, 0.22 * dt);
+            v.x += (t.x - v.x) * f;
+            v.y += (t.y - v.y) * f;
+          }
+          v.r = t.r;
+          smooth.current.set(t.id, v);
+          out.push({ ...t, x: Math.round(v.x * 10) / 10, y: Math.round(v.y * 10) / 10 });
+        }
+        smooth.current.forEach((_, id) => { if (!alive.has(id)) smooth.current.delete(id); });
+        setPeerView(out);
       }
 
       const p = posRef.current;
@@ -912,7 +961,7 @@ function Town({ me, setMe, onKick }) {
   const roundNo = room?.round ?? me.round;
   const R = scene ? ROOMS[scene] : null;
   const here = scene || "";
-  const roomPeers = peers.filter((p) => (p.r || "") === here);
+  const roomPeers = peerView.filter((p) => (p.r || "") === here);
   const seats = R?.chairs
     ? [...roomPeers.filter((q) => q.st >= 0).map((q) => q.st), ...(sit == null ? [] : [sit])]
     : [];
@@ -1464,9 +1513,11 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 
 /* 모바일 조작 */
 .ccTouch{display:none}
-.ccStick{position:absolute;left:20px;bottom:calc(20px + var(--kb, 0px));width:124px;height:124px;border-radius:50%;
-  border:4px solid ${C.line};background:rgba(255,255,255,.72);touch-action:none;
+.ccStickZone{position:absolute;left:0;bottom:0;width:52%;height:74%;touch-action:none;z-index:6}
+.ccStick{position:absolute;left:20px;bottom:calc(24px + var(--kb, 0px));width:124px;height:124px;border-radius:50%;
+  border:4px solid ${C.line};background:rgba(255,255,255,.6);touch-action:none;opacity:.75;
   box-shadow:4px 4px 0 rgba(91,74,99,.25);display:flex;align-items:center;justify-content:center}
+.ccStickOn{opacity:1;background:rgba(255,255,255,.85)}
 .ccStickKnob{width:52px;height:52px;border-radius:50%;border:4px solid ${C.line};background:#ffd45e;
   box-shadow:3px 3px 0 rgba(91,74,99,.25);pointer-events:none;transition:transform .04s linear}
 .ccActs{position:absolute;right:20px;bottom:calc(22px + var(--kb, 0px));display:flex;align-items:flex-end;gap:10px}
