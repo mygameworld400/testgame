@@ -78,10 +78,14 @@ export async function joinRoom(name, hostCode) {
   }
 }
 
-export async function startNewRound(hostCode) {
+/* round 를 주면 그 번호로, 안 주면 다음 회차로 넘어갑니다 */
+export async function startNewRound(hostCode, round) {
   if (!supabase) return { ok: false, error: "no_server" };
   try {
-    const { data, error } = await supabase.rpc("cc_new_round", { p_host_code: hostCode });
+    const { data, error } = await supabase.rpc("cc_new_round", {
+      p_host_code: hostCode,
+      p_round: round ?? null,
+    });
     if (error) return wrap(error);
     return data;
   } catch (e) {
