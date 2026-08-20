@@ -88,60 +88,25 @@ function synthSplash() {
   if (!ac) return;
   const t0 = ac.currentTime;
 
-  /* (1) 물이 갈라지는 소리 — 짧고 넓은 잡음, 위에서 아래로 훑기 */
-  const dur = 0.42;
-  const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * dur), ac.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) {
-    const t = i / d.length;
-    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2.6);
-  }
-  const src = ac.createBufferSource();
-  src.buffer = buf;
-
-  const bp = ac.createBiquadFilter();
-  bp.type = "bandpass";
-  bp.Q.value = 0.7;
-  bp.frequency.setValueAtTime(320, t0);
-  bp.frequency.exponentialRampToValueAtTime(2400, t0 + 0.06);
-  bp.frequency.exponentialRampToValueAtTime(600, t0 + dur);
-
-  const g = ac.createGain();
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(0.42, t0 + 0.015);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-
-  src.connect(bp).connect(g).connect(ac.destination);
-  src.start(t0);
-
-  /* (2) 물방울 — 음이 빠르게 올라가는 짧은 사인파를 흩뿌립니다 */
-  const drops = 5 + Math.floor(Math.random() * 4);
+  /* 물방울 소리만 — 음이 빠르게 올라가는 짧은 사인파를 여러 개 흩뿌립니다.
+     (넓은 잡음과 저음 울림은 북소리처럼 들려서 뺐어요)                */
+  const drops = 7 + Math.floor(Math.random() * 5);
   for (let i = 0; i < drops; i++) {
-    const at = t0 + 0.03 + Math.random() * 0.34;
-    const f0 = 380 + Math.random() * 520;
+    const at = t0 + Math.random() * 0.4;
+    const f0 = 420 + Math.random() * 620;
     const osc = ac.createOscillator();
     const og = ac.createGain();
     osc.type = "sine";
     osc.frequency.setValueAtTime(f0, at);
-    osc.frequency.exponentialRampToValueAtTime(f0 * (2.2 + Math.random()), at + 0.07);
+    osc.frequency.exponentialRampToValueAtTime(f0 * (2.4 + Math.random() * 1.2), at + 0.06 + Math.random() * 0.04);
+
     og.gain.setValueAtTime(0.0001, at);
-    og.gain.exponentialRampToValueAtTime(0.10 + Math.random() * 0.07, at + 0.008);
-    og.gain.exponentialRampToValueAtTime(0.0001, at + 0.1);
+    og.gain.exponentialRampToValueAtTime(0.09 + Math.random() * 0.06, at + 0.006);
+    og.gain.exponentialRampToValueAtTime(0.0001, at + 0.11 + Math.random() * 0.06);
+
     osc.connect(og).connect(ac.destination);
     osc.start(at);
-    osc.stop(at + 0.12);
+    osc.stop(at + 0.2);
   }
-
-  /* (3) 몸이 물에 잠기는 낮은 울림 */
-  const low = ac.createOscillator();
-  const lg = ac.createGain();
-  low.type = "sine";
-  low.frequency.setValueAtTime(150, t0);
-  low.frequency.exponentialRampToValueAtTime(70, t0 + 0.3);
-  lg.gain.setValueAtTime(0.0001, t0);
-  lg.gain.exponentialRampToValueAtTime(0.16, t0 + 0.02);
-  lg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.34);
-  low.connect(lg).connect(ac.destination);
-  low.start(t0);
-  low.stop(t0 + 0.36);
 }
+
