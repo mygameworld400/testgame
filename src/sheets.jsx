@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { buzz, ding } from "./sfx.js";
 
-import { SFX_PREFIX, isSfx, plCover, plList, plRename, quizAdd, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { SFX_PREFIX, isSfx, plRename, quizAdd, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -284,21 +284,14 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
   const [asSfx, setAsSfx] = useState(false);
   const [pl, setPl] = useState("기본");
   const [open, setOpen] = useState({});          // 펼쳐진 플레이리스트
-  const [covers, setCovers] = useState({});      // 플레이리스트별 커버
   const [editing, setEditing] = useState(null);  // 이름 수정 중인 플레이리스트
   const [editName, setEditName] = useState("");
-  const coverFile = useRef(null);
   const file = useRef(null);
 
   const load = useCallback(async () => {
-    const [r, pls] = await Promise.all([trackList(), plList()]);
+    const r = await trackList();
     if (Array.isArray(r)) setList(r);
     else { setList([]); setErr(msgOf(r)); }
-    if (Array.isArray(pls)) {
-      const map = {};
-      pls.forEach((p) => { if (p.cover) map[p.name] = p.cover; });
-      setCovers(map);
-    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -342,22 +335,6 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
     setEditing(null);
     setErr("");
     load();
-  };
-
-  const pickCover = async (name, e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setBusy(true);
-    try {
-      const small = await shrinkImage(f, 128, 0.72);   // 커버는 작게
-      const r = await plCover(hostCode, name, small);
-      if (!r?.ok) setErr(msgOf(r));
-      else { setErr(""); load(); }
-    } catch {
-      setErr("이미지를 읽지 못했어요.");
-    }
-    setBusy(false);
-    if (coverFile.current) coverFile.current.value = "";
   };
 
   const remove = async (id) => {
@@ -421,26 +398,11 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
                         onClick={() => setOpen((o) => ({ ...o, [g.name]: !o[g.name] }))}
                       >
                         <span className="ccPlArrow">{isOpen ? "▾" : "▸"}</span>
-                        {covers[g.name] ? (
-                          <img className="ccPlCover" src={covers[g.name]} alt="" />
-                        ) : (
-                          <span className="ccPlCover ccPlCoverNone">♪</span>
-                        )}
                         <span className="ccPlTitle">{g.name}</span>
                         <span className="ccPlN">{g.items.length}곡</span>
                       </button>
                       {isHost && (
                         <>
-                          <label className="ccPlIcon" title="커버 이미지 등록">
-                            🖼
-                            <input
-                              ref={coverFile}
-                              type="file"
-                              accept="image/*"
-                              hidden
-                              onChange={(e) => pickCover(g.name, e)}
-                            />
-                          </label>
                           <button
                             className="ccPlIcon"
                             title="이름 수정"
