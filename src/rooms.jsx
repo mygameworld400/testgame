@@ -106,10 +106,10 @@ export const ROOMS = {
     zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
   },
 
-  /* 🍜 먹방탭 — 준비중 */
+  /* 🍜 떵개방 — 준비중 */
   carousel: {
     id: "carousel",
-    name: "먹방탭",
+    name: "떵개방",
     emoji: "🍜",
     floor: "#e8e2ff",
     floorLine: "#e8e2ff",
