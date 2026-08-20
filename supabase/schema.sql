@@ -1,11 +1,12 @@
 -- ===========================================================
 -- 구름사탕 마을 — 테스트 입장 관리 스키마
 -- 대시보드 → SQL Editor 에 통째로 붙여넣고 Run 하세요.
--- 여러 번 실행해도 안전합니다. (게임 진행 저장은 아직 없습니다)
+-- 여러 번 실행해도 안전합니다. (게임 진행 저장은 없습니다)
 --
 --  · 회차(round)마다 게스트 5명까지만 입장
 --  · 호스트(나)는 정원에 포함되지 않음
---  · 호스트가 "새 테스트 시작"을 누르면 회차가 올라가고 자리가 초기화됨
+--  · 호스트가 회차 번호를 직접 지정해서 리셋 ("이제부터 2번 테스트야")
+--  · 게스트마다 슬롯 1~5 를 받고, 슬롯에 따라 캐릭터 모양이 달라집니다
 -- ===========================================================
 
 /* ---------- 설정 (한 줄짜리 테이블) ---------- */
@@ -25,10 +26,14 @@ create table if not exists public.cc_players (
   device    text not null,
   name      text not null,
   role      text not null default 'guest',   -- 'guest' | 'host'
+  slot      int  not null default 0,         -- 0=호스트, 1~5=게스트 (캐릭터 모양)
   joined_at timestamptz not null default now(),
   unique (round, device)
 );
 create index if not exists cc_players_round_idx on public.cc_players (round);
+
+/* 예전 버전으로 이미 만들었던 경우를 위한 보강 */
+alter table public.cc_players add column if not exists slot int not null default 0;
 
 /* ---------- RLS: 테이블 직접 접근은 전면 차단 ----------
    정책을 하나도 만들지 않으면 anon 키로는 아무것도 읽고 쓸 수 없습니다.
@@ -54,7 +59,8 @@ begin
   select count(*) into v_taken
     from public.cc_players where round = v_round and role = 'guest';
 
-  select coalesce(json_agg(json_build_object('name', name, 'role', role) order by joined_at), '[]'::json)
+  select coalesce(json_agg(json_build_object('name', name, 'role', role, 'slot', slot)
+                           order by joined_at), '[]'::json)
     into v_list
     from public.cc_players where round = v_round;
 
@@ -78,6 +84,7 @@ declare
   v_code  text;
   v_name  text;
   v_role  text;
+  v_slot  int;
   v_taken int;
   v_exist public.cc_players;
 begin
@@ -88,9 +95,7 @@ begin
   if v_name = '' then
     return json_build_object('ok', false, 'error', 'no_name');
   end if;
-  if length(v_name) > 12 then
-    v_name := left(v_name, 12);
-  end if;
+  v_name := left(v_name, 12);
 
   /* 같은 기기가 이번 회차에 이미 들어와 있으면 자리를 새로 쓰지 않습니다 (새로고침 대응) */
   select * into v_exist
@@ -103,17 +108,27 @@ begin
     update public.cc_players set name = v_name where id = v_exist.id;
     select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
     return json_build_object('ok', true, 'rejoined', true, 'name', v_name, 'role', v_exist.role,
-                             'round', v_round, 'capacity', v_cap, 'taken', v_taken);
+                             'slot', v_exist.slot, 'round', v_round, 'capacity', v_cap, 'taken', v_taken);
   end if;
 
-  /* 호스트 코드가 맞으면 정원과 무관하게 입장 */
+  /* 호스트 코드가 맞으면 정원과 무관하게 입장 (슬롯 0 = 왕관 캐릭터) */
   if p_host_code is not null and btrim(p_host_code) = v_code then
     v_role := 'host';
+    v_slot := 0;
   else
     v_role := 'guest';
     select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
     if v_taken >= v_cap then
       return json_build_object('ok', false, 'error', 'full', 'taken', v_taken,
+                               'capacity', v_cap, 'round', v_round);
+    end if;
+    /* 비어 있는 가장 작은 슬롯을 줍니다 (1 ~ capacity) */
+    select min(s) into v_slot
+      from generate_series(1, v_cap) as s
+     where not exists (select 1 from public.cc_players
+                        where round = v_round and role = 'guest' and slot = s);
+    if v_slot is null then
+      return json_build_object('ok', false, 'error', 'full', 'taken', v_cap,
                                'capacity', v_cap, 'round', v_round);
     end if;
   end if;
@@ -122,17 +137,18 @@ begin
     return json_build_object('ok', false, 'error', 'name_taken');
   end if;
 
-  insert into public.cc_players (round, device, name, role)
-    values (v_round, p_device, v_name, v_role);
+  insert into public.cc_players (round, device, name, role, slot)
+    values (v_round, p_device, v_name, v_role, v_slot);
 
   select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
-  return json_build_object('ok', true, 'name', v_name, 'role', v_role,
+  return json_build_object('ok', true, 'name', v_name, 'role', v_role, 'slot', v_slot,
                            'round', v_round, 'capacity', v_cap, 'taken', v_taken);
 end;
 $$;
 
-/* ---------- 새 테스트 회차 시작 (호스트만) ---------- */
-create or replace function public.cc_new_round(p_host_code text)
+/* ---------- 회차 지정 / 리셋 (호스트만) ----------
+   p_round 를 주면 그 번호로, 안 주면 현재 회차 + 1 로 갑니다.        */
+create or replace function public.cc_new_round(p_host_code text, p_round int default null)
 returns json
 language plpgsql
 security definer
@@ -147,9 +163,17 @@ begin
   if p_host_code is null or btrim(p_host_code) <> v_code then
     return json_build_object('ok', false, 'error', 'bad_code');
   end if;
+  if p_round is not null and (p_round < 1 or p_round > 9999) then
+    return json_build_object('ok', false, 'error', 'bad_round');
+  end if;
 
-  update public.cc_config set current_round = current_round + 1 where id = 1
-    returning current_round into v_round;
+  update public.cc_config
+     set current_round = coalesce(p_round, current_round + 1)
+   where id = 1
+  returning current_round into v_round;
+
+  /* 그 회차에 남아 있던 기록은 지우고 새로 시작합니다 */
+  delete from public.cc_players where round = v_round;
 
   return json_build_object('ok', true, 'round', v_round, 'capacity', v_cap,
                            'taken', 0, 'players', '[]'::json);
@@ -157,12 +181,15 @@ end;
 $$;
 
 /* ---------- 실행 권한 ---------- */
-revoke all on function public.cc_status()                       from public;
-revoke all on function public.cc_join(text, text, text)         from public;
-revoke all on function public.cc_new_round(text)                from public;
-grant execute on function public.cc_status()                    to anon, authenticated;
-grant execute on function public.cc_join(text, text, text)       to anon, authenticated;
-grant execute on function public.cc_new_round(text)              to anon, authenticated;
+revoke all on function public.cc_status()                from public;
+revoke all on function public.cc_join(text, text, text)   from public;
+revoke all on function public.cc_new_round(text, int)     from public;
+grant execute on function public.cc_status()              to anon, authenticated;
+grant execute on function public.cc_join(text, text, text) to anon, authenticated;
+grant execute on function public.cc_new_round(text, int)   to anon, authenticated;
+
+/* 예전 1인자 버전이 남아 있으면 정리 */
+drop function if exists public.cc_new_round(text);
 
 /* ===========================================================
    호스트 코드를 바꾸려면:
