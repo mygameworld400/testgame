@@ -653,7 +653,8 @@ function Town({ me, setMe, onKick }) {
         else if (nearRef.current) openBuilding(nearRef.current);
         return;
       }
-      if (k === "enter") {
+      if (k === "enter" || k === "c" || k === "ㅊ") {
+        e.preventDefault();
         chatBox.current?.focus();
         return;
       }
@@ -1132,7 +1133,7 @@ function Town({ me, setMe, onKick }) {
       )}
 
       {me.role === "solo" ? (
-        <div className="ccHelp">방향키 · WASD 이동 / 건물 앞에서 SPACE</div>
+        <div className="ccHelp">방향키 · WASD 이동 / SPACE 상호작용 / C 채팅</div>
       ) : (
         <>
         {logOpen && (
@@ -1179,7 +1180,7 @@ function Town({ me, setMe, onKick }) {
             className="ccChatInput"
             value={chatText}
             maxLength={60}
-            placeholder="Enter 를 눌러 채팅…"
+            placeholder="C 를 눌러 채팅…"
             onChange={(e) => setChatText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Escape") e.currentTarget.blur();
