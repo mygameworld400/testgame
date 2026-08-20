@@ -1569,14 +1569,20 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccMini:active{transform:translate(2px,2px);box-shadow:0 0 0}
 .ccDanger{background:#ffe0e0}
 .ccMiniBtn{font-size:12px;padding:9px 14px}
-.ccPacks{display:flex;flex-direction:column;gap:8px;margin:10px 0}
-.ccPack{display:flex;align-items:center;gap:12px;border:3px solid ${C.line};
-  background:#fff;font-family:inherit;font-weight:800;font-size:14px;color:${C.ink};padding:11px 15px;
-  cursor:pointer;box-shadow:3px 3px 0 rgba(91,74,99,.2);text-align:left}
-.ccPack .ccPackName{flex:1}
-.ccBundle{flex:none}
-.ccPack:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(91,74,99,.2)}
-.ccPackN{font-size:11px;color:${C.inkSoft}}
+.ccPacks{display:grid;grid-template-columns:repeat(auto-fit,minmax(116px,1fr));gap:22px 12px;margin:22px 2px 10px}
+.ccPack{position:relative;border:4px solid ${C.line};font-family:inherit;color:${C.ink};
+  padding:26px 12px 20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;
+  border-radius:46% 46% 44% 44% / 54% 54% 46% 46%;
+  box-shadow:4px 5px 0 rgba(91,74,99,.28);
+  background-image:
+    radial-gradient(circle at 24% 66%, rgba(255,255,255,.9) 0 4px, transparent 4px),
+    radial-gradient(circle at 72% 74%, rgba(255,255,255,.9) 0 5px, transparent 5px),
+    radial-gradient(circle at 78% 44%, rgba(255,255,255,.85) 0 3px, transparent 3px)}
+.ccPack:active{transform:translate(2px,3px);box-shadow:2px 2px 0 rgba(91,74,99,.28)}
+.ccKnot{position:absolute;top:-15px;left:50%;transform:translateX(-50%);overflow:visible}
+.ccPackName{font-weight:900;font-size:14px;line-height:1.25;text-align:center;word-break:keep-all;
+  text-shadow:1px 1px 0 rgba(255,255,255,.6)}
+.ccPackN{font-size:11px;font-weight:800;color:rgba(91,74,99,.75)}
 .ccPackBar{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px}
 .ccQuizImg{position:relative;border:4px solid ${C.line};background:#f4eef6;margin-bottom:10px}
 .ccQuizImg img{display:block;width:100%;max-height:38vh;object-fit:contain}

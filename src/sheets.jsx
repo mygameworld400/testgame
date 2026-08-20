@@ -17,21 +17,17 @@ const msgOf = (r) => ERR[r?.error] || ERR.server_error;
 
 const PACK_COLORS = ["#ff9ec4", "#8fe3c9", "#ffd45e", "#b6a6f0", "#7fc8f5"];
 
-/* 보따리 — 매듭 묶인 천 주머니 */
-function Bundle({ color }) {
+/* 보따리 매듭 — 주머니(아래 CSS 도형) 위에 얹습니다 */
+function Knot({ color }) {
   return (
-    <svg className="ccBundle" viewBox="0 0 44 44" width="40" height="40">
-      {/* 매듭 */}
-      <path d="M17,12 l-6,-7 8,3 3,-4 3,4 8,-3 -6,7 z" fill={color} stroke="#5b4a63" strokeWidth="2.5" strokeLinejoin="round" />
-      {/* 주머니 */}
-      <path d="M22,12 c11,0 17,9 17,17 c0,7 -8,11 -17,11 c-9,0 -17,-4 -17,-11 c0,-8 6,-17 17,-17 z"
-        fill={color} stroke="#5b4a63" strokeWidth="2.5" strokeLinejoin="round" />
-      {/* 무늬 */}
-      <circle cx="14" cy="26" r="2.6" fill="#fff" opacity="0.85" />
-      <circle cx="24" cy="31" r="3" fill="#fff" opacity="0.85" />
-      <circle cx="32" cy="24" r="2.2" fill="#fff" opacity="0.85" />
-      {/* 묶인 선 */}
-      <path d="M11,17 c7,4 15,4 22,0" stroke="#5b4a63" strokeWidth="2.5" fill="none" />
+    <svg className="ccKnot" viewBox="0 0 46 22" width="46" height="22">
+      <path
+        d="M23,20 l-9,-11 6,2 3,-8 3,8 6,-2 -9,11 z"
+        fill={color}
+        stroke="#5b4a63"
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -175,13 +171,21 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
             </p>
           )}
           <div className="ccPacks">
-            {(packs || []).map((p, n) => (
-              <button key={p.pack} className="ccPack" onClick={() => startPack(p.pack)}>
-                <Bundle color={PACK_COLORS[n % PACK_COLORS.length]} />
-                <span className="ccPackName">{p.pack} 퀴즈</span>
-                <span className="ccPackN">{p.n}문제</span>
-              </button>
-            ))}
+            {(packs || []).map((p, n) => {
+              const col = PACK_COLORS[n % PACK_COLORS.length];
+              return (
+                <button
+                  key={p.pack}
+                  className="ccPack"
+                  style={{ background: col }}
+                  onClick={() => startPack(p.pack)}
+                >
+                  <Knot color={col} />
+                  <span className="ccPackName">{p.pack} 퀴즈</span>
+                  <span className="ccPackN">{p.n}문제</span>
+                </button>
+              );
+            })}
           </div>
         </>
       )}
