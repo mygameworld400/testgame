@@ -1,36 +1,175 @@
 -- ===========================================================
--- 구름사탕 마을 — Supabase 스키마
+-- 구름사탕 마을 — 테스트 입장 관리 스키마
 -- 대시보드 → SQL Editor 에 통째로 붙여넣고 Run 하세요.
--- 여러 번 실행해도 안전합니다.
+-- 여러 번 실행해도 안전합니다. (게임 진행 저장은 아직 없습니다)
+--
+--  · 회차(round)마다 게스트 5명까지만 입장
+--  · 호스트(나)는 정원에 포함되지 않음
+--  · 호스트가 "새 테스트 시작"을 누르면 회차가 올라가고 자리가 초기화됨
 -- ===========================================================
 
-create table if not exists public.cc_saves (
-  user_id    uuid primary key references auth.users (id) on delete cascade,
-  nickname   text,
-  data       jsonb       not null default '{}'::jsonb,
-  updated_at timestamptz not null default now()
+/* ---------- 설정 (한 줄짜리 테이블) ---------- */
+create table if not exists public.cc_config (
+  id            int  primary key default 1,
+  host_code     text not null default 'cloudhost1234',  -- 호스트 입장용 코드
+  capacity      int  not null default 5,                -- 회차당 게스트 정원
+  current_round int  not null default 1,
+  constraint cc_config_one_row check (id = 1)
 );
+insert into public.cc_config (id) values (1) on conflict (id) do nothing;
 
--- RLS: 켜두지 않으면 누구나 남의 세이브를 읽고 지울 수 있습니다. 반드시 켜세요.
-alter table public.cc_saves enable row level security;
+/* ---------- 참가자 ---------- */
+create table if not exists public.cc_players (
+  id        bigserial primary key,
+  round     int  not null,
+  device    text not null,
+  name      text not null,
+  role      text not null default 'guest',   -- 'guest' | 'host'
+  joined_at timestamptz not null default now(),
+  unique (round, device)
+);
+create index if not exists cc_players_round_idx on public.cc_players (round);
 
-drop policy if exists "본인 세이브 읽기" on public.cc_saves;
-create policy "본인 세이브 읽기"
-  on public.cc_saves for select
-  using (auth.uid() = user_id);
+/* ---------- RLS: 테이블 직접 접근은 전면 차단 ----------
+   정책을 하나도 만들지 않으면 anon 키로는 아무것도 읽고 쓸 수 없습니다.
+   아래 security definer 함수를 통해서만 접근하게 됩니다.            */
+alter table public.cc_config  enable row level security;
+alter table public.cc_players enable row level security;
 
-drop policy if exists "본인 세이브 만들기" on public.cc_saves;
-create policy "본인 세이브 만들기"
-  on public.cc_saves for insert
-  with check (auth.uid() = user_id);
+/* ---------- 현재 상태 ---------- */
+create or replace function public.cc_status()
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_round int;
+  v_cap   int;
+  v_taken int;
+  v_list  json;
+begin
+  select current_round, capacity into v_round, v_cap from public.cc_config where id = 1;
 
-drop policy if exists "본인 세이브 고치기" on public.cc_saves;
-create policy "본인 세이브 고치기"
-  on public.cc_saves for update
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  select count(*) into v_taken
+    from public.cc_players where round = v_round and role = 'guest';
 
-drop policy if exists "본인 세이브 지우기" on public.cc_saves;
-create policy "본인 세이브 지우기"
-  on public.cc_saves for delete
-  using (auth.uid() = user_id);
+  select coalesce(json_agg(json_build_object('name', name, 'role', role) order by joined_at), '[]'::json)
+    into v_list
+    from public.cc_players where round = v_round;
+
+  return json_build_object(
+    'ok', true, 'round', v_round, 'capacity', v_cap,
+    'taken', v_taken, 'full', v_taken >= v_cap, 'players', v_list
+  );
+end;
+$$;
+
+/* ---------- 입장 ---------- */
+create or replace function public.cc_join(p_device text, p_name text, p_host_code text default null)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_round int;
+  v_cap   int;
+  v_code  text;
+  v_name  text;
+  v_role  text;
+  v_taken int;
+  v_exist public.cc_players;
+begin
+  select current_round, capacity, host_code into v_round, v_cap, v_code
+    from public.cc_config where id = 1;
+
+  v_name := btrim(coalesce(p_name, ''));
+  if v_name = '' then
+    return json_build_object('ok', false, 'error', 'no_name');
+  end if;
+  if length(v_name) > 12 then
+    v_name := left(v_name, 12);
+  end if;
+
+  /* 같은 기기가 이번 회차에 이미 들어와 있으면 자리를 새로 쓰지 않습니다 (새로고침 대응) */
+  select * into v_exist
+    from public.cc_players where round = v_round and device = p_device;
+  if found then
+    if exists (select 1 from public.cc_players
+                where round = v_round and lower(name) = lower(v_name) and id <> v_exist.id) then
+      return json_build_object('ok', false, 'error', 'name_taken');
+    end if;
+    update public.cc_players set name = v_name where id = v_exist.id;
+    select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
+    return json_build_object('ok', true, 'rejoined', true, 'name', v_name, 'role', v_exist.role,
+                             'round', v_round, 'capacity', v_cap, 'taken', v_taken);
+  end if;
+
+  /* 호스트 코드가 맞으면 정원과 무관하게 입장 */
+  if p_host_code is not null and btrim(p_host_code) = v_code then
+    v_role := 'host';
+  else
+    v_role := 'guest';
+    select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
+    if v_taken >= v_cap then
+      return json_build_object('ok', false, 'error', 'full', 'taken', v_taken,
+                               'capacity', v_cap, 'round', v_round);
+    end if;
+  end if;
+
+  if exists (select 1 from public.cc_players where round = v_round and lower(name) = lower(v_name)) then
+    return json_build_object('ok', false, 'error', 'name_taken');
+  end if;
+
+  insert into public.cc_players (round, device, name, role)
+    values (v_round, p_device, v_name, v_role);
+
+  select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
+  return json_build_object('ok', true, 'name', v_name, 'role', v_role,
+                           'round', v_round, 'capacity', v_cap, 'taken', v_taken);
+end;
+$$;
+
+/* ---------- 새 테스트 회차 시작 (호스트만) ---------- */
+create or replace function public.cc_new_round(p_host_code text)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code  text;
+  v_round int;
+  v_cap   int;
+begin
+  select host_code, capacity into v_code, v_cap from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+
+  update public.cc_config set current_round = current_round + 1 where id = 1
+    returning current_round into v_round;
+
+  return json_build_object('ok', true, 'round', v_round, 'capacity', v_cap,
+                           'taken', 0, 'players', '[]'::json);
+end;
+$$;
+
+/* ---------- 실행 권한 ---------- */
+revoke all on function public.cc_status()                       from public;
+revoke all on function public.cc_join(text, text, text)         from public;
+revoke all on function public.cc_new_round(text)                from public;
+grant execute on function public.cc_status()                    to anon, authenticated;
+grant execute on function public.cc_join(text, text, text)       to anon, authenticated;
+grant execute on function public.cc_new_round(text)              to anon, authenticated;
+
+/* ===========================================================
+   호스트 코드를 바꾸려면:
+     update public.cc_config set host_code = '새코드' where id = 1;
+   정원을 바꾸려면:
+     update public.cc_config set capacity = 8 where id = 1;
+   지금 회차 참가자 보기:
+     select * from public.cc_players
+      where round = (select current_round from public.cc_config) order by joined_at;
+   =========================================================== */

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { hasCloud, initCloud, loadCloud, loadLocal, saveCloud, saveLocal } from "./save.js";
+import { fetchStatus, hasServer, joinRoom, rememberHostCode, savedHostCode, startNewRound } from "./room.js";
 
 /* ===========================================================
    구름사탕 마을 — 구름 위에 떠 있는 파스텔 사탕 마을
@@ -152,10 +152,14 @@ const TREES = [
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
-const SAVE_TEXT = {
-  off: "이 기기에만 저장",
-  local: "이 기기에만 저장",
-  cloud: "서버까지 저장",
+const JOIN_ERROR = {
+  no_name: "이름을 적어주세요.",
+  name_taken: "이미 같은 이름이 있어요. 다른 이름으로 해주세요.",
+  full: "이번 테스트 정원이 찼어요. 다음 회차를 기다려주세요.",
+  no_server: "서버 설정(.env)이 없어요. 혼자 둘러보기로 들어갑니다.",
+  no_schema: "서버에 입장 관리 함수가 아직 없어요. supabase/schema.sql 을 먼저 실행해주세요.",
+  server_error: "서버와 통신하지 못했어요. 잠시 뒤 다시 시도해주세요.",
+  bad_code: "호스트 코드가 맞지 않아요.",
 };
 
 /* 건물의 발치 충돌 박스 */
@@ -515,9 +519,154 @@ function LollipopTree({ x, y, color, delay }) {
   );
 }
 
+/* ============================ 입장 화면 ============================ */
+
+function JoinGate({ onJoined }) {
+  const [name, setName] = useState("");
+  const [code, setCode] = useState(savedHostCode());
+  const [showCode, setShowCode] = useState(!!savedHostCode());
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [solo, setSolo] = useState(false);
+
+  /* 남은 자리 표시 — 5초마다 갱신 */
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      const s = await fetchStatus();
+      if (alive) setStatus(s);
+    };
+    tick();
+    const iv = setInterval(tick, 5000);
+    return () => {
+      alive = false;
+      clearInterval(iv);
+    };
+  }, []);
+
+  const submit = async (e) => {
+    e?.preventDefault();
+    if (busy) return;
+    setErr("");
+
+    if (!hasServer) {
+      onJoined({ name: name.trim() || "손님", role: "solo" });
+      return;
+    }
+    if (!name.trim()) {
+      setErr(JOIN_ERROR.no_name);
+      return;
+    }
+    setBusy(true);
+    const r = await joinRoom(name.trim(), showCode ? code.trim() : "");
+    setBusy(false);
+
+    if (!r?.ok) {
+      setErr(JOIN_ERROR[r?.error] || JOIN_ERROR.server_error);
+      /* 서버 준비가 안 된 경우엔 혼자 둘러보기를 제안합니다 */
+      setSolo(r?.error === "no_schema" || r?.error === "no_server" || r?.error === "server_error");
+      if (r?.taken != null) setStatus((s) => ({ ...(s || {}), ...r, ok: true }));
+      return;
+    }
+    if (r.role === "host") rememberHostCode(code.trim());
+    onJoined({ name: r.name, role: r.role, round: r.round, hostCode: code.trim() });
+  };
+
+  const taken = status?.taken ?? 0;
+  const cap = status?.capacity ?? 5;
+  const full = status?.ok && status.full;
+  const seats = Array.from({ length: cap });
+
+  return (
+    <div className="ccGate">
+      <div className="ccGateSky" />
+      <form className="ccGateCard" onSubmit={submit}>
+        <div className="ccGateEmoji">☁️🍭</div>
+        <h1 className="ccGateTitle">구름사탕 마을</h1>
+        <p className="ccGateSub">
+          {hasServer ? `테스트 ${status?.round ?? "-"}회차` : "서버 없이 둘러보기"}
+        </p>
+
+        {hasServer && (
+          <>
+            <div className="ccSeats">
+              {seats.map((_, i) => (
+                <span key={i} className={"ccSeat" + (i < taken ? " ccSeatOn" : "")}>
+                  {i < taken ? "🧒" : "🪑"}
+                </span>
+              ))}
+            </div>
+            <div className={"ccSeatCount" + (full ? " ccSeatFull" : "")}>
+              {full ? "정원 마감 — 5 / 5" : `${taken} / ${cap} 명 입장했어요`}
+            </div>
+          </>
+        )}
+
+        <input
+          className="ccInput"
+          value={name}
+          maxLength={12}
+          placeholder="이름을 정해주세요"
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
+
+        {showCode ? (
+          <input
+            className="ccInput ccInputCode"
+            value={code}
+            placeholder="호스트 코드"
+            onChange={(e) => setCode(e.target.value)}
+          />
+        ) : (
+          <button type="button" className="ccLinkBtn" onClick={() => setShowCode(true)}>
+            호스트로 입장하기
+          </button>
+        )}
+
+        {err && <div className="ccErr">{err}</div>}
+
+        <button className="ccBtn ccGateBtn" type="submit" disabled={busy || (full && !showCode)}>
+          {busy ? "입장하는 중…" : full && !showCode ? "정원이 찼어요" : "마을로 들어가기"}
+        </button>
+
+        {solo && (
+          <button
+            type="button"
+            className="ccLinkBtn ccSoloBtn"
+            onClick={() => onJoined({ name: name.trim() || "손님", role: "solo" })}
+          >
+            서버 없이 혼자 둘러보기 →
+          </button>
+        )}
+
+        {hasServer && (
+          <p className="ccGateNote">
+            이번 테스트는 선착순 {cap}명까지 들어올 수 있어요. 진행 상황은 저장되지 않습니다.
+          </p>
+        )}
+      </form>
+    </div>
+  );
+}
+
 /* ============================ 메인 ============================ */
 
 export default function CloudCandyTown() {
+  const [me, setMe] = useState(null);
+  if (!me) {
+    return (
+      <>
+        <style>{CSS}</style>
+        <JoinGate onJoined={setMe} />
+      </>
+    );
+  }
+  return <Town me={me} />;
+}
+
+function Town({ me }) {
   const [pos, setPos] = useState({ x: 850, y: 640 });
   const [facing, setFacing] = useState(1);
   const [moving, setMoving] = useState(false);
@@ -528,8 +677,9 @@ export default function CloudCandyTown() {
   const [line, setLine] = useState("");
   const [stars, setStars] = useState(() => STAR_SPOTS.map(() => false));
   const [toast, setToast] = useState("");
-  /* "off" 서버 없음 · "local" 이 기기에만 · "cloud" 서버까지 저장됨 */
-  const [saveState, setSaveState] = useState(hasCloud ? "local" : "off");
+  const [room, setRoom] = useState(null);
+  const [panel, setPanel] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const posRef = useRef(pos);
   const camRef = useRef({ x: 0, y: 0 });
@@ -686,91 +836,38 @@ export default function CloudCandyTown() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  /* ---------- 세이브 불러오기 ---------- */
+  /* 참가자 현황 — 5초마다 갱신 */
   useEffect(() => {
+    if (!hasServer || me.role === "solo") return undefined;
     let alive = true;
-    const apply = (d) => {
-      if (!alive || !d) return;
-      if (Array.isArray(d.stars) && d.stars.length === STAR_SPOTS.length) {
-        starsRef.current = d.stars;
-        setStars(d.stars);
-      }
-      if (d.pos && Number.isFinite(d.pos.x) && Number.isFinite(d.pos.y)) {
-        const p = {
-          x: clamp(d.pos.x, PLAY.x0, PLAY.x1),
-          y: clamp(d.pos.y, PLAY.y0, PLAY.y1),
-        };
-        posRef.current = p;
-        setPos(p);
-      }
+    const tick = async () => {
+      const s = await fetchStatus();
+      if (!alive) return;
+      setRoom(s?.ok ? s : null);
+      /* 호스트가 새 회차를 열면 이전 참가자는 안내를 받습니다 */
+      if (s?.ok && me.round && s.round !== me.round) setToast("새 테스트 회차가 시작됐어요! 새로고침해서 다시 입장해주세요 🔄");
     };
-
-    /* 1) 이 기기 저장분을 먼저 즉시 복원 */
-    const local = loadLocal();
-    apply(local);
-
-    /* 2) 서버 저장분이 더 최신이면 그걸로 덮어쓰기 */
-    (async () => {
-      if (!hasCloud) return;
-      const id = await initCloud();
-      if (!alive) return;
-      if (!id) {
-        setSaveState("local");
-        return;
-      }
-      const cloud = await loadCloud();
-      if (!alive) return;
-      if (cloud && (!local || (cloud.at || "") > (local.at || ""))) apply(cloud);
-      setSaveState("cloud");
-      bootedRef.current = true;
-    })();
-
+    tick();
+    const iv = setInterval(tick, 5000);
     return () => {
       alive = false;
-    };
-  }, []);
-
-  /* ---------- 세이브 저장 ---------- */
-  const dirty = useRef(false);
-  const bootedRef = useRef(false);
-
-  useEffect(() => {
-    dirty.current = true;
-  }, [stars]);
-
-  useEffect(() => {
-    const flush = async () => {
-      if (!dirty.current) return;
-      dirty.current = false;
-      const snapshot = {
-        stars: starsRef.current,
-        pos: posRef.current,
-        at: new Date().toISOString(),
-      };
-      saveLocal(snapshot);
-      if (!hasCloud || !bootedRef.current) return;
-      const ok = await saveCloud(snapshot);
-      setSaveState(ok ? "cloud" : "local");
-    };
-
-    /* 5초마다, 그리고 창을 닫거나 탭을 벗어날 때 */
-    const iv = setInterval(() => {
-      dirty.current = true; // 위치는 계속 바뀌므로 주기 저장
-      flush();
-    }, 5000);
-    const onHide = () => {
-      dirty.current = true;
-      flush();
-    };
-    window.addEventListener("pagehide", onHide);
-    document.addEventListener("visibilitychange", onHide);
-    return () => {
       clearInterval(iv);
-      window.removeEventListener("pagehide", onHide);
-      document.removeEventListener("visibilitychange", onHide);
-      onHide();
     };
-  }, []);
+  }, [me]);
+
+  /* 새 회차 시작 (호스트 전용) */
+  const doNewRound = useCallback(async () => {
+    if (resetting) return;
+    setResetting(true);
+    const r = await startNewRound(me.hostCode);
+    setResetting(false);
+    if (r?.ok) {
+      setRoom({ ok: true, round: r.round, capacity: r.capacity, taken: 0, players: [] });
+      setToast(`테스트 ${r.round}회차를 시작했어요. 자리 ${r.capacity}개가 비었습니다 ✨`);
+    } else {
+      setToast(JOIN_ERROR[r?.error] || JOIN_ERROR.server_error);
+    }
+  }, [me, resetting]);
 
   /* 토스트 자동 사라짐 */
   useEffect(() => {
@@ -867,15 +964,51 @@ export default function CloudCandyTown() {
         <div className="ccChip">
           ⭐ {collected} / {STAR_SPOTS.length}
         </div>
-        <div className={"ccChip ccSave cc-" + saveState} title={SAVE_TEXT[saveState]}>
-          💾 {SAVE_TEXT[saveState]}
+        <div className="ccChip ccMe">
+          {me.role === "host" ? "👑" : "🧒"} {me.name}
         </div>
+        {room?.ok && (
+          <div className="ccChip ccRoom">
+            테스트 {room.round}회차 · 🧒 {room.taken} / {room.capacity}
+          </div>
+        )}
       </div>
       <div className="ccHelp ccChip">
         방향키 · WASD 로 이동 &nbsp;/&nbsp; 건물 앞에서 <b>Space</b>
       </div>
 
       {toast && <div className="ccToast">{toast}</div>}
+
+      {/* 호스트 전용 — 테스트 관리 */}
+      {me.role === "host" && (
+        <>
+          <button className="ccHostBtn ccChip" onClick={() => setPanel((v) => !v)}>
+            🛠 테스트 관리
+          </button>
+          {panel && (
+            <div className="ccHostPanel">
+              <div className="ccHostTitle">테스트 {room?.round ?? "-"}회차</div>
+              <div className="ccHostCount">
+                🧒 {room?.taken ?? 0} / {room?.capacity ?? 5} 명
+              </div>
+              <ul className="ccHostList">
+                {(room?.players || []).map((p, i) => (
+                  <li key={i}>
+                    {p.role === "host" ? "👑" : "🧒"} {p.name}
+                  </li>
+                ))}
+                {!room?.players?.length && <li className="ccHostEmpty">아직 아무도 안 왔어요</li>}
+              </ul>
+              <button className="ccBtn ccHostReset" onClick={doNewRound} disabled={resetting}>
+                {resetting ? "시작하는 중…" : "새 테스트 시작 (자리 초기화)"}
+              </button>
+              <p className="ccHostNote">
+                누르면 회차가 올라가고 자리 {room?.capacity ?? 5}개가 다시 비어요. 기존 참가자는 새로고침해야 합니다.
+              </p>
+            </div>
+          )}
+        </>
+      )}
 
       {/* 모바일 방향키 */}
       <div className="ccPad">
@@ -951,9 +1084,45 @@ body{font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sa
 .ccChip{background:rgba(255,255,255,.93);border:3px solid #fff;border-radius:999px;padding:8px 16px;font-weight:800;font-size:14px;
   box-shadow:0 6px 18px rgba(107,85,112,.16);color:${C.ink}}
 .ccTitle{background:linear-gradient(135deg,#fff,#ffe9f4)}
-.ccSave{font-size:12px;padding:8px 14px}
-.ccSave.cc-cloud{color:#2e9e78;border-color:#c8f0e0}
-.ccSave.cc-local,.ccSave.cc-off{color:#d08a2a;border-color:#ffe6bd}
+.ccMe{background:linear-gradient(135deg,#fff,#eaf6ff)}
+.ccRoom{font-size:12px;padding:8px 14px;color:${C.inkSoft}}
+
+/* 호스트 패널 */
+.ccHostBtn{position:absolute;right:16px;top:16px;cursor:pointer;font-size:13px;padding:8px 14px}
+.ccHostPanel{position:absolute;right:16px;top:62px;width:238px;background:#fff;border:3px solid #ffd98a;border-radius:22px;
+  padding:16px;box-shadow:0 14px 34px rgba(107,85,112,.22);animation:ccPop .24s cubic-bezier(.34,1.56,.64,1)}
+.ccHostTitle{font-weight:900;font-size:15px}
+.ccHostCount{font-size:13px;font-weight:700;color:${C.inkSoft};margin-top:2px}
+.ccHostList{list-style:none;margin:10px 0;padding:0;max-height:168px;overflow:auto;font-size:13px;font-weight:700;line-height:1.9}
+.ccHostEmpty{color:${C.inkSoft};font-weight:600}
+.ccHostReset{background:#f0b23f;width:100%;font-size:13px;padding:11px 12px}
+.ccHostNote{margin:10px 0 0;font-size:11px;line-height:1.55;color:${C.inkSoft};font-weight:600}
+
+/* 입장 화면 */
+.ccGate{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}
+.ccGateSky{position:absolute;inset:0;background:linear-gradient(180deg,${C.sky1} 0%,${C.sky2} 58%,${C.sky3} 100%)}
+.ccGateCard{position:relative;width:min(360px,92vw);background:#fff;border:4px solid #ffd0e4;border-radius:30px;
+  padding:26px 24px;text-align:center;box-shadow:0 24px 60px rgba(107,85,112,.26)}
+.ccGateEmoji{font-size:42px;animation:ccBob 2s ease-in-out infinite}
+.ccGateTitle{margin:6px 0 2px;font-size:24px;font-weight:900;color:${C.ink}}
+.ccGateSub{margin:0 0 14px;font-size:13px;font-weight:700;color:${C.inkSoft}}
+.ccSeats{display:flex;justify-content:center;gap:6px;font-size:22px}
+.ccSeat{opacity:.35;transition:opacity .2s ease}
+.ccSeatOn{opacity:1}
+.ccSeatCount{margin:6px 0 14px;font-size:13px;font-weight:800;color:#2e9e78}
+.ccSeatFull{color:#e0685f}
+.ccInput{width:100%;border:3px solid #ffe1ef;border-radius:16px;padding:13px 16px;font-size:15px;font-weight:700;
+  color:${C.ink};outline:none;text-align:center;font-family:inherit}
+.ccInput:focus{border-color:#ffb3cf}
+.ccInputCode{margin-top:8px;font-size:13px;border-color:#ffe6bd}
+.ccLinkBtn{margin-top:10px;background:none;border:none;font-size:12px;font-weight:700;color:${C.inkSoft};
+  text-decoration:underline;cursor:pointer;font-family:inherit}
+.ccErr{margin-top:12px;background:#fff2f2;border:2px solid #ffd3d3;border-radius:14px;padding:9px 12px;
+  font-size:12.5px;font-weight:700;line-height:1.5;color:#d1554c}
+.ccSoloBtn{display:block;margin:12px auto 0}
+.ccGateBtn{width:100%;margin-top:14px;background:#ff7fb0}
+.ccGateBtn:disabled{background:#e6dbe6;cursor:not-allowed;transform:none}
+.ccGateNote{margin:12px 0 0;font-size:11.5px;line-height:1.6;color:${C.inkSoft};font-weight:600}
 .ccHelp{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);font-size:13px;font-weight:700;color:${C.inkSoft};white-space:nowrap}
 .ccHelp b{color:${C.ink}}
 .ccToast{position:absolute;left:50%;top:78px;transform:translateX(-50%);background:#fff;border:3px solid #ffd98a;border-radius:999px;
