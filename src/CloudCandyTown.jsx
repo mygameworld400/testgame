@@ -180,7 +180,64 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg }) {
   );
 }
 
+
+/* ============================ 조이스틱 ============================ */
+
+const STICK_R = 44;     // 손잡이가 움직일 수 있는 반경
+const DEADZONE = 0.18;
+
+function Stick({ onMove }) {
+  const base = useRef(null);
+  const ptr = useRef(null);
+  const [knob, setKnob] = useState({ x: 0, y: 0 });
+
+  const apply = (e) => {
+    const r = base.current?.getBoundingClientRect();
+    if (!r) return;
+    let dx = e.clientX - (r.left + r.width / 2);
+    let dy = e.clientY - (r.top + r.height / 2);
+    const d = Math.hypot(dx, dy) || 1;
+    const cap = Math.min(1, d / STICK_R);
+    dx = (dx / d) * STICK_R * cap;
+    dy = (dy / d) * STICK_R * cap;
+    setKnob({ x: dx, y: dy });
+    const nx = dx / STICK_R;
+    const ny = dy / STICK_R;
+    onMove(Math.hypot(nx, ny) < DEADZONE ? { x: 0, y: 0 } : { x: nx, y: ny });
+  };
+
+  const start = (e) => {
+    ptr.current = e.pointerId;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    apply(e);
+  };
+  const move = (e) => {
+    if (ptr.current !== e.pointerId) return;
+    apply(e);
+  };
+  const end = (e) => {
+    if (ptr.current !== e.pointerId) return;
+    ptr.current = null;
+    setKnob({ x: 0, y: 0 });
+    onMove({ x: 0, y: 0 });
+  };
+
+  return (
+    <div
+      className="ccStick"
+      ref={base}
+      onPointerDown={start}
+      onPointerMove={move}
+      onPointerUp={end}
+      onPointerCancel={end}
+    >
+      <div className="ccStickKnob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
+    </div>
+  );
+}
+
 /* ============================ 바닥 ============================ */
+
 
 function Ground() {
   const grass = useMemo(() => grassTile(C.grass, C.grassDark, C.grassLight), []);
@@ -359,6 +416,7 @@ function Town({ me }) {
   const [moving, setMoving] = useState(false);
   const [cam, setCam] = useState({ x: 0, y: 0 });
   const [view, setView] = useState({ w: 1000, h: 700 });
+  const [zoom, setZoom] = useState(1);
   const [nearId, setNearId] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [line, setLine] = useState("");
@@ -382,11 +440,12 @@ function Town({ me }) {
   const starsRef = useRef(stars);
   const viewRef = useRef(view);
   const chanRef = useRef(null);
+  const stick = useRef({ x: 0, y: 0 });
   const chatBox = useRef(null);
   const myMsgTimer = useRef(null);
 
   useEffect(() => { openRef.current = openId; }, [openId]);
-  useEffect(() => { viewRef.current = view; }, [view]);
+  useEffect(() => { viewRef.current = { ...view, z: zoom }; }, [view, zoom]);
   useEffect(() => { starsRef.current = stars; }, [stars]);
 
   const collected = stars.filter(Boolean).length;
@@ -401,7 +460,13 @@ function Town({ me }) {
 
   /* 화면 크기 */
   useEffect(() => {
-    const onResize = () => setView({ w: window.innerWidth, h: window.innerHeight });
+    const onResize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      setView({ w, h });
+      /* 폰 가로화면처럼 낮은 화면에서는 살짝 줌아웃해서 시야를 확보합니다 */
+      setZoom(clamp(Math.min(h / 720, w / 1100), 0.55, 1));
+    };
     onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -459,12 +524,14 @@ function Town({ me }) {
       if (k.arrowright || k.d) dx += 1;
       if (k.arrowup || k.w) dy -= 1;
       if (k.arrowdown || k.s) dy += 1;
+      const st = stick.current;
+      if (st.x || st.y) { dx = st.x; dy = st.y; }
       if (openRef.current) { dx = 0; dy = 0; }
 
       const isMoving = dx !== 0 || dy !== 0;
       if (isMoving) {
         const len = Math.hypot(dx, dy) || 1;
-        const sp = 3.4 * dt;
+        const sp = 3.4 * dt * Math.min(1, len);
         let { x, y } = posRef.current;
         const nx = clamp(x + (dx / len) * sp, PLAY.x0, PLAY.x1);
         if (!hit(nx, y)) x = nx;
@@ -507,8 +574,11 @@ function Town({ me }) {
       }
 
       const v = viewRef.current;
-      const tx = clamp(p.x - v.w / 2, 0, Math.max(0, WORLD.w - v.w));
-      const ty = clamp(p.y - v.h / 2 - 40, 0, Math.max(0, WORLD.h - v.h));
+      const z = v.z || 1;
+      const vw = v.w / z;
+      const vh = v.h / z;
+      const tx = clamp(p.x - vw / 2, 0, Math.max(0, WORLD.w - vw));
+      const ty = clamp(p.y - vh / 2 - 40 / z, 0, Math.max(0, WORLD.h - vh));
       const c = camRef.current;
       const nc = { x: c.x + (tx - c.x) * 0.14, y: c.y + (ty - c.y) * 0.14 };
       camRef.current = nc;
@@ -592,7 +662,6 @@ function Town({ me }) {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const hold = (key, on) => () => { keys.current[key] = on; };
   const open = openId ? BUILDINGS.find((b) => b.id === openId) : null;
   const ordered = useMemo(() => [...BUILDINGS].sort((a, b) => a.y - b.y), []);
   const roundNo = room?.round ?? me.round;
@@ -602,7 +671,10 @@ function Town({ me }) {
       <style>{CSS}</style>
       <div className="ccSky" />
 
-      <div className="ccClouds" style={{ transform: `translate3d(${-cam.x * 0.35}px, ${-cam.y * 0.35}px, 0)` }}>
+      <div
+        className="ccClouds"
+        style={{ transform: `scale(${zoom}) translate3d(${-cam.x * 0.35}px, ${-cam.y * 0.35}px, 0)` }}
+      >
         {CLOUDS.map(([x, y, s], i) => (
           <div key={i} className="ccCloud" style={{ left: x, top: y, animationDelay: `${i * 1.3}s` }}>
             <Pix map={DECO.cloud.map} palette={DECO.cloud.palette} scale={s} cacheKey="cloud" />
@@ -612,7 +684,11 @@ function Town({ me }) {
 
       <div
         className="ccWorld"
-        style={{ width: WORLD.w, height: WORLD.h, transform: `translate3d(${-cam.x}px, ${-cam.y}px, 0)` }}
+        style={{
+          width: WORLD.w,
+          height: WORLD.h,
+          transform: `scale(${zoom}) translate3d(${-cam.x}px, ${-cam.y}px, 0)`,
+        }}
       >
         <Ground />
 
@@ -729,12 +805,33 @@ function Town({ me }) {
         </>
       )}
 
-      <div className="ccPad">
-        <button className="ccPadBtn ccUp" onPointerDown={hold("arrowup", true)} onPointerUp={hold("arrowup", false)} onPointerLeave={hold("arrowup", false)}>▲</button>
-        <button className="ccPadBtn ccLeft" onPointerDown={hold("arrowleft", true)} onPointerUp={hold("arrowleft", false)} onPointerLeave={hold("arrowleft", false)}>◀</button>
-        <button className="ccPadBtn ccRight" onPointerDown={hold("arrowright", true)} onPointerUp={hold("arrowright", false)} onPointerLeave={hold("arrowright", false)}>▶</button>
-        <button className="ccPadBtn ccDown" onPointerDown={hold("arrowdown", true)} onPointerUp={hold("arrowdown", false)} onPointerLeave={hold("arrowdown", false)}>▼</button>
+      {/* 모바일 조작 — 왼쪽 조이스틱, 오른쪽 액션 */}
+      <div className="ccTouch">
+        <Stick onMove={(v) => { stick.current = v; }} />
+        <div className="ccActs">
+          <button
+            className="ccAct ccActMain"
+            onPointerDown={() => {
+              if (openId) setOpenId(null);
+              else if (nearRef.current) openBuilding(nearRef.current);
+            }}
+          >
+            {openId ? "닫기" : "들어가기"}
+          </button>
+          {me.role !== "solo" && (
+            <button className="ccAct" onPointerDown={() => chatBox.current?.focus()}>
+              💬
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* 세로로 들고 있으면 가로 안내 */}
+      <div className="ccRotate">
+        <div className="ccRotateIcon">📱</div>
+        <div className="ccRotateText">가로로 돌려주세요</div>
+      </div>
+
 
       {open && (
         <div className="ccModalWrap" onClick={() => setOpenId(null)}>
@@ -843,12 +940,37 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccHostReset{width:100%;margin-top:6px;font-size:11px;padding:8px;background:#fff;color:${C.ink}}
 .ccHostNote{margin:9px 0 0;font-size:10.5px;line-height:1.6;color:${C.inkSoft};font-weight:700}
 
-.ccPad{position:absolute;right:16px;bottom:16px;width:150px;height:150px;display:none}
-.ccPadBtn{position:absolute;width:46px;height:46px;border:3px solid ${C.line};background:#fff;
-  font-size:14px;color:${C.ink};box-shadow:3px 3px 0 rgba(91,74,99,.25);touch-action:none;font-family:inherit}
-.ccPadBtn:active{background:#ffe9a8;transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(91,74,99,.25)}
-.ccUp{left:52px;top:0}.ccDown{left:52px;bottom:0}.ccLeft{left:0;top:52px}.ccRight{right:0;top:52px}
-@media (hover:none) and (pointer:coarse){.ccPad{display:block}.ccHelp{display:none}
+/* 모바일 조작 */
+.ccTouch{display:none}
+.ccStick{position:absolute;left:20px;bottom:20px;width:124px;height:124px;border-radius:50%;
+  border:4px solid ${C.line};background:rgba(255,255,255,.72);touch-action:none;
+  box-shadow:4px 4px 0 rgba(91,74,99,.25);display:flex;align-items:center;justify-content:center}
+.ccStickKnob{width:52px;height:52px;border-radius:50%;border:4px solid ${C.line};background:#ffd45e;
+  box-shadow:3px 3px 0 rgba(91,74,99,.25);pointer-events:none;transition:transform .04s linear}
+.ccActs{position:absolute;right:20px;bottom:22px;display:flex;align-items:flex-end;gap:10px}
+.ccAct{border:4px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
+  font-size:13px;padding:0 14px;height:56px;min-width:56px;box-shadow:4px 4px 0 rgba(91,74,99,.25);
+  touch-action:none;cursor:pointer}
+.ccAct:active{transform:translate(2px,2px);box-shadow:2px 2px 0 rgba(91,74,99,.25)}
+.ccActMain{background:#ff8fb6;color:#fff;height:64px;min-width:96px;font-size:14px}
+
+/* 세로 화면 안내 */
+.ccRotate{display:none;position:fixed;inset:0;z-index:99;background:${C.sky2};
+  flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
+.ccRotateIcon{font-size:56px;animation:ccRot 1.6s steps(4,end) infinite}
+@keyframes ccRot{0%,45%{transform:rotate(0)}55%,100%{transform:rotate(-90deg)}}
+.ccRotateText{font-size:16px;font-weight:900;color:${C.ink}}
+
+@media (hover:none) and (pointer:coarse){
+  .ccTouch{display:block}
+  .ccHelp{display:none}
+  .ccChatBar{left:150px;transform:none;width:min(300px,44vw);bottom:16px}
+  .ccHud{max-width:44vw}
+  .ccHud .ccChip{font-size:11px;padding:5px 9px}
+}
+@media (hover:none) and (pointer:coarse) and (orientation:portrait){
+  .ccRotate{display:flex}
+}
   .ccChatBar{left:14px;transform:none;width:min(320px,56vw)}}
 
 .ccBtn{border:3px solid ${C.line};background:#ff8fb6;color:#fff;font-weight:700;font-size:13px;
