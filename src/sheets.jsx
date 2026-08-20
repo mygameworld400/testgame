@@ -104,7 +104,7 @@ export function QuizSheet({ hostCode, isHost, onClose }) {
 
       {list === null && <p className="ccSheetEmpty">불러오는 중…</p>}
 
-      {list && songs.length === 0 && !adding && (
+      {list && list.length === 0 && !adding && (
         <p className="ccSheetEmpty">
           아직 문제가 없어요.
           {isHost ? " 아래에서 문제를 만들어보세요." : " 호스트가 문제를 올리면 풀 수 있어요."}

@@ -37,7 +37,7 @@ const C = {
 const PX = 4; // 캐릭터 확대 배율
 
 const BUILDINGS = [
-  { id: "cake", name: "리스닝바", emoji: "🎧", tag: "음악", x: 430, y: 500, scale: 10,
+  { id: "cake", name: "LP바", emoji: "🎧", tag: "음악", x: 430, y: 500, scale: 10,
     lines: [
       "오늘 밤 첫 곡 나갑니다. 헤드폰 하나 골라서 아무 자리나 앉으세요.",
       "신청곡 받아요. 구름 위에서 듣기 좋은 걸로 부탁드려요.",

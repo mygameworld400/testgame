@@ -18,7 +18,7 @@ export function proj(x, y) {
 
 const PLAY = { x0: 90, x1: ROOM.w - 90, y0: 40, y1: ROOM.d - 30 };
 
-/* 리스닝바 의자 6개 — 그리기와 착석 판정이 같은 좌표를 씁니다 */
+/* LP바 의자 6개 — 그리기와 착석 판정이 같은 좌표를 씁니다 */
 export const TABLE = { x: 500, y: 250 };
 export const CHAIRS = Array.from({ length: 6 }, (_, i) => {
   const a = (Math.PI * 2 * i) / 6 + Math.PI / 6;
@@ -29,10 +29,10 @@ export const CHAIRS = Array.from({ length: 6 }, (_, i) => {
 const box = (x, y, w, h) => ({ x1: x - w / 2, x2: x + w / 2, y1: y - h / 2, y2: y + h / 2 });
 
 export const ROOMS = {
-  /* 🎧 리스닝바 — 가운데 바텐더 + 원형 테이블 + 의자 6개 + 오른쪽 LP */
+  /* 🎧 LP바 — 가운데 바텐더 + 원형 테이블 + 의자 6개 + 오른쪽 LP */
   cake: {
     id: "cake",
-    name: "리스닝바",
+    name: "LP바",
     emoji: "🎧",
     floor: "#ffd9ea",
     floorLine: "#ffd9ea",
@@ -175,7 +175,7 @@ function Door() {
   );
 }
 
-/* 리스닝바 — 바텐더 자리, 원형 테이블, 의자 6개, LP */
+/* LP바 — 바텐더 자리, 원형 테이블, 의자 6개, LP */
 function BarProps({ seats = [] }) {
   const bar = proj(500, 60);
   const table = proj(TABLE.x, TABLE.y);
