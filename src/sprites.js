@@ -233,6 +233,38 @@ export const BUILDING_SPRITES = {
       W: "#ffffff", d: "#cfe9ff", a: "#ff8fb6", k: "#5b4a63", y: "#ffd45e",
     },
   },
+
+  /* 🥠 포춘쿠키 — 가운데가 접힌 쿠키에 쪽지가 끼어 있어요 */
+  fortune: {
+    map: [
+      "........................",
+      "......oooo.....oooo.....",
+      "....ooccccoo.ooccccoo...",
+      "..oocccccccCoccccccccoo.",
+      ".occcccccccCCcccccccccco",
+      ".occcccccccCCcccccccccco",
+      "occccccccooooooccccccccc",
+      "occccccccoppppoccccccccc",
+      "occccccccoppppoccccccccc",
+      "occccccccoppppoccccccccc",
+      "occccccccooooooccccccccc",
+      ".occcccccccCCcccccccccco",
+      ".ocoooooooooooooooooocco",
+      "..oobbbbbbbbbbbbbbbbooo.",
+      "...oooooobbbbbboooooo...",
+      "...oowwwoooooooowwwoo...",
+      "...oowwwooddddoowwwoo...",
+      "...oowwwooddddoowwwoo...",
+      "...oooooooddddooooooo...",
+      "...obbbbboddddobbbbbo...",
+      "...obbbbboddddobbbbbo...",
+      "...oooooooooooooooooo...",
+    ],
+    palette: {
+      o: "#a9762f", c: "#ffdf9e", C: "#e8b767", b: "#fff3dc", w: "#cdeeff",
+      d: "#ffcf8a", p: "#ffffff", a: "#e8874a", k: "#a9762f",
+    },
+  },
 };
 
 /* ---------- 장식 ---------- */

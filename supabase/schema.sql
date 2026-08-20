@@ -662,3 +662,102 @@ begin
     'answers', v_answer
   );
 end; $$;
+
+-- ===========================================================
+-- 9단계 — 포춘쿠키
+--   문장은 모두가 함께 보고, 추가·수정·삭제는 호스트만.
+-- ===========================================================
+
+create table if not exists public.cc_fortunes (
+  id   bigserial primary key,
+  text text not null unique
+);
+alter table public.cc_fortunes enable row level security;
+
+insert into public.cc_fortunes (text)
+select x from unnest(array[
+  '오늘 당신이 흘린 노력은 하나도 사라지지 않았어요.',
+  '미뤄뒀던 연락을 해보세요. 반가운 소식이 기다리고 있어요.',
+  '작게 시작한 일이 생각보다 멀리까지 굴러갈 거예요.',
+  '지금 걱정하는 일의 대부분은 일어나지 않아요.',
+  '오늘은 당신이 웃는 얼굴이 누군가의 하루를 살려요.',
+  '조금 느려도 괜찮아요. 방향이 맞으면 결국 도착합니다.',
+  '곧 좋아하는 것을 마음껏 하게 될 시간이 생겨요.',
+  '당신이 준 친절이 돌고 돌아 오늘 안에 돌아옵니다.',
+  '망설이던 그 선택, 하는 쪽이 맞아요.',
+  '오늘 만난 사람 중 한 명이 좋은 인연이 됩니다.',
+  '쉬어도 돼요. 잘 쉬는 것도 실력이에요.',
+  '어제의 당신보다 오늘의 당신이 분명히 나아요.',
+  '기다리던 답이 예상보다 빨리 옵니다.',
+  '지금의 서투름은 나중에 가장 좋은 이야기가 돼요.',
+  '오늘 하늘을 한 번 올려다보세요. 기분 좋은 일이 생겨요.',
+  '당신은 생각보다 훨씬 단단한 사람이에요.',
+  '작은 지출이 큰 기쁨으로 돌아오는 날이에요.',
+  '오래 준비한 일이 드디어 모양을 갖추기 시작합니다.',
+  '누군가 조용히 당신을 응원하고 있어요.',
+  '오늘의 우연은 우연이 아니에요. 놓치지 마세요.',
+  '먹고 싶던 걸 드세요. 그럴 자격이 충분해요.',
+  '실수해도 괜찮아요. 아무도 당신만큼 신경 쓰지 않아요.',
+  '가벼운 마음으로 시작하면 오늘 일은 술술 풀려요.',
+  '잠들기 전, 오늘 잘한 일 하나를 떠올려보세요.',
+  '좋은 소식은 늘 조용한 걸음으로 옵니다. 곧 도착해요.'
+]) as x
+on conflict (text) do nothing;
+
+create or replace function public.cc_fortune_list()
+returns json language plpgsql security definer set search_path = public as $$
+declare v json;
+begin
+  select coalesce(json_agg(json_build_object('id', id, 'text', text) order by id), '[]'::json)
+    into v from public.cc_fortunes;
+  return v;
+end; $$;
+
+create or replace function public.cc_fortune_add(p_host_code text, p_text text)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text; v_id bigint;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  if coalesce(btrim(p_text), '') = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  insert into public.cc_fortunes (text) values (left(btrim(p_text), 80))
+    on conflict (text) do nothing returning id into v_id;
+  if v_id is null then return json_build_object('ok', false, 'error', 'dup'); end if;
+  return json_build_object('ok', true, 'id', v_id);
+end; $$;
+
+create or replace function public.cc_fortune_edit(p_host_code text, p_id bigint, p_text text)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  if coalesce(btrim(p_text), '') = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  update public.cc_fortunes set text = left(btrim(p_text), 80) where id = p_id;
+  return json_build_object('ok', true);
+end; $$;
+
+create or replace function public.cc_fortune_del(p_host_code text, p_id bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  delete from public.cc_fortunes where id = p_id;
+  return json_build_object('ok', true);
+end; $$;
+
+grant execute on function public.cc_fortune_list()                   to anon, authenticated;
+grant execute on function public.cc_fortune_add(text, text)           to anon, authenticated;
+grant execute on function public.cc_fortune_edit(text, bigint, text)  to anon, authenticated;
+grant execute on function public.cc_fortune_del(text, bigint)         to anon, authenticated;

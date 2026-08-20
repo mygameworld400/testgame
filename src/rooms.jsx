@@ -110,7 +110,7 @@ export const ROOMS = {
       { i: 6, x: 283, y: 380 }, { i: 7, x: 350, y: 350 },
     ],
     /* 키보드 — 오른쪽에 세로로 긴 3열 × 10줄 */
-    keys: { x0: 762, y0: 80, cols: 3, rows: 10, w: 54, h: 40 },
+    keys: { sx: 706, sy: 372, cols: 3, rows: 10, w: 60, h: 33, gap: 4 },
     zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
   },
 
@@ -422,54 +422,51 @@ function PoolProps({ R, phase }) {
   );
 }
 
-/* 키 하나의 방 좌표 (가운데) */
+/* 키 하나의 화면 좌표 (가운데) — 원근을 쓰지 않아 반듯하게 보입니다 */
 export function keyPos(k, i) {
   const c = i % k.cols;
   const r = Math.floor(i / k.cols);
-  return { x: k.x0 + c * k.w + k.w / 2, y: k.y0 + r * k.h + k.h / 2 };
+  return { x: k.sx + c * k.w + k.w / 2, y: k.sy + r * k.h + k.h / 2 };
 }
 export const keyCount = (k) => k.cols * k.rows;
 
-/* 3열 × 10줄 키보드 — 밟으면 쑥 들어갑니다 */
+/* 3열 × 10줄 키보드 — 화면 기준 반듯한 사각형으로 그립니다 */
 function Keyboard({ keys, pressed }) {
+  const pad = 10;
+  const bw = keys.cols * keys.w + pad * 2;
+  const bh = keys.rows * keys.h + pad * 2;
   const cells = [];
   for (let i = 0; i < keyCount(keys); i++) {
     const c = keyPos(keys, i);
-    const p = proj(c.x, c.y);
-    const k = p.k;
     const down = pressed.includes(i);
-    const w = (keys.w - 6) * k;
-    const h = (keys.h - 6) * k;
-    const drop = down ? 5 * k : 0;
+    const w = keys.w - keys.gap;
+    const h = keys.h - keys.gap;
     cells.push(
-      <g key={i}>
-        {/* 키 옆면(두께) */}
-        <rect x={p.sx - w / 2} y={p.sy - h / 2 + 4 * k} width={w} height={h} fill="#8a7f6f" stroke="#5b4a63" strokeWidth="3" />
-        {/* 키 윗면 */}
-        <rect
-          x={p.sx - w / 2}
-          y={p.sy - h / 2 - 3 * k + drop}
-          width={w}
-          height={h}
-          fill={down ? "#e6dccb" : "#fffaf0"}
-          stroke="#5b4a63"
-          strokeWidth="3"
-        />
+        <g key={i}>
+          {/* 키 옆면 */}
+          <rect x={c.x - w / 2} y={c.y - h / 2 + 4} width={w} height={h} fill="#9a8f7d" stroke="#5b4a63" strokeWidth="2.5" />
+          {/* 키 윗면 */}
+          <rect
+            x={c.x - w / 2}
+            y={c.y - h / 2 + (down ? 4 : 0)}
+            width={w}
+            height={h}
+            rx="3"
+            fill={down ? "#ded3c0" : "#fffaf0"}
+            stroke="#5b4a63"
+            strokeWidth="2.5"
+          />
+          {!down && <rect x={c.x - w / 2 + 4} y={c.y - h / 2 + 4} width={w - 8} height="3" fill="#fff" opacity="0.9" />}
       </g>
     );
   }
   return (
     <g>
+      {/* 바닥 그림자 */}
+      <rect x={keys.sx - pad + 5} y={keys.sy - pad + 7} width={bw} height={bh} fill="#5b4a63" opacity="0.18" />
       {/* 키보드 판 */}
-      <rect
-        x={proj(keys.x0 - 10, keys.y0).sx}
-        y={proj(keys.x0, keys.y0 - 12).sy}
-        width={(keys.cols * keys.w + 20) * depth(keys.y0 + (keys.rows * keys.h) / 2)}
-        height={keys.rows * keys.h + 24}
-        fill="#6f6355"
-        stroke="#5b4a63"
-        strokeWidth="4"
-      />
+      <rect x={keys.sx - pad} y={keys.sy - pad} width={bw} height={bh} rx="6" fill="#7c7061" stroke="#5b4a63" strokeWidth="4" />
+      <rect x={keys.sx - pad + 4} y={keys.sy - pad + 4} width={bw - 8} height={bh - 8} rx="4" fill="#8d8171" />
       {cells}
     </g>
   );

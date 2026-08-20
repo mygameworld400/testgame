@@ -151,3 +151,11 @@ export function saveDraw(food) {
     /* 무시 */
   }
 }
+
+/* ---------- 포춘쿠키 ---------- */
+
+export const fortuneList = () => call("cc_fortune_list");
+export const fortuneAdd = (hostCode, text) => call("cc_fortune_add", { p_host_code: hostCode, p_text: text });
+export const fortuneEdit = (hostCode, id, text) =>
+  call("cc_fortune_edit", { p_host_code: hostCode, p_id: id, p_text: text });
+export const fortuneDel = (hostCode, id) => call("cc_fortune_del", { p_host_code: hostCode, p_id: id });

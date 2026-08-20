@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { blip, buzz, ding } from "./sfx.js";
 
-import { DAY, SFX_PREFIX, foodAdd, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { DAY, SFX_PREFIX, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -14,6 +14,8 @@ const ERR = {
   server_error: "서버와 통신하지 못했어요.",
 };
 const msgOf = (r) => ERR[r?.error] || ERR.server_error;
+
+const SFX_LABEL = { splash: "물소리", key: "타건음", sand: "모래소리", ball: "왁뿌볼소리" };
 
 const PACK_COLORS = ["#ff9ec4", "#8fe3c9", "#ffd45e", "#b6a6f0", "#7fc8f5"];
 
@@ -304,7 +306,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [chosen, setChosen] = useState(null);
-  const [asSfx, setAsSfx] = useState(false);
+  const [sfxKind, setSfxKind] = useState("");   // "" = 일반 곡
   const [pl, setPl] = useState("기본");
   const [open, setOpen] = useState({});          // 펼쳐진 플레이리스트
   const [editing, setEditing] = useState(null);  // 이름 수정 중인 플레이리스트
@@ -336,12 +338,12 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
   const add = async () => {
     if (!chosen) { setErr("파일을 골라주세요."); return; }
     setBusy(true);
-    const r = await uploadTrack(hostCode, chosen, asSfx ? SFX_PREFIX + "splash" : title, pl);
+    const r = await uploadTrack(hostCode, chosen, sfxKind ? SFX_PREFIX + sfxKind : title, pl);
     setBusy(false);
     if (!r?.ok) { setErr(msgOf(r)); return; }
     setChosen(null);
     setTitle("");
-    setAsSfx(false);
+    setSfxKind("");
     if (file.current) file.current.value = "";
     setAdding(false);
     setErr("");
@@ -380,7 +382,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
           <button className="ccBtn ccMiniBtn ccAddBtn" onClick={() => setAdding(true)}>+ 곡 · 효과음 추가</button>
           {sfx.map((t) => (
             <button key={t.id} className="ccMini ccDanger" onClick={() => remove(t.id)} disabled={busy}>
-              {t.title.replace("sfx:", "효과음 ")} 삭제
+              {SFX_LABEL[t.title.replace(SFX_PREFIX, "")] || t.title} 삭제
             </button>
           ))}
         </div>
@@ -488,7 +490,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
             placeholder="곡 제목"
             onChange={(e) => setTitle(e.target.value)}
           />
-          {!asSfx && (
+          {!sfxKind && (
             <>
               <input
                 className="ccInput"
@@ -518,10 +520,24 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
             <button className="ccBtn ccMiniBtn" onClick={add} disabled={busy}>{busy ? "올리는 중…" : "올리기"}</button>
             <button className="ccMini" onClick={() => { setAdding(false); setChosen(null); }}>취소</button>
           </div>
-          <label className="ccCheck">
-            <input type="checkbox" checked={asSfx} onChange={(e) => setAsSfx(e.target.checked)} />
-            수영장 물소리로 쓰기 (곡 목록에는 안 보여요)
-          </label>
+          <div className="ccFieldLabel">효과음으로 쓰기 (곡 목록에는 안 보여요)</div>
+          <div className="ccRow ccSizes">
+            {[
+              ["", "일반 곡"],
+              ["splash", "수영장 물소리"],
+              ["key", "키보드 타건음"],
+              ["sand", "모래 밟는 소리"],
+              ["ball", "왁뿌볼 소리"],
+            ].map(([k, label]) => (
+              <button
+                key={k || "song"}
+                className={"ccMini" + (sfxKind === k ? " ccSizeOn" : "")}
+                onClick={() => setSfxKind(k)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <p className="ccSheetNote">mp3 · m4a · wav — 한 개당 20MB 까지</p>
         </div>
       )}
@@ -847,6 +863,145 @@ export function GachaSheet({ hostCode, isHost, onClose }) {
             ))}
           </div>
           <button className="ccMini" onClick={() => setManage(false)}>← 가챠로</button>
+        </div>
+      )}
+
+      {err && <div className="ccErr">{err}</div>}
+    </div>
+  );
+}
+
+
+/* ============================ 포춘쿠키 ============================ */
+
+export function FortuneSheet({ hostCode, isHost, onClose }) {
+  const [items, setItems] = useState(null);
+  const [pick, setPick] = useState(null);
+  const [opening, setOpening] = useState(false);
+  const [manage, setManage] = useState(false);
+  const [newText, setNewText] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [editText, setEditText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    const r = await fortuneList();
+    if (Array.isArray(r)) setItems(r);
+    else { setItems([]); setErr(msgOf(r)); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const draw = () => {
+    if (!items?.length) { setErr("아직 등록된 문장이 없어요."); return; }
+    setOpening(true);
+    blip(880);
+    setTimeout(() => {
+      setPick(items[Math.floor(Math.random() * items.length)].text);
+      setOpening(false);
+      ding();
+    }, 700);
+  };
+
+  const add = async () => {
+    if (!newText.trim()) return;
+    setBusy(true);
+    const r = await fortuneAdd(hostCode, newText.trim());
+    setBusy(false);
+    if (!r?.ok) { setErr(r?.error === "dup" ? "이미 있는 문장이에요." : msgOf(r)); return; }
+    setNewText("");
+    setErr("");
+    load();
+  };
+
+  const saveEdit = async (id) => {
+    setBusy(true);
+    const r = await fortuneEdit(hostCode, id, editText.trim());
+    setBusy(false);
+    if (!r?.ok) { setErr(msgOf(r)); return; }
+    setEditId(null);
+    load();
+  };
+
+  const del = async (id) => {
+    setBusy(true);
+    const r = await fortuneDel(hostCode, id);
+    setBusy(false);
+    if (!r?.ok) { setErr(msgOf(r)); return; }
+    load();
+  };
+
+  return (
+    <div className="ccPanel ccSheet" onClick={(e) => e.stopPropagation()}>
+      <div className="ccSheetHead">
+        <h2 className="ccSheetTitle">🥠 오늘의 포춘쿠키</h2>
+        <button className="ccX" onClick={onClose}>✕</button>
+      </div>
+
+      {isHost && !manage && (
+        <div className="ccRow ccHostRow ccHostTop">
+          <button className="ccBtn ccMiniBtn ccAddBtn" onClick={() => setManage(true)}>
+            문장 관리 ({items?.length ?? "-"})
+          </button>
+        </div>
+      )}
+
+      {!manage && (
+        <>
+          <div className={"ccGachaBig" + (opening ? " ccCookieShake" : "")}>🥠</div>
+          {!pick && !opening && <p className="ccGachaAsk">쿠키를 열면 오늘의 한마디가 나와요</p>}
+          {opening && <p className="ccGachaAsk">쿠키를 여는 중…</p>}
+          {pick && !opening && <p className="ccFortuneText">{pick}</p>}
+          <div className="ccRow">
+            <button className="ccBtn ccMiniBtn" onClick={draw} disabled={opening}>
+              {pick ? "다시 뽑기" : "뽑기"}
+            </button>
+            <button className="ccMini" onClick={onClose}>닫기</button>
+          </div>
+        </>
+      )}
+
+      {manage && (
+        <div className="ccAdd">
+          <div className="ccRow">
+            <input
+              className="ccInput"
+              value={newText}
+              maxLength={80}
+              placeholder="새 문장"
+              onChange={(e) => setNewText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") add(); }}
+            />
+            <button className="ccBtn ccMiniBtn" onClick={add} disabled={busy}>추가</button>
+          </div>
+          <div className="ccFortunes">
+            {(items || []).map((f) => (
+              <div key={f.id} className="ccFortuneRow">
+                {editId === f.id ? (
+                  <>
+                    <input
+                      className="ccInput ccFortuneEdit"
+                      value={editText}
+                      maxLength={80}
+                      autoFocus
+                      onChange={(e) => setEditText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveEdit(f.id); }}
+                    />
+                    <button className="ccPlIcon" onClick={() => saveEdit(f.id)}>✔</button>
+                    <button className="ccPlIcon" onClick={() => setEditId(null)}>✕</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="ccFortuneLine">{f.text}</span>
+                    <button className="ccPlIcon" onClick={() => { setEditId(f.id); setEditText(f.text); }}>✎</button>
+                    <button className="ccPlIcon" onClick={() => del(f.id)}>🗑</button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+          <button className="ccMini" onClick={() => setManage(false)}>← 쿠키로</button>
         </div>
       )}
 

@@ -3,7 +3,7 @@ import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHost
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CHAIRS, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, crack, crunch, keyclick, splash } from "./sfx.js";
-import { GachaSheet, MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
+import { FortuneSheet, GachaSheet, MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
 import { findSfx, quizPacks, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
 
@@ -61,6 +61,12 @@ const BUILDINGS = [
       "여기 유리온실은 소리가 정말 잘 울려요. 한번 속삭여 보세요.",
       "가장 인기 있는 건 사탕 껍질 부스럭 소리래요. 이해는 안 되지만요.",
     ] },
+  { id: "fortune", name: "포춘쿠키", emoji: "🥠", tag: "운세", x: 265, y: 880, scale: 8, sheet: "fortune",
+    lines: [
+      "오늘의 한마디, 하나 열어보고 가세요.",
+      "쿠키를 반으로 쪼개면 안에 쪽지가 들어 있어요.",
+      "믿거나 말거나지만, 기분은 좋아질 거예요.",
+    ] },
   { id: "carousel", name: "떵개방", emoji: "🍜", tag: "먹방", x: 1160, y: 880, scale: 10,
     lines: [
       "지금 라이브 켜져 있어요! 뒤에서 손 흔들면 화면에 나와요.",
@@ -80,7 +86,7 @@ const CLOUDS = [
 ];
 
 const TREES = [
-  [250, 620, "#ff9ec4"], [340, 900, "#8fe3c9"], [990, 500, "#ffd45e"],
+  [250, 620, "#ff9ec4"], [430, 930, "#8fe3c9"], [990, 500, "#ffd45e"],
   [1470, 640, "#b6a6f0"], [880, 720, "#ff9ec4"], [1330, 960, "#8fe3c9"],
   [520, 420, "#ffd45e"], [1060, 990, "#b6a6f0"],
 ];
@@ -548,7 +554,7 @@ function Town({ me, setMe, onKick }) {
   const smooth = useRef(new Map());
   const brokenRef = useRef([]);
   const pressedRef = useRef([]);
-  const splashUrl = useRef(null);
+  const sfxUrl = useRef({});
   const chairRef = useRef(null);
   const audio = useRef(null);
   const chatBox = useRef(null);
@@ -702,7 +708,7 @@ function Town({ me, setMe, onKick }) {
     if (pressedRef.current.includes(i)) return;
     pressedRef.current = [...pressedRef.current, i];
     setPressed(pressedRef.current);
-    keyclick();
+    keyclick(sfxUrl.current.key);
     if (mine) chanRef.current?.fx({ t: "key", i });
     setTimeout(() => {
       pressedRef.current = pressedRef.current.filter((n) => n !== i);
@@ -715,7 +721,7 @@ function Town({ me, setMe, onKick }) {
     if (brokenRef.current.includes(i)) return;
     brokenRef.current = [...brokenRef.current, i];
     setBroken(brokenRef.current);
-    crack();
+    crack(sfxUrl.current.ball);
     if (mine) chanRef.current?.fx({ t: "ball", i, r: "flower" });
     setTimeout(() => {
       brokenRef.current = brokenRef.current.filter((n) => n !== i);
@@ -907,7 +913,7 @@ function Town({ me, setMe, onKick }) {
           const d = Math.hypot(p.x - room.crunch.x, (p.y - room.crunch.y) * 1.6);
           if (d < room.crunch.r && now - sfxAt.current > 380) {
             sfxAt.current = now;
-            crunch();
+            crunch(sfxUrl.current.sand);
           }
         }
 
@@ -922,13 +928,14 @@ function Town({ me, setMe, onKick }) {
           }
         }
 
-        /* 키보드 밟기 */
+        /* 키보드 밟기 — 키보드는 화면 좌표에 반듯하게 그려서, 판정도 같은 좌표로 합니다 */
         if (room.keys) {
           const K = room.keys;
+          const me2 = proj(p.x, p.y);
           for (let i = 0; i < keyCount(K); i++) {
             if (pressedRef.current.includes(i)) continue;
             const c = keyPos(K, i);
-            if (Math.abs(p.x - c.x) < K.w / 2 && Math.abs(p.y - c.y) < K.h / 2) {
+            if (Math.abs(me2.sx - c.x) < K.w / 2 && Math.abs(me2.sy - c.y) < K.h / 2) {
               pressKey(i, true);
               break;
             }
@@ -942,10 +949,10 @@ function Town({ me, setMe, onKick }) {
             Math.abs(p.x - w.x) < w.w / 2 && Math.abs(p.y - w.y) < w.d / 2;
           if (inWater !== swimRef.current) {
             swimRef.current = inWater;
-            if (inWater) { splash(splashUrl.current); sfxAt.current = now; }
+            if (inWater) { splash(sfxUrl.current.splash); sfxAt.current = now; }
           } else if (inWater && isMoving && now - sfxAt.current > 700) {
             sfxAt.current = now;
-            splash(splashUrl.current);
+            splash(sfxUrl.current.splash);
           }
           setWave(now / 260);
         }
@@ -1102,8 +1109,12 @@ function Town({ me, setMe, onKick }) {
     (async () => {
       const list = await trackList();
       if (!Array.isArray(list)) return;
-      const s = findSfx(list, "splash");
-      splashUrl.current = s ? trackUrl(s.path) : null;
+      const map = {};
+      ["splash", "key", "sand", "ball"].forEach((k) => {
+        const hit = findSfx(list, k);
+        if (hit) map[k] = trackUrl(hit.path);
+      });
+      sfxUrl.current = map;
     })();
   }, [sheet]);
 
@@ -1498,6 +1509,9 @@ function Town({ me, setMe, onKick }) {
               onClose={() => { setSheet(null); setTeamPack(null); }}
             />
           )}
+          {sheet === "fortune" && (
+            <FortuneSheet hostCode={me.hostCode} isHost={me.role === "host"} onClose={() => setSheet(null)} />
+          )}
           {sheet === "gacha" && (
             <GachaSheet hostCode={me.hostCode} isHost={me.role === "host"} onClose={() => setSheet(null)} />
           )}
@@ -1747,6 +1761,14 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccModeTeam{background:#e05b5b}
 .ccMode.ccModeOn{transform:translate(4px,4px);box-shadow:0 0 0 rgba(0,0,0,0);filter:saturate(1.3)}
 .ccMode:not(.ccModeOn){opacity:.72}
+
+.ccFortuneText{margin:10px 4px 16px;font-size:16px;font-weight:800;line-height:1.6;color:${C.ink};
+  background:#fffbe8;border:3px solid ${C.line};padding:14px 12px}
+.ccCookieShake{animation:ccShake .18s steps(2,end) infinite}
+.ccFortunes{display:flex;flex-direction:column;gap:5px;max-height:40vh;overflow:auto;margin:4px 0 10px}
+.ccFortuneRow{display:flex;align-items:center;gap:2px;border-bottom:2px solid #efe7f2;padding:5px 2px}
+.ccFortuneLine{flex:1;font-size:12px;font-weight:700;text-align:left;line-height:1.45}
+.ccFortuneEdit{flex:1;font-size:12px;padding:6px 8px;text-align:left}
 
 /* 떵개방 가챠 */
 .ccGachaBall{animation:ccGachaBall 1.8s ease-in-out infinite}

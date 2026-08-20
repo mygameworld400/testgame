@@ -17,7 +17,8 @@ function audio() {
 
 /* 모래 밟는 "사각사각" — 낙엽처럼 파삭 터지는 소리가 아니라
    잔알갱이가 쓸리는 소리라, 고음쪽 잡음을 부드럽게 밀었다 뺍니다. */
-export function crunch() {
+export function crunch(url) {
+  if (playFile(url, 0.7)) return;
   const ac = audio();
   if (!ac) return;
   const t0 = ac.currentTime;
@@ -71,18 +72,21 @@ export function blip(freq = 660) {
    진짜 물소리는 (1) 물이 갈라지는 넓은 잡음 (2) 그 뒤로 남는 물방울 소리
    두 겹으로 들립니다. 잡음만 쓰면 라디오 잡음처럼 들려서, 물방울(짧게
    음이 올라가는 사인파)을 여러 개 겹쳐 뿌려줍니다. */
-export function splash(url) {
-  /* 직접 올린 물소리가 있으면 그걸 씁니다 */
-  if (url) {
-    try {
-      const a = new Audio(url);
-      a.volume = 0.75;
-      a.play().catch(() => synthSplash());
-      return;
-    } catch {
-      /* 실패하면 아래 합성음으로 */
-    }
+/* 직접 올린 소리가 있으면 그걸 먼저 씁니다 */
+function playFile(url, vol = 0.8) {
+  if (!url) return false;
+  try {
+    const a = new Audio(url);
+    a.volume = vol;
+    a.play().catch(() => {});
+    return true;
+  } catch {
+    return false;
   }
+}
+
+export function splash(url) {
+  if (playFile(url, 0.75)) return;
   synthSplash();
 }
 
@@ -115,7 +119,8 @@ function synthSplash() {
 
 
 /* 왁뿌볼 밟는 "빠각" — 딱 터지는 순간 + 잘게 부서지는 잔소리 */
-export function crack() {
+export function crack(url) {
+  if (playFile(url, 0.8)) return;
   const ac = audio();
   if (!ac) return;
   const t0 = ac.currentTime;
@@ -204,7 +209,8 @@ export function ding() {
 }
 
 /* 키보드 "톡" — 얇은 클릭 + 아주 짧은 저음 */
-export function keyclick() {
+export function keyclick(url) {
+  if (playFile(url, 0.8)) return;
   const ac = audio();
   if (!ac) return;
   const t0 = ac.currentTime;
