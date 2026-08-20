@@ -119,3 +119,35 @@ export function trackUrl(path) {
   if (!supabase || !path) return null;
   return supabase.storage.from("music").getPublicUrl(path).data.publicUrl;
 }
+
+/* ---------- 떵개방 메뉴 가챠 ---------- */
+
+export const foodList = () => call("cc_food_list");
+export const foodAdd = (hostCode, name) => call("cc_food_add", { p_host_code: hostCode, p_name: name });
+export const foodEdit = (hostCode, id, name) =>
+  call("cc_food_edit", { p_host_code: hostCode, p_id: id, p_name: name });
+export const foodDel = (hostCode, id) => call("cc_food_del", { p_host_code: hostCode, p_id: id });
+
+/* 하루 한 번만 뽑게 — 이 기기에 뽑은 시각을 남깁니다 */
+const GACHA_KEY = "ccGacha";
+export const DAY = 24 * 60 * 60 * 1000;
+
+export function lastDraw() {
+  try {
+    const raw = localStorage.getItem(GACHA_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (!v?.at || Date.now() - v.at > DAY) return null;   // 24시간 지나면 초기화
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+export function saveDraw(food) {
+  try {
+    localStorage.setItem(GACHA_KEY, JSON.stringify({ at: Date.now(), food }));
+  } catch {
+    /* 무시 */
+  }
+}

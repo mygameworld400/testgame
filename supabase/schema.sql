@@ -547,3 +547,118 @@ end; $$;
 grant execute on function public.cc_pl_list()                        to anon, authenticated;
 grant execute on function public.cc_pl_cover(text, text, text)       to anon, authenticated;
 grant execute on function public.cc_pl_rename(text, text, text)      to anon, authenticated;
+
+-- ===========================================================
+-- 7단계 — 떵개방 메뉴 가챠
+--   음식 목록은 모두가 함께 보고, 추가·수정·삭제는 호스트만.
+-- ===========================================================
+
+create table if not exists public.cc_foods (
+  id   bigserial primary key,
+  name text not null unique
+);
+alter table public.cc_foods enable row level security;
+
+/* 처음 한 번만 기본 메뉴를 채웁니다 */
+insert into public.cc_foods (name)
+select x from unnest(array[
+  '김치찌개','된장찌개','순두부찌개','부대찌개','제육볶음','불고기','삼겹살','치킨','피자','햄버거',
+  '파스타','리조또','초밥','회덮밥','라멘','우동','돈까스','카레','짜장면','짬뽕',
+  '탕수육','마라탕','쌀국수','팟타이','떡볶이','김밥','순대국','설렁탕','갈비탕','냉면',
+  '비빔밥','김치볶음밥','오므라이스','샐러드','샌드위치','타코','부리토','스테이크','곱창','닭갈비',
+  '찜닭','감자탕','해장국','육개장','만두','쫄면','콩국수','보쌈','족발','국밥'
+]) as x
+on conflict (name) do nothing;
+
+create or replace function public.cc_food_list()
+returns json language plpgsql security definer set search_path = public as $$
+declare v json;
+begin
+  select coalesce(json_agg(json_build_object('id', id, 'name', name) order by id), '[]'::json)
+    into v from public.cc_foods;
+  return v;
+end; $$;
+
+create or replace function public.cc_food_add(p_host_code text, p_name text)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text; v_id bigint;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  if coalesce(btrim(p_name), '') = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  insert into public.cc_foods (name) values (left(btrim(p_name), 20))
+    on conflict (name) do nothing
+    returning id into v_id;
+  if v_id is null then
+    return json_build_object('ok', false, 'error', 'dup');
+  end if;
+  return json_build_object('ok', true, 'id', v_id);
+end; $$;
+
+create or replace function public.cc_food_edit(p_host_code text, p_id bigint, p_name text)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  if coalesce(btrim(p_name), '') = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  update public.cc_foods set name = left(btrim(p_name), 20) where id = p_id;
+  return json_build_object('ok', true);
+end; $$;
+
+create or replace function public.cc_food_del(p_host_code text, p_id bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  delete from public.cc_foods where id = p_id;
+  return json_build_object('ok', true);
+end; $$;
+
+grant execute on function public.cc_food_list()                  to anon, authenticated;
+grant execute on function public.cc_food_add(text, text)          to anon, authenticated;
+grant execute on function public.cc_food_edit(text, bigint, text) to anon, authenticated;
+grant execute on function public.cc_food_del(text, bigint)        to anon, authenticated;
+
+-- ===========================================================
+-- 8단계 — 중복 정답
+--   정답을 쉼표(,) 나 슬래시(/) 로 여러 개 적으면 모두 정답 처리합니다.
+--   예) "새우깡, 새우과자, 새우" → 셋 다 맞음
+--   오답일 때 화면에는 맨 앞의 것을 대표 정답으로 보여줍니다.
+-- ===========================================================
+create or replace function public.cc_quiz_check(p_id bigint, p_guess text)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  v_answer text;
+  v_ok     boolean := false;
+  v_one    text;
+begin
+  select answer into v_answer from public.cc_quiz where id = p_id;
+  if v_answer is null then
+    return json_build_object('ok', false, 'error', 'no_quiz');
+  end if;
+
+  foreach v_one in array regexp_split_to_array(v_answer, '\s*[,/]\s*') loop
+    if v_one <> '' and public.cc_norm(p_guess) = public.cc_norm(v_one) then
+      v_ok := true;
+    end if;
+  end loop;
+
+  return json_build_object(
+    'ok', true,
+    'correct', v_ok,
+    'answer', btrim(split_part(v_answer, ',', 1)),
+    'answers', v_answer
+  );
+end; $$;

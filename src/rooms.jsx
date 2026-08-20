@@ -123,11 +123,13 @@ export const ROOMS = {
     wallDark: "#d3c9f7",
     side: "#eee9ff",
     accent: "#8b74e0",
-    hint: "아직 준비중이에요",
+    hint: "가운데 가챠를 눌러 오늘의 메뉴를 뽑아보세요",
     play: PLAY,
-    blocks: [],
-    soon: true,
-    zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
+    blocks: [box(500, 150, 260, 150)],
+    zones: [
+      { id: "gacha", x: 500, y: 290, r: 130, label: "메뉴 가챠" },
+      { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
+    ],
   },
 };
 
@@ -165,7 +167,7 @@ export function RoomStage({ room, children, waterPhase, seats = [], broken = [],
       {R.id === "candy" && <QuizProps R={R} />}
       {R.id === "post" && <PoolProps R={R} phase={waterPhase} />}
       {R.id === "flower" && <SandProps R={R} broken={broken} />}
-      {R.id === "carousel" && <SoonProps R={R} />}
+      {R.id === "carousel" && <GachaProps R={R} />}
 
       {/* 문 */}
       <Door />
@@ -481,16 +483,48 @@ function SandProps({ R, broken = [] }) {
   );
 }
 
-function SoonProps({ R }) {
+function GachaProps({ R }) {
+  const p = proj(500, 150);
+  const k = p.k;
+  const W = 300 * k;
+  const H = 340 * k;
+  const x = p.sx - W / 2;
+  const y = p.sy - H + 40 * k;
+  const balls = [
+    ["#ff9ec4", 0.3, 0.3], ["#ffd45e", 0.52, 0.24], ["#8fe3c9", 0.7, 0.34],
+    ["#b6a6f0", 0.36, 0.46], ["#7fc8f5", 0.6, 0.5], ["#ff9ec4", 0.48, 0.38],
+    ["#ffd45e", 0.26, 0.55], ["#8fe3c9", 0.72, 0.55],
+  ];
   return (
     <g>
-      <rect x={300} y={70} width={400} height={150} fill="#f5f1ff" stroke={R.accent} strokeWidth="6" />
-      <text x={500} y={140} textAnchor="middle" fontSize="42" fontWeight="900" fill="#6a56b8">
-        준비중
-      </text>
-      <text x={500} y={185} textAnchor="middle" fontSize="20" fontWeight="700" fill="#5b4a63">
-        곧 문 열어요
+      {/* 받침 */}
+      <rect x={x} y={y + H * 0.66} width={W} height={H * 0.34} fill="#ffd45e" stroke="#5b4a63" strokeWidth="4" />
+      <rect x={x + W * 0.3} y={y + H * 0.78} width={W * 0.4} height={H * 0.16} fill="#5b4a63" opacity="0.25" />
+      {/* 손잡이 */}
+      <circle cx={p.sx} cy={y + H * 0.74} r={16 * k} fill="#fff" stroke="#5b4a63" strokeWidth="4" />
+      <rect x={p.sx - 3 * k} y={y + H * 0.68} width={6 * k} height={12 * k} fill="#5b4a63" />
+      {/* 유리통 */}
+      <circle cx={p.sx} cy={y + H * 0.34} r={W * 0.46} fill="#eaf6ff" stroke="#5b4a63" strokeWidth="4" />
+      {balls.map(([c, bx, by], i) => (
+        <circle
+          key={i}
+          className="ccGachaBall"
+          style={{ animationDelay: `${i * 0.35}s` }}
+          cx={x + W * bx}
+          cy={y + H * by}
+          r={17 * k}
+          fill={c}
+          stroke="#5b4a63"
+          strokeWidth="3"
+        />
+      ))}
+      <ellipse cx={p.sx - W * 0.16} cy={y + H * 0.18} rx={W * 0.12} ry={H * 0.07} fill="#fff" opacity="0.65" />
+      {/* 간판 */}
+      <rect x={x + W * 0.1} y={y - 34 * k} width={W * 0.8} height={34 * k} fill={R.accent} stroke="#5b4a63" strokeWidth="4" />
+      <text x={p.sx} y={y - 11 * k} textAnchor="middle" fontSize={20 * k} fontWeight="900" fill="#5b4a63">
+        오늘 뭐 먹지?
       </text>
     </g>
   );
 }
+

@@ -3,7 +3,7 @@ import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHost
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CHAIRS, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, depth, proj } from "./rooms.jsx";
 import { blip, crack, crunch, splash } from "./sfx.js";
-import { MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
+import { GachaSheet, MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
 import { findSfx, quizPacks, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
 
@@ -1464,6 +1464,9 @@ function Town({ me, setMe, onKick }) {
               onClose={() => { setSheet(null); setTeamPack(null); }}
             />
           )}
+          {sheet === "gacha" && (
+            <GachaSheet hostCode={me.hostCode} isHost={me.role === "host"} onClose={() => setSheet(null)} />
+          )}
           {sheet === "lobby" && (
             <TeamLobby
               me={{ id: deviceId(), name: me.name }}
@@ -1710,6 +1713,20 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccModeTeam{background:#e05b5b}
 .ccMode.ccModeOn{transform:translate(4px,4px);box-shadow:0 0 0 rgba(0,0,0,0);filter:saturate(1.3)}
 .ccMode:not(.ccModeOn){opacity:.72}
+
+/* 떵개방 가챠 */
+.ccGachaBall{animation:ccGachaBall 1.8s ease-in-out infinite}
+@keyframes ccGachaBall{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.ccGachaBig{font-size:64px;line-height:1;margin:6px 0 4px}
+.ccGachaSpin{animation:ccSpin .5s linear infinite}
+.ccGachaAsk{margin:6px 0 14px;font-size:15px;font-weight:800}
+.ccGachaRoll{margin:10px 0 16px;font-size:26px;font-weight:900;color:${C.inkSoft}}
+.ccGachaPick{margin:2px 0 12px;font-size:34px;font-weight:900;color:#e05b5b}
+.ccFoods{display:flex;flex-wrap:wrap;gap:6px;max-height:38vh;overflow:auto;margin:4px 0 10px}
+.ccFood{display:flex;align-items:center;gap:2px;border:3px solid ${C.line};padding:5px 6px 5px 10px;
+  font-size:12px;font-weight:700;background:#fff}
+.ccFoodName{margin-right:4px}
+.ccFoodEdit{width:110px;font-size:12px;padding:5px 7px}
 
 /* 팀전 */
 .ccLobbyBtn{position:absolute;right:16px;top:64px;border:4px solid ${C.line};background:#ffd8d8;

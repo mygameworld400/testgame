@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { buzz, ding } from "./sfx.js";
+import { blip, buzz, ding } from "./sfx.js";
 
-import { SFX_PREFIX, isSfx, plRename, quizAdd, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { DAY, SFX_PREFIX, foodAdd, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -50,6 +50,7 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo", fixedPack 
   const [adding, setAdding] = useState(false);
   const [preview, setPreview] = useState(null);
   const [answer, setAnswer] = useState("");
+  const [alts, setAlts] = useState("");
   const file = useRef(null);
 
   const load = useCallback(async () => {
@@ -125,11 +126,14 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo", fixedPack 
   const add = async () => {
     if (!preview || !answer.trim()) { setErr(ERR.empty); return; }
     setBusy(true);
-    const r = await quizAdd(hostCode, preview, answer.trim(), newPack.trim() || "과자");
+    /* 정답 + 중복 정답을 쉼표로 이어서 보냅니다 */
+    const all = [answer.trim(), ...alts.split(",").map((x) => x.trim()).filter(Boolean)].join(",");
+    const r = await quizAdd(hostCode, preview, all, newPack.trim() || "과자");
     setBusy(false);
     if (!r?.ok) { setErr(msgOf(r)); return; }
     setPreview(null);
     setAnswer("");
+    setAlts("");
     if (file.current) file.current.value = "";
     setAdding(false);
     setErr("");
@@ -263,6 +267,13 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo", fixedPack 
             maxLength={30}
             placeholder="정답"
             onChange={(e) => setAnswer(e.target.value)}
+          />
+          <input
+            className="ccInput"
+            value={alts}
+            maxLength={60}
+            placeholder="중복 정답 (쉼표로 구분, 없으면 비워두세요)"
+            onChange={(e) => setAlts(e.target.value)}
           />
           <input
             className="ccInput"
@@ -654,6 +665,192 @@ export function TeamLobby({ me, games, myGid, packs, onCreate, onJoin, onLeave, 
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+
+/* ============================ 떵개방 메뉴 가챠 ============================ */
+
+export function GachaSheet({ hostCode, isHost, onClose }) {
+  const [foods, setFoods] = useState(null);
+  const [step, setStep] = useState("ask");      // ask -> rolling -> done
+  const [pick, setPick] = useState(null);
+  const [roll, setRoll] = useState("");
+  const [err, setErr] = useState("");
+  const [manage, setManage] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const prev = useRef(lastDraw());
+
+  const load = useCallback(async () => {
+    const r = await foodList();
+    if (Array.isArray(r)) setFoods(r);
+    else { setFoods([]); setErr(msgOf(r)); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (prev.current) {
+      setPick(prev.current.food);
+      setStep("done");
+    }
+  }, []);
+
+  const start = () => {
+    if (!foods?.length) { setErr("메뉴가 하나도 없어요."); return; }
+    setStep("rolling");
+    blip(900);
+    let n = 0;
+    const iv = setInterval(() => {
+      setRoll(foods[Math.floor(Math.random() * foods.length)].name);
+      n += 1;
+      if (n > 16) {
+        clearInterval(iv);
+        const win = foods[Math.floor(Math.random() * foods.length)].name;
+        setPick(win);
+        saveDraw(win);
+        prev.current = { at: Date.now(), food: win };
+        setStep("done");
+        ding();
+      }
+    }, 90);
+  };
+
+  const left = () => {
+    if (!prev.current) return "";
+    const ms = DAY - (Date.now() - prev.current.at);
+    if (ms <= 0) return "";
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+  };
+
+  const add = async () => {
+    if (!newName.trim()) return;
+    setBusy(true);
+    const r = await foodAdd(hostCode, newName.trim());
+    setBusy(false);
+    if (!r?.ok) { setErr(r?.error === "dup" ? "이미 있는 메뉴예요." : msgOf(r)); return; }
+    setNewName("");
+    setErr("");
+    load();
+  };
+
+  const saveEdit = async (id) => {
+    setBusy(true);
+    const r = await foodEdit(hostCode, id, editName.trim());
+    setBusy(false);
+    if (!r?.ok) { setErr(msgOf(r)); return; }
+    setEditId(null);
+    load();
+  };
+
+  const del = async (id) => {
+    setBusy(true);
+    const r = await foodDel(hostCode, id);
+    setBusy(false);
+    if (!r?.ok) { setErr(msgOf(r)); return; }
+    load();
+  };
+
+  return (
+    <div className="ccPanel ccSheet" onClick={(e) => e.stopPropagation()}>
+      <div className="ccSheetHead">
+        <h2 className="ccSheetTitle">🍜 오늘 뭐 먹지?</h2>
+        <button className="ccX" onClick={onClose}>✕</button>
+      </div>
+
+      {isHost && !manage && (
+        <div className="ccRow ccHostRow ccHostTop">
+          <button className="ccBtn ccMiniBtn ccAddBtn" onClick={() => setManage(true)}>
+            메뉴 관리 ({foods?.length ?? "-"})
+          </button>
+        </div>
+      )}
+
+      {!manage && step === "ask" && (
+        <>
+          <div className="ccGachaBig">🎰</div>
+          <p className="ccGachaAsk">메뉴를 추천해드립니다!</p>
+          <div className="ccRow">
+            <button className="ccMini" onClick={onClose}>싫어요</button>
+            <button className="ccBtn ccMiniBtn" onClick={start}>좋아요</button>
+          </div>
+        </>
+      )}
+
+      {!manage && step === "rolling" && (
+        <>
+          <div className="ccGachaBig ccGachaSpin">🎰</div>
+          <p className="ccGachaRoll">{roll}</p>
+        </>
+      )}
+
+      {!manage && step === "done" && (
+        <>
+          <div className="ccGachaBig">🍽</div>
+          <p className="ccGachaAsk">오늘의 메뉴는</p>
+          <p className="ccGachaPick">{pick}</p>
+          <p className="ccSheetNote">
+            {left()
+              ? `하루에 한 번만 뽑을 수 있어요. ${left()} 뒤에 다시 뽑을 수 있어요.`
+              : "이제 다시 뽑을 수 있어요!"}
+          </p>
+          <div className="ccRow">
+            {!left() && <button className="ccBtn ccMiniBtn" onClick={start}>다시 뽑기</button>}
+            <button className="ccMini" onClick={onClose}>닫기</button>
+          </div>
+        </>
+      )}
+
+      {manage && (
+        <div className="ccAdd">
+          <div className="ccRow">
+            <input
+              className="ccInput"
+              value={newName}
+              maxLength={20}
+              placeholder="메뉴 이름"
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") add(); }}
+            />
+            <button className="ccBtn ccMiniBtn" onClick={add} disabled={busy}>추가</button>
+          </div>
+          <div className="ccFoods">
+            {(foods || []).map((f) => (
+              <div key={f.id} className="ccFood">
+                {editId === f.id ? (
+                  <>
+                    <input
+                      className="ccInput ccFoodEdit"
+                      value={editName}
+                      maxLength={20}
+                      autoFocus
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveEdit(f.id); }}
+                    />
+                    <button className="ccPlIcon" onClick={() => saveEdit(f.id)}>✔</button>
+                    <button className="ccPlIcon" onClick={() => setEditId(null)}>✕</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="ccFoodName">{f.name}</span>
+                    <button className="ccPlIcon" onClick={() => { setEditId(f.id); setEditName(f.name); }}>✎</button>
+                    <button className="ccPlIcon" onClick={() => del(f.id)}>🗑</button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+          <button className="ccMini" onClick={() => setManage(false)}>← 가챠로</button>
+        </div>
+      )}
+
+      {err && <div className="ccErr">{err}</div>}
     </div>
   );
 }
