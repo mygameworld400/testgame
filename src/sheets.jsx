@@ -34,9 +34,9 @@ function Knot({ color }) {
 
 /* ============================ 퀴즈 ============================ */
 
-export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
+export function QuizSheet({ hostCode, isHost, onClose, mode = "solo", fixedPack = null, onFinish }) {
   const [packs, setPacks] = useState(null);
-  const [pack, setPack] = useState(null);        // 고른 주제 (없으면 패키지 목록)
+  const [pack, setPack] = useState(fixedPack);   // 고른 주제 (없으면 패키지 목록)
   const [newPack, setNewPack] = useState("과자");
   const [list, setList] = useState(null);
   const [i, setI] = useState(0);
@@ -89,7 +89,10 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
         setResult(null);
         setShown("");
         setGuess("");
-        if (last) setFinished(true);       // 패키지 끝 — 더 이어지지 않습니다
+        if (last) {
+          setFinished(true);               // 패키지 끝 — 더 이어지지 않습니다
+          onFinish?.({ ok: score.ok + (r.correct ? 1 : 0), done: inPack.length });
+        }
         else setI(i + 1);
       },
       r.correct ? 900 : 2100
@@ -145,7 +148,7 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
   return (
     <div className="ccPanel ccSheet" onClick={(e) => e.stopPropagation()}>
       <div className="ccSheetHead">
-        <h2 className="ccSheetTitle">❓ 퀴즈상가</h2>
+        <h2 className="ccSheetTitle">{mode === "team" ? "🤝 팀전" : "❓ 퀴즈상가"}</h2>
         <button className="ccX" onClick={onClose}>✕</button>
       </div>
 
@@ -192,7 +195,9 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
 
       {pack && !adding && (
         <div className="ccPackBar">
-          <button className="ccMini" onClick={() => { setPack(null); setGuess(""); setFinished(false); }}>← 패키지</button>
+          {!fixedPack && (
+            <button className="ccMini" onClick={() => { setPack(null); setGuess(""); setFinished(false); }}>← 패키지</button>
+          )}
           <b>{pack} 퀴즈</b>
         </div>
       )}
@@ -211,7 +216,10 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
           </p>
           <div className="ccRow">
             <button className="ccBtn ccMiniBtn" onClick={() => startPack(pack)}>다시 풀기</button>
-            <button className="ccMini" onClick={() => { setPack(null); setFinished(false); }}>다른 패키지</button>
+            {!fixedPack && (
+              <button className="ccMini" onClick={() => { setPack(null); setFinished(false); }}>다른 패키지</button>
+            )}
+            {fixedPack && <button className="ccMini" onClick={onClose}>닫기</button>}
           </div>
         </div>
       )}
@@ -508,6 +516,144 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
       )}
 
       {err && <div className="ccErr">{err}</div>}
+    </div>
+  );
+}
+
+
+/* ============================ 팀전 대기실 ============================ */
+
+export function TeamLobby({ me, games, myGid, packs, onCreate, onJoin, onLeave, onStart, onClose, results }) {
+  const [adding, setAdding] = useState(false);
+  const [size, setSize] = useState(0);          // 0 = 자유
+  const [pack, setPack] = useState("");
+
+  const list = [...(games || [])].sort((a, b) => a.at - b.at);
+  const mine = list.find((g) => g.gid === myGid);
+
+  return (
+    <div className="ccPanel ccSheet" onClick={(e) => e.stopPropagation()}>
+      <div className="ccSheetHead">
+        <h2 className="ccSheetTitle">🤝 팀전 대기실</h2>
+        <button className="ccX" onClick={onClose}>✕</button>
+      </div>
+
+      {!adding && !mine && (
+        <div className="ccRow ccHostRow ccHostTop">
+          <button
+            className="ccBtn ccMiniBtn ccAddBtn"
+            onClick={() => { setAdding(true); setPack((packs || [])[0]?.pack || ""); }}
+          >
+            + 팀전 만들기
+          </button>
+        </div>
+      )}
+
+      {adding && (
+        <div className="ccAdd">
+          <div className="ccFieldLabel">몇 명이서 할까요?</div>
+          <div className="ccRow ccSizes">
+            {[0, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                className={"ccMini" + (size === n ? " ccSizeOn" : "")}
+                onClick={() => setSize(n)}
+              >
+                {n === 0 ? "자유" : `${n}명`}
+              </button>
+            ))}
+          </div>
+          <div className="ccFieldLabel">주제</div>
+          <div className="ccRow ccSizes">
+            {(packs || []).map((p) => (
+              <button
+                key={p.pack}
+                className={"ccMini" + (pack === p.pack ? " ccSizeOn" : "")}
+                onClick={() => setPack(p.pack)}
+              >
+                {p.pack}
+              </button>
+            ))}
+          </div>
+          <div className="ccRow">
+            <button
+              className="ccBtn ccMiniBtn"
+              disabled={!pack}
+              onClick={() => { onCreate({ size, pack }); setAdding(false); }}
+            >
+              만들기
+            </button>
+            <button className="ccMini" onClick={() => setAdding(false)}>취소</button>
+          </div>
+          {!packs?.length && <p className="ccSheetNote">먼저 퀴즈 문제가 등록되어 있어야 해요.</p>}
+        </div>
+      )}
+
+      {!adding && list.length === 0 && (
+        <p className="ccSheetEmpty">아직 열린 팀전이 없어요. 직접 만들어보세요!</p>
+      )}
+
+      {!adding && list.length > 0 && (
+        <div className="ccGames">
+          {list.map((g) => {
+            const joined = g.members.some((m) => m.id === me.id);
+            const isHostOf = g.hostId === me.id;
+            const full = g.size > 0 && g.members.length >= g.size;
+            return (
+              <div key={g.gid} className={"ccGame" + (g.state === "play" ? " ccGamePlay" : "")}>
+                <div className="ccGameTop">
+                  <b>{g.pack} 퀴즈</b>
+                  <span className={"ccGameState" + (g.state === "play" ? " ccGameOn" : "")}>
+                    {g.state === "play" ? "진행중" : "대기중"}
+                  </span>
+                </div>
+                <div className="ccGameWho">
+                  {g.members.map((m) => m.name).join(" · ")}
+                  <span className="ccGameN">
+                    {g.members.length}
+                    {g.size > 0 ? ` / ${g.size}` : ""}명
+                  </span>
+                </div>
+                <div className="ccRow ccGameBtns">
+                  {g.state === "wait" && !joined && !full && (
+                    <button className="ccBtn ccMiniBtn" onClick={() => onJoin(g.gid)}>참여</button>
+                  )}
+                  {g.state === "wait" && !joined && full && <span className="ccSheetNote">정원이 찼어요</span>}
+                  {joined && !isHostOf && (
+                    <button className="ccMini" onClick={() => onLeave(g.gid)}>나가기</button>
+                  )}
+                  {isHostOf && g.state === "wait" && (
+                    <>
+                      <button
+                        className="ccBtn ccMiniBtn"
+                        disabled={g.members.length < 2}
+                        onClick={() => onStart(g.gid)}
+                      >
+                        {g.members.length < 2 ? "2명부터 시작" : "시작"}
+                      </button>
+                      <button className="ccMini" onClick={() => onLeave(g.gid)}>취소</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {results?.length > 0 && (
+        <div className="ccResults">
+          <div className="ccFieldLabel">지난 팀전 결과</div>
+          {results.map((r, i) => (
+            <div key={i} className="ccResultLine">
+              <b>{r.name}</b>
+              <span>
+                {r.ok} / {r.done}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

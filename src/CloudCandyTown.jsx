@@ -3,8 +3,8 @@ import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHost
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CHAIRS, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, depth, proj } from "./rooms.jsx";
 import { blip, crack, crunch, splash } from "./sfx.js";
-import { MusicSheet, QuizSheet } from "./sheets.jsx";
-import { findSfx, trackList, trackUrl } from "./content.js";
+import { MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
+import { findSfx, quizPacks, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
 
 /* ===========================================================
@@ -191,7 +191,7 @@ function Building({ b, near }) {
 
 /* ============================ 캐릭터 ============================ */
 
-function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false }) {
+function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false }) {
   const ch = charForSlot(slot);
   return (
     <div
@@ -204,6 +204,7 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = f
       }}
     >
       {msg && <div className="ccBubble">{msg}</div>}
+      {!msg && waiting && <div className="ccWaitTag">팀전 대기중…</div>}
       {swim && <div className="ccTube ccTubeBack" />}
       <div className={"ccTag" + (me ? " ccTagMe" : "")}>{name}</div>
       <Pix
@@ -505,6 +506,11 @@ function Town({ me, setMe, onKick }) {
   const [sit, setSit] = useState(null);      // 앉아 있는 의자 번호
   const [broken, setBroken] = useState([]);  // 뿌셔진 왁뿌볼
   const [quizMode, setQuizMode] = useState("solo");   // 퀴즈상가 개인전 / 팀전
+  const [games, setGames] = useState([]);            // 팀전 목록
+  const [myGid, setMyGid] = useState(null);          // 내가 들어간 팀전
+  const [teamPack, setTeamPack] = useState(null);    // 팀전으로 시작한 주제
+  const [packs, setPacks] = useState([]);
+  const [results, setResults] = useState([]);
   const [vol, setVol] = useState(() => {
     const v = Number(localStorage.getItem("ccVol"));
     return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 0.7;
@@ -534,6 +540,9 @@ function Town({ me, setMe, onKick }) {
   const swimRef = useRef(false);
   const sheetRef = useRef(null);
   const sitRef = useRef(null);
+  const gamesRef = useRef([]);
+  const myGidRef = useRef(null);
+  const waitRef = useRef(0);
   const peersRef = useRef([]);
   const smooth = useRef(new Map());
   const brokenRef = useRef([]);
@@ -549,6 +558,12 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { starsRef.current = stars; }, [stars]);
   useEffect(() => { peersRef.current = peers; }, [peers]);
   useEffect(() => { brokenRef.current = broken; }, [broken]);
+  useEffect(() => { gamesRef.current = games; }, [games]);
+  useEffect(() => {
+    myGidRef.current = myGid;
+    const g = games.find((x) => x.gid === myGid);
+    waitRef.current = g && g.state === "wait" ? 1 : 0;
+  }, [myGid, games]);
 
   const collected = stars.filter(Boolean).length;
   const online = me.role === "solo" ? 1 : peers.length + 1;
@@ -691,6 +706,87 @@ function Town({ me, setMe, onKick }) {
       setBroken(brokenRef.current);
     }, 12000);
   }, []);
+
+  /* ---------- 팀전 ----------
+     방을 만든 사람이 그 방의 주인이고, 자기 방 상태를 주기적으로 알립니다.
+     참여·나가기·시작 요청은 방 주인에게 보내고, 주인이 정리해서 다시 알려요. */
+  const putGame = useCallback((g) => {
+    setGames((list) => {
+      const rest = list.filter((x) => x.gid !== g.gid);
+      return g.gone ? rest : [...rest, { ...g, at: g.at || Date.now(), heard: Date.now() }];
+    });
+  }, []);
+
+  const myGame = useCallback(() => gamesRef.current.find((g) => g.hostId === deviceId()), []);
+
+  const announce = useCallback((g) => {
+    chanRef.current?.fx({ t: "game", g: { ...g, heard: undefined } });
+  }, []);
+
+  const createGame = useCallback(({ size, pack }) => {
+    const g = {
+      gid: deviceId() + "-" + Date.now().toString(36),
+      hostId: deviceId(),
+      hostName: me.name,
+      pack,
+      size,
+      state: "wait",
+      members: [{ id: deviceId(), name: me.name }],
+      at: Date.now(),
+    };
+    putGame(g);
+    setMyGid(g.gid);
+    announce(g);
+    blip(820);
+  }, [me, putGame, announce]);
+
+  const joinGame = useCallback((gid) => {
+    chanRef.current?.fx({ t: "join", gid, who: { id: deviceId(), name: me.name } });
+    setMyGid(gid);
+    blip(700);
+  }, [me]);
+
+  const leaveGame = useCallback((gid) => {
+    const g = gamesRef.current.find((x) => x.gid === gid);
+    if (g && g.hostId === deviceId()) {
+      putGame({ gid, gone: true });
+      chanRef.current?.fx({ t: "gameEnd", gid });
+    } else {
+      chanRef.current?.fx({ t: "leave", gid, who: { id: deviceId() } });
+    }
+    setMyGid(null);
+  }, [putGame]);
+
+  const startGame = useCallback((gid) => {
+    const g = gamesRef.current.find((x) => x.gid === gid);
+    if (!g || g.members.length < 2) return;
+    const next = { ...g, state: "play" };
+    putGame(next);
+    announce(next);
+    chanRef.current?.fx({ t: "start", gid, pack: g.pack });
+    setTeamPack(g.pack);
+    setSheet("quiz");
+  }, [putGame, announce]);
+
+  /* 내가 연 방은 2.5초마다 살아 있다고 알립니다 */
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const g = myGame();
+      if (g) announce(g);
+      /* 오래 소식 없는 방은 목록에서 지웁니다 */
+      setGames((list) => list.filter((x) => x.hostId === deviceId() || Date.now() - (x.heard || 0) < 9000));
+    }, 2500);
+    return () => clearInterval(iv);
+  }, [announce, myGame]);
+
+  /* 퀴즈 주제 목록 (팀전 만들 때 고르려고) */
+  useEffect(() => {
+    if (!hasServer) return;
+    (async () => {
+      const p = await quizPacks();
+      if (Array.isArray(p)) setPacks(p);
+    })();
+  }, [sheet]);
 
   /* 게임 루프 — 마을과 방 안 모두 여기서 돕니다 */
   useEffect(() => {
@@ -884,11 +980,43 @@ function Town({ me, setMe, onKick }) {
         m: movingRef.current ? 1 : 0,
         r: sceneRef.current || "",
         st: sitRef.current == null ? -1 : sitRef.current,
+        w: waitRef.current,
       }),
       onPeers: setPeers,
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
       onFx: (e) => {
-        if (e?.t === "ball" && sceneRef.current === "flower") popBall(e.i, false);
+        if (!e) return;
+        if (e.t === "ball") {
+          if (sceneRef.current === "flower") popBall(e.i, false);
+          return;
+        }
+        if (e.t === "game") { putGame(e.g); return; }
+        if (e.t === "gameEnd") { putGame({ gid: e.gid, gone: true }); return; }
+        if (e.t === "join" || e.t === "leave") {
+          /* 방 주인만 명단을 고칩니다 */
+          const g = gamesRef.current.find((x) => x.gid === e.gid && x.hostId === deviceId());
+          if (!g) return;
+          const members =
+            e.t === "join"
+              ? g.members.some((m) => m.id === e.who.id) || (g.size > 0 && g.members.length >= g.size)
+                ? g.members
+                : [...g.members, e.who]
+              : g.members.filter((m) => m.id !== e.who.id);
+          const next = { ...g, members };
+          putGame(next);
+          announce(next);
+          return;
+        }
+        if (e.t === "start") {
+          if (myGidRef.current !== e.gid) return;
+          setTeamPack(e.pack);
+          setSheet("quiz");
+          setToast("팀전이 시작됐어요!");
+          return;
+        }
+        if (e.t === "score") {
+          setResults((r) => [...r.filter((x) => x.id !== e.id), { id: e.id, name: e.name, ok: e.ok, done: e.done }]);
+        }
       },
       onChat: (msg) => {
         const at = Date.now();
@@ -1040,6 +1168,7 @@ function Town({ me, setMe, onKick }) {
                     msg={q.msg}
                     scale={pr.k}
                     swim={inWater(R, q.x, q.y)}
+                    waiting={!!q.w}
                   />
                 );
               })}
@@ -1054,6 +1183,7 @@ function Town({ me, setMe, onKick }) {
                 msg={myMsg}
                 scale={depth(pos.y)}
                 swim={inWater(R, pos.x, pos.y)}
+                waiting={!!waitRef.current && !!myGid}
               />
             </div>
           </div>
@@ -1072,6 +1202,13 @@ function Town({ me, setMe, onKick }) {
                 팀전
               </button>
             </div>
+          )}
+
+          {scene === "candy" && quizMode === "team" && (
+            <button className="ccLobbyBtn" onClick={() => setSheet("lobby")}>
+              🤝 팀전 대기실
+              {games.length > 0 && <span className="ccLobbyN">{games.length}</span>}
+            </button>
           )}
 
           {zoneId && (
@@ -1319,7 +1456,25 @@ function Town({ me, setMe, onKick }) {
             <QuizSheet
               hostCode={me.hostCode}
               isHost={me.role === "host"}
-              mode={quizMode}
+              mode={teamPack ? "team" : quizMode}
+              fixedPack={teamPack}
+              onFinish={(sc) =>
+                chanRef.current?.fx({ t: "score", id: deviceId(), name: me.name, ok: sc.ok, done: sc.done })
+              }
+              onClose={() => { setSheet(null); setTeamPack(null); }}
+            />
+          )}
+          {sheet === "lobby" && (
+            <TeamLobby
+              me={{ id: deviceId(), name: me.name }}
+              games={games}
+              myGid={myGid}
+              packs={packs}
+              results={results}
+              onCreate={createGame}
+              onJoin={joinGame}
+              onLeave={leaveGame}
+              onStart={startGame}
               onClose={() => setSheet(null)}
             />
           )}
@@ -1555,6 +1710,32 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccModeTeam{background:#e05b5b}
 .ccMode.ccModeOn{transform:translate(4px,4px);box-shadow:0 0 0 rgba(0,0,0,0);filter:saturate(1.3)}
 .ccMode:not(.ccModeOn){opacity:.72}
+
+/* 팀전 */
+.ccLobbyBtn{position:absolute;right:16px;top:64px;border:4px solid ${C.line};background:#ffd8d8;
+  font-family:inherit;font-weight:800;font-size:13px;color:${C.ink};padding:10px 14px;cursor:pointer;
+  box-shadow:5px 5px 0 rgba(91,74,99,.3);display:flex;align-items:center;gap:7px;z-index:12}
+.ccLobbyBtn:active{transform:translate(3px,3px);box-shadow:2px 2px 0 rgba(91,74,99,.3)}
+.ccLobbyN{background:#e05b5b;color:#fff;font-size:11px;padding:1px 6px;border:2px solid ${C.line}}
+.ccWaitTag{white-space:nowrap;text-align:center;font-size:10.5px;font-weight:800;margin-bottom:3px;
+  background:#ffd8d8;border:3px solid ${C.line};padding:2px 7px;color:#b03a3a;
+  box-shadow:2px 2px 0 rgba(91,74,99,.2);animation:ccBlink 1.4s steps(2,end) infinite}
+.ccFieldLabel{font-size:11.5px;font-weight:800;color:${C.inkSoft};text-align:left;margin-top:4px}
+.ccSizes{flex-wrap:wrap;justify-content:flex-start}
+.ccSizeOn{background:#ffd45e}
+.ccGames{display:flex;flex-direction:column;gap:9px;margin:6px 0;max-height:44vh;overflow:auto}
+.ccGame{border:3px solid ${C.line};padding:11px 12px;text-align:left;background:#fff;
+  box-shadow:3px 3px 0 rgba(91,74,99,.18)}
+.ccGamePlay{background:#fff6f6}
+.ccGameTop{display:flex;align-items:center;justify-content:space-between;font-size:13px}
+.ccGameState{font-size:10.5px;font-weight:800;background:#eee;padding:2px 7px;border:2px solid ${C.line}}
+.ccGameOn{background:#ffd8d8;color:#b03a3a}
+.ccGameWho{font-size:11.5px;font-weight:700;color:${C.inkSoft};margin:5px 0 8px;display:flex;
+  justify-content:space-between;gap:8px}
+.ccGameN{flex:none;color:${C.ink}}
+.ccGameBtns{justify-content:flex-start}
+.ccResults{margin-top:10px;border-top:2px solid #efe7f2;padding-top:8px}
+.ccResultLine{display:flex;justify-content:space-between;font-size:12px;font-weight:700;padding:3px 0}
 
 /* 시트(퀴즈·플레이리스트) */
 .ccSheetHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
