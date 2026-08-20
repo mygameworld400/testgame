@@ -536,6 +536,7 @@ function Town({ me, setMe, onKick }) {
   const chairRef = useRef(null);
   const audio = useRef(null);
   const chatBox = useRef(null);
+  const histBox = useRef(null);
   const myMsgTimer = useRef(null);
 
   useEffect(() => { openRef.current = !!sheet; sheetRef.current = sheet; }, [sheet]);
@@ -885,6 +886,11 @@ function Town({ me, setMe, onKick }) {
     myMsgTimer.current = setTimeout(() => setMyMsg(null), CHAT_MS);
   }, [chatText, me]);
 
+  /* 기록을 열거나 새 말이 오면 맨 아래로 내려줍니다 */
+  useEffect(() => {
+    if (logOpen && histBox.current) histBox.current.scrollTop = histBox.current.scrollHeight;
+  }, [logOpen, history]);
+
   /* 음량 — 슬라이더를 움직이면 바로 반영하고 기기에 기억해둡니다 */
   useEffect(() => {
     if (audio.current) audio.current.volume = muted ? 0 : vol;
@@ -1101,7 +1107,7 @@ function Town({ me, setMe, onKick }) {
               <h2 className="ccSheetTitle">대화 기록</h2>
               <button className="ccX" onClick={() => setLogOpen(false)}>✕</button>
             </div>
-            <div className="ccHistoryBody">
+            <div className="ccHistoryBody" ref={histBox}>
               {history.length === 0 && <p className="ccSheetNote">아직 대화가 없어요.</p>}
               {history.map((m, i) => (
                 <div key={m.at + "-" + i} className={"ccHistLine" + (m.mine ? " ccHistMine" : "")}>
@@ -1112,6 +1118,19 @@ function Town({ me, setMe, onKick }) {
               ))}
             </div>
             <p className="ccSheetNote">테스트 회차가 바뀌면 기록은 지워집니다.</p>
+          </div>
+        )}
+        {!logOpen && history.length > 0 && (
+          <div className="ccFeed" onClick={() => setLogOpen(true)} title="눌러서 전체 기록 보기">
+            {history.slice(-5).map((m, i) => (
+              <div key={m.at + "-" + i} className={"ccFeedLine" + (m.mine ? " ccFeedMine" : "")}>
+                <b>{m.name}</b>
+                {(m.r || "") !== (scene || "") && (
+                  <span className="ccLogRoom">{m.r ? ROOMS[m.r]?.name : "마을"}</span>
+                )}
+                {m.text}
+              </div>
+            ))}
           </div>
         )}
         <form
@@ -1133,32 +1152,11 @@ function Town({ me, setMe, onKick }) {
             }}
           />
           <button className="ccChatBtn" type="submit">보내기</button>
-          <button
-            className="ccChatBtn ccLogBtn"
-            type="button"
-            title="대화 기록"
-            onClick={() => setLogOpen((v) => !v)}
-          >
-            기록
-          </button>
         </form>
         </>
       )}
 
       {toast && <div className="ccToast">{toast}</div>}
-
-      {/* 다른 방에서 온 채팅 */}
-      {chatLog.length > 0 && (
-        <div className="ccLog">
-          {chatLog.map((m, i) => (
-            <div key={m.at + "-" + i} className="ccLogLine">
-              <b>{m.name}</b>
-              <span className="ccLogRoom">{m.r ? ROOMS[m.r]?.name : "마을"}</span>
-              {m.text}
-            </div>
-          ))}
-        </div>
-      )}
 
       {me.role === "host" && (
         <>
@@ -1424,7 +1422,17 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccHostNote{margin:9px 0 0;font-size:10.5px;line-height:1.6;color:${C.inkSoft};font-weight:700}
 
 .ccExitChip{cursor:pointer;background:#ffe9a8}
-.ccHistory{position:absolute;left:50%;bottom:calc(66px + var(--kb, 0px));transform:translateX(-50%);
+.ccFeed{position:absolute;left:50%;bottom:calc(60px + var(--kb, 0px));transform:translateX(-50%);
+  width:min(420px,86vw);display:flex;flex-direction:column;gap:4px;cursor:pointer;z-index:18}
+.ccFeedLine{background:rgba(255,255,255,.95);border:3px solid ${C.line};padding:5px 9px;font-size:12px;
+  font-weight:700;line-height:1.45;box-shadow:2px 2px 0 rgba(91,74,99,.18);
+  animation:ccFeedFade .6s 3s forwards;word-break:break-all}
+.ccFeedLine b{margin-right:6px;color:${C.inkSoft}}
+.ccFeedMine b{color:#c05a86}
+@keyframes ccFeedFade{to{opacity:.32}}
+.ccFeed:hover .ccFeedLine{opacity:1;animation:none}
+
+.ccHistory{position:absolute;left:50%;bottom:calc(60px + var(--kb, 0px));transform:translateX(-50%);
   width:min(420px,90vw);max-height:52vh;display:flex;flex-direction:column;padding:14px 16px;z-index:22}
 .ccHistoryBody{flex:1;overflow:auto;text-align:left;display:flex;flex-direction:column;gap:7px;margin-bottom:8px}
 .ccHistLine{font-size:12px;font-weight:700;line-height:1.5;color:${C.ink}}
