@@ -479,6 +479,8 @@ function Town({ me, setMe, onKick }) {
   const [sheet, setSheet] = useState(null);      // 'lp' | 'quiz'
   const [wave, setWave] = useState(0);
   const [chatLog, setChatLog] = useState([]);
+  const [history, setHistory] = useState([]);   // 이번 회차 대화 기록
+  const [logOpen, setLogOpen] = useState(false);
   const [track, setTrack] = useState(null);   // 지금 듣는 곡
   const [sit, setSit] = useState(null);      // 앉아 있는 의자 번호
   const [vol, setVol] = useState(() => {
@@ -805,8 +807,10 @@ function Town({ me, setMe, onKick }) {
       onPeers: setPeers,
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
       onChat: (msg) => {
+        const at = Date.now();
+        setHistory((h) => [...h.slice(-199), { ...msg, at }]);
         if ((msg.r || "") === (sceneRef.current || "")) return;
-        setChatLog((l) => [...l.slice(-3), { ...msg, at: Date.now() }]);
+        setChatLog((l) => [...l.slice(-3), { ...msg, at }]);
       },
     });
     chanRef.current = chan;
@@ -823,10 +827,14 @@ function Town({ me, setMe, onKick }) {
     chatBox.current?.blur();          // 폰에서 키보드가 조이스틱을 가리지 않게
     if (!t) return;
     chanRef.current?.chat(t, sceneRef.current || "");
+    setHistory((h) => [
+      ...h.slice(-199),
+      { id: "me", name: me.name, text: t, r: sceneRef.current || "", at: Date.now(), mine: true },
+    ]);
     setMyMsg(t);
     clearTimeout(myMsgTimer.current);
     myMsgTimer.current = setTimeout(() => setMyMsg(null), CHAT_MS);
-  }, [chatText]);
+  }, [chatText, me]);
 
   /* 음량 — 슬라이더를 움직이면 바로 반영하고 기기에 기억해둡니다 */
   useEffect(() => {
@@ -876,6 +884,8 @@ function Town({ me, setMe, onKick }) {
       setRoom({ ok: true, round: r.round, capacity: r.capacity, taken: 0, players: [] });
       setToast(`${r.round}번 테스트를 시작했어요. 자리 ${r.capacity}개가 비었습니다`);
       /* 호스트는 새 회차에 다시 등록해서 그대로 남습니다 (게스트만 나가요) */
+      setHistory([]);
+      setChatLog([]);
       const again = await joinRoom(me.name, me.hostCode);
       setMe({ ...me, round: r.round, role: again?.role || "host", slot: again?.slot ?? 0 });
     } else {
@@ -1035,6 +1045,26 @@ function Town({ me, setMe, onKick }) {
       {me.role === "solo" ? (
         <div className="ccHelp">방향키 · WASD 이동 / 건물 앞에서 SPACE</div>
       ) : (
+        <>
+        {logOpen && (
+          <div className="ccPanel ccHistory">
+            <div className="ccSheetHead">
+              <h2 className="ccSheetTitle">대화 기록</h2>
+              <button className="ccX" onClick={() => setLogOpen(false)}>✕</button>
+            </div>
+            <div className="ccHistoryBody">
+              {history.length === 0 && <p className="ccSheetNote">아직 대화가 없어요.</p>}
+              {history.map((m, i) => (
+                <div key={m.at + "-" + i} className={"ccHistLine" + (m.mine ? " ccHistMine" : "")}>
+                  <span className="ccHistWho">{m.name}</span>
+                  <span className="ccLogRoom">{m.r ? ROOMS[m.r]?.name : "마을"}</span>
+                  <span className="ccHistText">{m.text}</span>
+                </div>
+              ))}
+            </div>
+            <p className="ccSheetNote">테스트 회차가 바뀌면 기록은 지워집니다.</p>
+          </div>
+        )}
         <form
           className="ccChatBar"
           onSubmit={(e) => {
@@ -1054,7 +1084,16 @@ function Town({ me, setMe, onKick }) {
             }}
           />
           <button className="ccChatBtn" type="submit">보내기</button>
+          <button
+            className="ccChatBtn ccLogBtn"
+            type="button"
+            title="대화 기록"
+            onClick={() => setLogOpen((v) => !v)}
+          >
+            기록
+          </button>
         </form>
+        </>
       )}
 
       {toast && <div className="ccToast">{toast}</div>}
@@ -1279,14 +1318,16 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 @keyframes ccWalk{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 .ccWalk.ccFlip{animation:ccWalkF .3s steps(2,end) infinite}
 @keyframes ccWalkF{0%,100%{transform:scaleX(-1) translateY(0)}50%{transform:scaleX(-1) translateY(-4px)}}
-.ccTag{white-space:nowrap;text-align:center;font-size:11px;font-weight:700;margin-bottom:3px;
-  background:#fff;border:2px solid ${C.line};padding:1px 6px;box-shadow:2px 2px 0 rgba(91,74,99,.25)}
-.ccTagMe{background:#ffe9a8}
-.ccBubble{position:relative;max-width:180px;margin:0 auto 4px;white-space:pre-wrap;word-break:break-all;
-  text-align:center;font-size:12px;font-weight:700;line-height:1.45;background:#fff;border:3px solid ${C.line};
-  padding:5px 9px;box-shadow:3px 3px 0 rgba(91,74,99,.25);animation:ccPop .12s steps(2,end)}
-.ccBubble:after{content:"";position:absolute;left:50%;top:100%;margin-left:-5px;width:0;height:0;
-  border:6px solid transparent;border-top-color:${C.line}}
+.ccTag{white-space:nowrap;text-align:center;font-size:11px;font-weight:800;margin-bottom:2px;color:${C.ink};
+  text-shadow:-2px 0 #fff,2px 0 #fff,0 -2px #fff,0 2px #fff,-2px -2px #fff,2px -2px #fff,-2px 2px #fff,2px 2px #fff}
+.ccTagMe{color:#c05a86}
+.ccBubble{position:relative;max-width:170px;margin:0 auto 10px;white-space:pre-wrap;word-break:break-all;
+  text-align:center;font-size:12px;font-weight:700;line-height:1.4;background:#fff;border:3px solid ${C.line};
+  padding:9px 15px;border-radius:999px;box-shadow:3px 3px 0 rgba(91,74,99,.2);animation:ccPop .12s steps(2,end)}
+.ccBubble:after{content:"";position:absolute;left:50%;top:100%;margin-left:-9px;margin-top:1px;
+  width:9px;height:9px;border-radius:50%;background:#fff;border:3px solid ${C.line}}
+.ccBubble:before{content:"";position:absolute;left:50%;top:calc(100% + 12px);margin-left:-3px;
+  width:5px;height:5px;border-radius:50%;background:#fff;border:2px solid ${C.line};z-index:1}
 @keyframes ccPop{from{transform:translateY(6px)}to{transform:translateY(0)}}
 
 .ccChatBar{position:absolute;left:50%;bottom:calc(14px + var(--kb, 0px));transform:translateX(-50%);display:flex;gap:6px;
@@ -1334,6 +1375,14 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccHostNote{margin:9px 0 0;font-size:10.5px;line-height:1.6;color:${C.inkSoft};font-weight:700}
 
 .ccExitChip{cursor:pointer;background:#ffe9a8}
+.ccHistory{position:absolute;left:50%;bottom:calc(66px + var(--kb, 0px));transform:translateX(-50%);
+  width:min(420px,90vw);max-height:52vh;display:flex;flex-direction:column;padding:14px 16px;z-index:22}
+.ccHistoryBody{flex:1;overflow:auto;text-align:left;display:flex;flex-direction:column;gap:7px;margin-bottom:8px}
+.ccHistLine{font-size:12px;font-weight:700;line-height:1.5;color:${C.ink}}
+.ccHistWho{margin-right:6px;color:${C.inkSoft}}
+.ccHistMine .ccHistWho{color:#c05a86}
+.ccHistText{margin-left:2px}
+.ccLogBtn{background:#fff}
 .ccLog{position:absolute;left:14px;bottom:150px;display:flex;flex-direction:column;gap:5px;max-width:min(340px,60vw)}
 .ccLogLine{background:rgba(255,255,255,.94);border:3px solid ${C.line};padding:5px 9px;font-size:11.5px;
   font-weight:700;box-shadow:3px 3px 0 rgba(91,74,99,.2)}
