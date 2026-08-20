@@ -46,7 +46,9 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
   const [i, setI] = useState(0);
   const [guess, setGuess] = useState("");
   const [result, setResult] = useState(null);
-  const [shown, setShown] = useState(""); // 'o' | 'x'
+  const [shown, setShown] = useState("");
+  const [score, setScore] = useState({ ok: 0, done: 0 });
+  const [finished, setFinished] = useState(false); // 'o' | 'x'
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [adding, setAdding] = useState(false);
@@ -81,17 +83,33 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
     if (!r?.ok) { setErr(msgOf(r)); return; }
     setResult(r.correct ? "o" : "x");
     setShown(r.answer || "");
+    setScore((v) => ({ ok: v.ok + (r.correct ? 1 : 0), done: v.done + 1 }));
     if (r.correct) ding();
     else buzz();
+
+    const last = i + 1 >= inPack.length;
     setTimeout(
       () => {
         setResult(null);
         setShown("");
         setGuess("");
-        setI((v) => (inPack.length ? (v + 1) % inPack.length : 0));
+        if (last) setFinished(true);       // 패키지 끝 — 더 이어지지 않습니다
+        else setI(i + 1);
       },
-      r.correct ? 900 : 1900
+      r.correct ? 900 : 2100
     );
+  };
+
+  /* 패키지를 고르거나 다시 풀 때 초기화 */
+  const startPack = (name) => {
+    setPack(name);
+    setI(0);
+    setGuess("");
+    setResult(null);
+    setShown("");
+    setScore({ ok: 0, done: 0 });
+    setFinished(false);
+    ding();
   };
 
   const pick = async (e) => {
@@ -158,7 +176,7 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
           )}
           <div className="ccPacks">
             {(packs || []).map((p, n) => (
-              <button key={p.pack} className="ccPack" onClick={() => { setPack(p.pack); setI(0); ding(); }}>
+              <button key={p.pack} className="ccPack" onClick={() => startPack(p.pack)}>
                 <Bundle color={PACK_COLORS[n % PACK_COLORS.length]} />
                 <span className="ccPackName">{p.pack} 퀴즈</span>
                 <span className="ccPackN">{p.n}문제</span>
@@ -170,12 +188,31 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
 
       {pack && !adding && (
         <div className="ccPackBar">
-          <button className="ccMini" onClick={() => { setPack(null); setGuess(""); }}>← 패키지</button>
+          <button className="ccMini" onClick={() => { setPack(null); setGuess(""); setFinished(false); }}>← 패키지</button>
           <b>{pack} 퀴즈</b>
         </div>
       )}
 
-      {pack && q && !adding && (
+      {pack && finished && !adding && (
+        <div className="ccScore">
+          <div className="ccScoreBig">
+            {score.ok} <span>/ {score.done}</span>
+          </div>
+          <p className="ccScoreMsg">
+            {score.ok === score.done
+              ? "전부 맞혔어요! 대단해요"
+              : score.ok === 0
+                ? "아쉬워요… 한 번 더 도전해볼까요?"
+                : "수고했어요! 다시 풀면 더 잘할 수 있어요"}
+          </p>
+          <div className="ccRow">
+            <button className="ccBtn ccMiniBtn" onClick={() => startPack(pack)}>다시 풀기</button>
+            <button className="ccMini" onClick={() => { setPack(null); setFinished(false); }}>다른 패키지</button>
+          </div>
+        </div>
+      )}
+
+      {pack && !finished && q && !adding && (
         <>
           <div className={"ccQuizImg" + (result === "x" ? " ccShake" : "")}>
             <img src={q.image} alt="퀴즈" />
@@ -187,9 +224,8 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
             )}
           </div>
           <div className="ccQuizNav">
-            <button className="ccMini" onClick={() => { setI((v) => (v - 1 + inPack.length) % inPack.length); setGuess(""); }}>◀</button>
-            <span>{i + 1} / {inPack.length}</span>
-            <button className="ccMini" onClick={() => { setI((v) => (v + 1) % inPack.length); setGuess(""); }}>▶</button>
+            <span className="ccQuizStep">{i + 1} / {inPack.length}</span>
+            <span className="ccQuizOk">맞힌 문제 {score.ok}개</span>
           </div>
           <form onSubmit={submit} className="ccRow">
             <input

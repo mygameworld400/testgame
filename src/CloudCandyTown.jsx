@@ -1580,10 +1580,17 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccPackBar{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px}
 .ccQuizImg{position:relative;border:4px solid ${C.line};background:#f4eef6;margin-bottom:10px}
 .ccQuizImg img{display:block;width:100%;max-height:38vh;object-fit:contain}
-.ccMark{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
-.ccMarkSign{font-size:88px;font-weight:900;line-height:1}
-.ccRedPen{font-size:20px;font-weight:900;color:#e23b3b;background:rgba(255,255,255,.82);
-  border:3px solid #e23b3b;padding:4px 14px;transform:rotate(-4deg);text-shadow:1px 1px 0 #fff}
+.ccMark{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;background:rgba(255,255,255,.35);z-index:3}
+.ccMarkSign{font-size:76px;font-weight:900;line-height:1;text-shadow:2px 2px 0 #fff,-2px -2px 0 #fff,2px -2px 0 #fff,-2px 2px 0 #fff}
+.ccRedPen{font-size:19px;font-weight:900;color:#e23b3b;background:#fff;
+  border:4px solid #e23b3b;padding:7px 18px;transform:rotate(-5deg);box-shadow:3px 3px 0 rgba(226,59,59,.3)}
+.ccQuizStep{font-weight:800}
+.ccQuizOk{color:${C.inkSoft};font-size:11.5px}
+.ccScore{padding:18px 6px 8px}
+.ccScoreBig{font-size:52px;font-weight:900;color:#2e9e78;line-height:1}
+.ccScoreBig span{font-size:24px;color:${C.inkSoft}}
+.ccScoreMsg{margin:10px 0 16px;font-size:13px;font-weight:700;color:${C.ink}}
 .ccMarkO{color:#2e9e78}
 .ccMarkX{color:#e0685f}
 .ccShake{animation:ccShake .3s steps(2,end) 2}
