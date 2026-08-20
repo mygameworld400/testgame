@@ -445,10 +445,10 @@ export default function CloudCandyTown() {
       </>
     );
   }
-  return <Town me={me} />;
+  return <Town me={me} setMe={setMe} />;
 }
 
-function Town({ me }) {
+function Town({ me, setMe }) {
   const [pos, setPos] = useState({ x: 850, y: 660 });
   const [facing, setFacing] = useState(1);
   const [moving, setMoving] = useState(false);
@@ -799,6 +799,18 @@ function Town({ me }) {
     myMsgTimer.current = setTimeout(() => setMyMsg(null), CHAT_MS);
   }, [chatText]);
 
+  /* 게임 안에서 호스트로 전환 — 나갔다 들어올 필요 없이 */
+  const becomeHost = useCallback(async (code) => {
+    const r = await joinRoom(me.name, code);
+    if (r?.ok && r.role === "host") {
+      rememberHostCode(code);
+      setMe({ ...me, role: "host", slot: 0, hostCode: code });
+      setToast("호스트로 전환됐어요");
+      return { ok: true };
+    }
+    return { ok: false, error: r?.error || "bad_code" };
+  }, [me, setMe]);
+
   /* 올려둔 물소리가 있으면 가져옵니다 */
   useEffect(() => {
     if (!hasServer) return;
@@ -1117,13 +1129,19 @@ function Town({ me }) {
             <MusicSheet
               hostCode={me.hostCode}
               isHost={me.role === "host"}
+              onBecomeHost={becomeHost}
               playingId={track?.id}
               onPlay={(t) => setTrack(t)}
               onClose={() => setSheet(null)}
             />
           )}
           {sheet === "quiz" && (
-            <QuizSheet hostCode={me.hostCode} isHost={me.role === "host"} onClose={() => setSheet(null)} />
+            <QuizSheet
+              hostCode={me.hostCode}
+              isHost={me.role === "host"}
+              onBecomeHost={becomeHost}
+              onClose={() => setSheet(null)}
+            />
           )}
         </div>
       )}
@@ -1318,6 +1336,8 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccRow{display:flex;gap:6px;align-items:center;justify-content:center}
 .ccHostRow{margin-top:12px;flex-wrap:wrap}
 .ccHostTop{margin:0 0 12px}
+.ccHostLogin{display:flex;gap:6px;margin-top:12px}
+.ccHostLogin .ccInput{font-size:12px;padding:8px}
 .ccAddBtn{background:#ffd45e;color:${C.line}}
 .ccMini{border:3px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
   font-size:11.5px;padding:7px 10px;cursor:pointer;box-shadow:2px 2px 0 rgba(91,74,99,.25)}
