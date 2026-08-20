@@ -88,7 +88,7 @@ export const ROOMS = {
     zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
   },
 
-  /* 🎙️ ASMR 타운 — 가운데 커다란 갈색 낙엽 더미 */
+  /* 🎙️ ASMR 타운 — 가운데 커다란 모래밭 */
   flower: {
     id: "flower",
     name: "ASMR 타운",
@@ -99,7 +99,7 @@ export const ROOMS = {
     wallDark: "#f5d3a8",
     side: "#fff0dd",
     accent: "#ffcf95",
-    hint: "가운데 낙엽 더미를 밟으면 소리가 나요",
+    hint: "가운데 모래를 밟으면 사각사각 소리가 나요",
     play: PLAY,
     blocks: [],
     crunch: { x: 500, y: 270, r: 150 },
@@ -152,7 +152,7 @@ export function RoomStage({ room, children, waterPhase, seats = [] }) {
       {R.id === "cake" && <BarProps seats={seats} />}
       {R.id === "candy" && <QuizProps R={R} />}
       {R.id === "post" && <PoolProps R={R} phase={waterPhase} />}
-      {R.id === "flower" && <LeafProps R={R} />}
+      {R.id === "flower" && <SandProps R={R} />}
       {R.id === "carousel" && <SoonProps R={R} />}
 
       {/* 문 */}
@@ -304,8 +304,8 @@ function PoolProps({ R, phase }) {
   );
 }
 
-/* ASMR — 커다란 갈색 낙엽 더미 */
-function LeafProps({ R }) {
+/* ASMR — 커다란 모래밭 */
+function SandProps({ R }) {
   const c = proj(500, 270);
   const k = depth(270);
   const bits = [];
@@ -315,18 +315,18 @@ function LeafProps({ R }) {
     bits.push(
       <rect
         key={i}
-        x={c.sx + Math.cos(a) * rr * k - 9}
-        y={c.sy + Math.sin(a) * rr * 0.5 * k - 6}
-        width={18}
-        height={12}
-        fill={i % 3 === 0 ? "#ffcf95" : i % 3 === 1 ? "#f5bd7d" : "#ffdcaa"}
+        x={c.sx + Math.cos(a) * rr * k - 4}
+        y={c.sy + Math.sin(a) * rr * 0.5 * k - 3}
+        width={7}
+        height={5}
+        fill={i % 3 === 0 ? "#e8c98d" : i % 3 === 1 ? "#f7e3b8" : "#dcb976"}
       />
     );
   }
   return (
     <g>
-      <ellipse cx={c.sx} cy={c.sy} rx={R.crunch.r * k} ry={R.crunch.r * 0.52 * k} fill="#f0c088" stroke="#5b4a63" strokeWidth="5" />
-      <ellipse cx={c.sx} cy={c.sy - 8 * k} rx={R.crunch.r * 0.86 * k} ry={R.crunch.r * 0.44 * k} fill="#ffdcaa" />
+      <ellipse cx={c.sx} cy={c.sy} rx={R.crunch.r * k} ry={R.crunch.r * 0.52 * k} fill="#e8c98d" stroke="#5b4a63" strokeWidth="5" />
+      <ellipse cx={c.sx} cy={c.sy - 8 * k} rx={R.crunch.r * 0.86 * k} ry={R.crunch.r * 0.44 * k} fill="#f7e3b8" />
       {bits}
     </g>
   );

@@ -15,37 +15,40 @@ function audio() {
   return ctx;
 }
 
-/* 낙엽 밟는 "콰삭" — 짧은 잡음 폭발 + 밴드패스 */
+/* 모래 밟는 "사각사각" — 낙엽처럼 파삭 터지는 소리가 아니라
+   잔알갱이가 쓸리는 소리라, 고음쪽 잡음을 부드럽게 밀었다 뺍니다. */
 export function crunch() {
   const ac = audio();
   if (!ac) return;
-  const dur = 0.28;
+  const t0 = ac.currentTime;
+  const dur = 0.34;
   const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * dur), ac.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < data.length; i++) {
     const t = i / data.length;
-    /* 앞쪽이 거칠고 뒤로 갈수록 잦아드는 잡음 */
-    const env = Math.pow(1 - t, 2.2) * (t < 0.06 ? t / 0.06 : 1);
-    const grain = Math.random() < 0.35 ? 1 : 0.35; // 알갱이 느낌
-    data[i] = (Math.random() * 2 - 1) * env * grain;
+    /* 가운데가 가장 크고 앞뒤로 잦아드는 모양 — 발이 쓸리는 느낌 */
+    const env = Math.sin(Math.PI * Math.min(1, t * 1.15)) ** 1.6;
+    data[i] = (Math.random() * 2 - 1) * env;
   }
   const src = ac.createBufferSource();
   src.buffer = buf;
 
-  const bp = ac.createBiquadFilter();
-  bp.type = "bandpass";
-  bp.frequency.value = 2600;
-  bp.Q.value = 0.9;
-
   const hp = ac.createBiquadFilter();
   hp.type = "highpass";
-  hp.frequency.value = 900;
+  hp.frequency.value = 2200;          // 낮은 '퍽' 소리를 걷어냅니다
 
-  const gain = ac.createGain();
-  gain.gain.value = 0.5;
+  const bp = ac.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 0.5;
+  bp.frequency.setValueAtTime(4200, t0);
+  bp.frequency.linearRampToValueAtTime(6800, t0 + dur * 0.6);
+  bp.frequency.linearRampToValueAtTime(3600, t0 + dur);
 
-  src.connect(bp).connect(hp).connect(gain).connect(ac.destination);
-  src.start();
+  const g = ac.createGain();
+  g.gain.value = 0.3;
+
+  src.connect(hp).connect(bp).connect(g).connect(ac.destination);
+  src.start(t0);
 }
 
 /* 가벼운 딸깍 — 버튼/메뉴용 */
