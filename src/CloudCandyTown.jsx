@@ -4,6 +4,7 @@ import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CHAIRS, ROOM, ROOMS, RoomStage, SCREEN, depth, proj } from "./rooms.jsx";
 import { blip, crunch, splash } from "./sfx.js";
 import { MusicSheet, QuizSheet } from "./sheets.jsx";
+import { findSfx, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
 
 /* ===========================================================
@@ -490,6 +491,7 @@ function Town({ me }) {
   const swimRef = useRef(false);
   const sheetRef = useRef(null);
   const sitRef = useRef(null);
+  const splashUrl = useRef(null);
   const chairRef = useRef(null);
   const audio = useRef(null);
   const chatBox = useRef(null);
@@ -701,10 +703,10 @@ function Town({ me }) {
             Math.abs(p.x - w.x) < w.w / 2 && Math.abs(p.y - w.y) < w.d / 2;
           if (inWater !== swimRef.current) {
             swimRef.current = inWater;
-            if (inWater) { splash(); sfxAt.current = now; }
+            if (inWater) { splash(splashUrl.current); sfxAt.current = now; }
           } else if (inWater && isMoving && now - sfxAt.current > 700) {
             sfxAt.current = now;
-            splash();
+            splash(splashUrl.current);
           }
           setWave(now / 260);
         }
@@ -796,6 +798,17 @@ function Town({ me }) {
     clearTimeout(myMsgTimer.current);
     myMsgTimer.current = setTimeout(() => setMyMsg(null), CHAT_MS);
   }, [chatText]);
+
+  /* 올려둔 물소리가 있으면 가져옵니다 */
+  useEffect(() => {
+    if (!hasServer) return;
+    (async () => {
+      const list = await trackList();
+      if (!Array.isArray(list)) return;
+      const s = findSfx(list, "splash");
+      splashUrl.current = s ? trackUrl(s.path) : null;
+    })();
+  }, [sheet]);
 
   /* 참가자 현황 */
   useEffect(() => {
@@ -1318,6 +1331,7 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 @keyframes ccShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 .ccQuizNav{display:flex;align-items:center;justify-content:center;gap:12px;font-size:12px;font-weight:700;margin-bottom:10px}
 .ccAdd{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+.ccCheck{display:flex;gap:7px;align-items:center;font-size:11.5px;font-weight:700;color:${C.inkSoft};text-align:left}
 .ccFile{font-family:inherit;font-size:11.5px;border:3px dashed ${C.line};padding:9px;background:#fffbe8}
 .ccPreview{width:100%;max-height:30vh;object-fit:contain;border:3px solid ${C.line}}
 .ccTracks{list-style:none;margin:0 0 8px;padding:0;max-height:40vh;overflow:auto;display:flex;flex-direction:column;gap:6px}

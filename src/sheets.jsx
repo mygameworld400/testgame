@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { quizAdd, quizCheck, quizDel, quizList, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { SFX_PREFIX, isSfx, quizAdd, quizCheck, quizDel, quizList, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -104,7 +104,7 @@ export function QuizSheet({ hostCode, isHost, onClose }) {
 
       {list === null && <p className="ccSheetEmpty">불러오는 중…</p>}
 
-      {list && list.length === 0 && !adding && (
+      {list && songs.length === 0 && !adding && (
         <p className="ccSheetEmpty">
           아직 문제가 없어요.
           {isHost ? " 아래에서 문제를 만들어보세요." : " 호스트가 문제를 올리면 풀 수 있어요."}
@@ -175,6 +175,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [chosen, setChosen] = useState(null);
+  const [asSfx, setAsSfx] = useState(false);
   const file = useRef(null);
 
   const load = useCallback(async () => {
@@ -188,16 +189,20 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
   const add = async () => {
     if (!chosen) { setErr("파일을 골라주세요."); return; }
     setBusy(true);
-    const r = await uploadTrack(hostCode, chosen, title);
+    const r = await uploadTrack(hostCode, chosen, asSfx ? SFX_PREFIX + "splash" : title);
     setBusy(false);
     if (!r?.ok) { setErr(msgOf(r)); return; }
     setChosen(null);
     setTitle("");
+    setAsSfx(false);
     if (file.current) file.current.value = "";
     setAdding(false);
     setErr("");
     load();
   };
+
+  const songs = (list || []).filter((t) => !isSfx(t));
+  const sfx = (list || []).filter(isSfx);
 
   const remove = async (id) => {
     setBusy(true);
@@ -215,16 +220,16 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
       </div>
 
       {list === null && <p className="ccSheetEmpty">불러오는 중…</p>}
-      {list && list.length === 0 && !adding && (
+      {list && songs.length === 0 && !adding && (
         <p className="ccSheetEmpty">
           아직 곡이 없어요.
           {isHost ? " 아래에서 파일을 올려보세요." : " 호스트가 올리면 들을 수 있어요."}
         </p>
       )}
 
-      {list && list.length > 0 && (
+      {songs.length > 0 && (
         <ul className="ccTracks">
-          {list.map((t) => (
+          {songs.map((t) => (
             <li key={t.id} className={playingId === t.id ? "ccTrackOn" : ""}>
               <button className="ccTrackBtn" onClick={() => onPlay({ id: t.id, title: t.title, url: trackUrl(t.path) })}>
                 {playingId === t.id ? "▶" : "♪"} {t.title}
@@ -259,7 +264,11 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
             <button className="ccBtn ccMiniBtn" onClick={add} disabled={busy}>{busy ? "올리는 중…" : "곡 추가"}</button>
             <button className="ccMini" onClick={() => { setAdding(false); setChosen(null); }}>취소</button>
           </div>
-          <p className="ccSheetNote">mp3 · m4a · wav — 한 곡당 20MB 까지</p>
+          <label className="ccCheck">
+            <input type="checkbox" checked={asSfx} onChange={(e) => setAsSfx(e.target.checked)} />
+            수영장 물소리로 쓰기 (곡 목록에는 안 보여요)
+          </label>
+          <p className="ccSheetNote">mp3 · m4a · wav — 한 개당 20MB 까지</p>
         </div>
       )}
 
@@ -267,7 +276,12 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
 
       {isHost && !adding && (
         <div className="ccRow ccHostRow">
-          <button className="ccMini" onClick={() => setAdding(true)}>+ 곡 추가</button>
+          <button className="ccMini" onClick={() => setAdding(true)}>+ 곡 · 효과음 추가</button>
+          {sfx.map((t) => (
+            <button key={t.id} className="ccMini ccDanger" onClick={() => remove(t.id)} disabled={busy}>
+              {t.title.replace("sfx:", "효과음 ")} 삭제
+            </button>
+          ))}
         </div>
       )}
     </div>

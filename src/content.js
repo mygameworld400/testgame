@@ -99,6 +99,13 @@ export async function uploadTrack(hostCode, file, title) {
   return { ok: true, id: reg.id, path };
 }
 
+/* 효과음은 목록에 'sfx:이름' 이라는 제목으로 넣어 구분합니다.
+   따로 테이블을 만들지 않아도 되고, 플레이리스트에는 안 보이게 걸러냅니다. */
+export const SFX_PREFIX = "sfx:";
+export const isSfx = (t) => (t?.title || "").startsWith(SFX_PREFIX);
+export const findSfx = (list, key) =>
+  (list || []).find((t) => t.title === SFX_PREFIX + key) || null;
+
 export function trackUrl(path) {
   if (!supabase || !path) return null;
   return supabase.storage.from("music").getPublicUrl(path).data.publicUrl;
