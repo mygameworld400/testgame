@@ -105,6 +105,17 @@ begin
                 where round = v_round and lower(name) = lower(v_name) and id <> v_exist.id) then
       return json_build_object('ok', false, 'error', 'name_taken');
     end if;
+
+    /* 호스트 코드를 들고 다시 들어오면 게스트 → 호스트로 승격하고 자리를 반납합니다.
+       (폰으로 미리 게스트로 들어가 봤다가 호스트로 다시 들어오는 경우)              */
+    if p_host_code is not null and btrim(p_host_code) = v_code and v_exist.role <> 'host' then
+      update public.cc_players set name = v_name, role = 'host', slot = 0 where id = v_exist.id;
+      select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
+      return json_build_object('ok', true, 'rejoined', true, 'upgraded', true, 'name', v_name,
+                               'role', 'host', 'slot', 0, 'round', v_round,
+                               'capacity', v_cap, 'taken', v_taken);
+    end if;
+
     update public.cc_players set name = v_name where id = v_exist.id;
     select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
     return json_build_object('ok', true, 'rejoined', true, 'name', v_name, 'role', v_exist.role,

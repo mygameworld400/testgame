@@ -436,7 +436,6 @@ function Town({ me }) {
   const [zoom, setZoom] = useState(1);
   const [nearId, setNearId] = useState(null);
   const [openId, setOpenId] = useState(null);
-  const [line, setLine] = useState("");
   const [stars, setStars] = useState(() => STAR_SPOTS.map(() => false));
   const [toast, setToast] = useState("");
   const [room, setRoom] = useState(null);
@@ -513,7 +512,7 @@ function Town({ me }) {
   const openBuilding = useCallback((id) => {
     const b = BUILDINGS.find((x) => x.id === id);
     if (!b) return;
-    setLine(b.lines[Math.floor(Math.random() * b.lines.length)]);
+
     enterRoom(id);
   }, [enterRoom]);
 
@@ -771,12 +770,20 @@ function Town({ me }) {
   }, [me, resetting]);
 
   useEffect(() => {
+    if (!chatLog.length) return undefined;
+    const iv = setInterval(() => {
+      const now = Date.now();
+      setChatLog((l) => (l.some((m) => now - m.at > CHAT_MS) ? l.filter((m) => now - m.at <= CHAT_MS) : l));
+    }, 500);
+    return () => clearInterval(iv);
+  }, [chatLog.length]);
+
+  useEffect(() => {
     if (!toast) return undefined;
     const t = setTimeout(() => setToast(""), 2600);
     return () => clearTimeout(t);
   }, [toast]);
 
-  const open = openId ? BUILDINGS.find((b) => b.id === openId) : null;
   const ordered = useMemo(() => [...BUILDINGS].sort((a, b) => a.y - b.y), []);
   const roundNo = room?.round ?? me.round;
   const R = scene ? ROOMS[scene] : null;
@@ -890,6 +897,11 @@ function Town({ me }) {
 
       {/* 좌측 상단 */}
       <div className="ccHud">
+        {scene && (
+          <button className="ccChip ccExitChip" onClick={exitRoom}>
+            ← {R.emoji} {R.name} 나가기
+          </button>
+        )}
         <div className="ccChip">{me.role === "host" ? "왕관" : charForSlot(me.slot).label} · {me.name}</div>
         <div className="ccChip">별 {collected} / {STAR_SPOTS.length}</div>
         {me.role !== "solo" && <div className="ccChip">접속 {online}명</div>}
@@ -929,6 +941,19 @@ function Town({ me }) {
       )}
 
       {toast && <div className="ccToast">{toast}</div>}
+
+      {/* 다른 방에서 온 채팅 */}
+      {chatLog.length > 0 && (
+        <div className="ccLog">
+          {chatLog.map((m, i) => (
+            <div key={m.at + "-" + i} className="ccLogLine">
+              <b>{m.name}</b>
+              <span className="ccLogRoom">{m.r ? ROOMS[m.r]?.name : "마을"}</span>
+              {m.text}
+            </div>
+          ))}
+        </div>
+      )}
 
       {me.role === "host" && (
         <>
@@ -1002,17 +1027,32 @@ function Town({ me }) {
       </div>
 
 
-      {open && (
-        <div className="ccModalWrap" onClick={() => setOpenId(null)}>
-          <div className="ccPanel ccModal" onClick={(e) => e.stopPropagation()}>
-            <div className="ccModalEmoji">{open.emoji}</div>
-            <div className="ccModalTag">{open.tag}</div>
-            <h2 className="ccModalName">{open.name}</h2>
-            <p className="ccModalLine">{line}</p>
-            <button className="ccBtn" onClick={() => setOpenId(null)}>밖으로 나가기</button>
+      {sheet === "lp" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <div className="ccPanel ccSheet" onClick={(e) => e.stopPropagation()}>
+            <h2 className="ccSheetTitle">♪ 플레이리스트</h2>
+            <p className="ccSheetEmpty">아직 등록된 곡이 없어요.</p>
+            <p className="ccSheetNote">
+              곡 올리기는 다음 단계에서 붙일게요. 준비되면 호스트가 여기서 파일을 바로 올릴 수 있습니다.
+            </p>
+            <button className="ccBtn" onClick={() => setSheet(null)}>닫기</button>
           </div>
         </div>
       )}
+
+      {sheet === "quiz" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <div className="ccPanel ccSheet" onClick={(e) => e.stopPropagation()}>
+            <h2 className="ccSheetTitle">❓ 퀴즈</h2>
+            <p className="ccSheetEmpty">아직 등록된 문제가 없어요.</p>
+            <p className="ccSheetNote">
+              이미지 문제 추가도 다음 단계에서 붙일게요. 호스트가 사진과 정답을 올리면 바로 반영됩니다.
+            </p>
+            <button className="ccBtn" onClick={() => setSheet(null)}>닫기</button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -1108,6 +1148,17 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccRoundBtn{flex:1;font-size:11px;padding:8px 6px;background:#ffd45e;color:${C.ink}}
 .ccHostReset{width:100%;margin-top:6px;font-size:11px;padding:8px;background:#fff;color:${C.ink}}
 .ccHostNote{margin:9px 0 0;font-size:10.5px;line-height:1.6;color:${C.inkSoft};font-weight:700}
+
+.ccExitChip{cursor:pointer;background:#ffe9a8}
+.ccLog{position:absolute;left:14px;bottom:150px;display:flex;flex-direction:column;gap:5px;max-width:min(340px,60vw)}
+.ccLogLine{background:rgba(255,255,255,.94);border:3px solid ${C.line};padding:5px 9px;font-size:11.5px;
+  font-weight:700;box-shadow:3px 3px 0 rgba(91,74,99,.2)}
+.ccLogLine b{margin-right:5px}
+.ccLogRoom{background:#ffe9a8;border:2px solid ${C.line};padding:0 5px;margin-right:6px;font-size:10px}
+.ccSheet{width:min(420px,92vw);padding:22px;text-align:center}
+.ccSheetTitle{margin:0 0 12px;font-size:19px;font-weight:900}
+.ccSheetEmpty{margin:0 0 8px;font-size:14px;font-weight:700;color:${C.ink}}
+.ccSheetNote{margin:0 0 18px;font-size:11.5px;line-height:1.6;font-weight:700;color:${C.inkSoft}}
 
 /* 방 내부 */
 .ccRoomBg{position:absolute;inset:0;overflow:hidden}

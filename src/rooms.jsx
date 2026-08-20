@@ -157,7 +157,7 @@ export function RoomStage({ room, children, waterPhase }) {
       {lines}
 
       {/* 방마다 다른 설치물 */}
-      {R.id === "cake" && <BarProps R={R} />}
+      {R.id === "cake" && <BarProps />}
       {R.id === "candy" && <QuizProps R={R} />}
       {R.id === "post" && <PoolProps R={R} phase={waterPhase} />}
       {R.id === "flower" && <LeafProps R={R} />}
@@ -184,7 +184,7 @@ function Door() {
 }
 
 /* 리스닝바 — 바텐더 자리, 원형 테이블, 의자 6개, LP */
-function BarProps({ R }) {
+function BarProps() {
   const bar = proj(500, 60);
   const table = proj(500, 210);
   const chairs = [];
