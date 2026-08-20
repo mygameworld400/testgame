@@ -214,6 +214,8 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
   const [title, setTitle] = useState("");
   const [chosen, setChosen] = useState(null);
   const [asSfx, setAsSfx] = useState(false);
+  const [pl, setPl] = useState("기본");
+  const [open, setOpen] = useState({});          // 펼쳐진 플레이리스트
   const file = useRef(null);
 
   const load = useCallback(async () => {
@@ -224,10 +226,24 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const songs = (list || []).filter((t) => !isSfx(t));
+  const sfx = (list || []).filter(isSfx);
+
+  /* 플레이리스트별로 묶기 */
+  const groups = [];
+  songs.forEach((t) => {
+    const key = t.pl || "기본";
+    let g = groups.find((x) => x.name === key);
+    if (!g) { g = { name: key, items: [] }; groups.push(g); }
+    g.items.push(t);
+  });
+
+  const toTrack = (t) => ({ id: t.id, title: t.title, url: trackUrl(t.path) });
+
   const add = async () => {
     if (!chosen) { setErr("파일을 골라주세요."); return; }
     setBusy(true);
-    const r = await uploadTrack(hostCode, chosen, asSfx ? SFX_PREFIX + "splash" : title);
+    const r = await uploadTrack(hostCode, chosen, asSfx ? SFX_PREFIX + "splash" : title, pl);
     setBusy(false);
     if (!r?.ok) { setErr(msgOf(r)); return; }
     setChosen(null);
@@ -238,9 +254,6 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
     setErr("");
     load();
   };
-
-  const songs = (list || []).filter((t) => !isSfx(t));
-  const sfx = (list || []).filter(isSfx);
 
   const remove = async (id) => {
     setBusy(true);
@@ -269,29 +282,57 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
       )}
 
       {list === null && <p className="ccSheetEmpty">불러오는 중…</p>}
-      {list && songs.length === 0 && !adding && (
+      {list && groups.length === 0 && !adding && (
         <p className="ccSheetEmpty">
           아직 곡이 없어요.
-          {isHost ? " 아래에서 파일을 올려보세요." : " 호스트가 올리면 들을 수 있어요."}
+          {isHost ? " 위에서 파일을 올려보세요." : " 호스트가 올리면 들을 수 있어요."}
         </p>
       )}
 
-      {songs.length > 0 && (
-        <ul className="ccTracks">
-          {songs.map((t, n) => (
-            <li key={t.id} className={playingId === t.id ? "ccTrackOn" : ""}>
-              <button className="ccTrackBtn" onClick={() => onPlay({ id: t.id, title: t.title, url: trackUrl(t.path) })}>
-                <span className="ccTrackNo">{playingId === t.id ? "▶" : String(n + 1).padStart(2, "0")}</span>
-                <span className="ccTrackName">{t.title}</span>
-              </button>
-              {isHost && (
-                <button className="ccTrackDel" onClick={() => remove(t.id)} disabled={busy} title="삭제">
-                  ✕
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+      {groups.length > 0 && !adding && (
+        <div className="ccPls">
+          {groups.map((g) => {
+            const isOpen = !!open[g.name];
+            return (
+              <div key={g.name} className="ccPl">
+                <div className="ccPlHead">
+                  <button
+                    className="ccPlName"
+                    onClick={() => setOpen((o) => ({ ...o, [g.name]: !o[g.name] }))}
+                  >
+                    <span className="ccPlArrow">{isOpen ? "▾" : "▸"}</span>
+                    {g.name}
+                    <span className="ccPlN">{g.items.length}곡</span>
+                  </button>
+                  <button
+                    className="ccPlPlay"
+                    title="전체 재생"
+                    onClick={() => onPlay(g.items.map(toTrack), 0, g.name)}
+                  >
+                    ▶
+                  </button>
+                </div>
+                {isOpen && (
+                  <ul className="ccTracks">
+                    {g.items.map((t, n) => (
+                      <li key={t.id} className={playingId === t.id ? "ccTrackOn" : ""}>
+                        <button className="ccTrackBtn" onClick={() => onPlay(g.items.map(toTrack), n, g.name)}>
+                          <span className="ccTrackNo">{playingId === t.id ? "▶" : String(n + 1).padStart(2, "0")}</span>
+                          <span className="ccTrackName">{t.title}</span>
+                        </button>
+                        {isHost && (
+                          <button className="ccTrackDel" onClick={() => remove(t.id)} disabled={busy} title="삭제">
+                            ✕
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {isHost && adding && (
@@ -314,8 +355,34 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
             placeholder="곡 제목"
             onChange={(e) => setTitle(e.target.value)}
           />
+          {!asSfx && (
+            <>
+              <input
+                className="ccInput"
+                value={pl}
+                maxLength={24}
+                placeholder="플레이리스트 이름"
+                list="ccPlList"
+                onChange={(e) => setPl(e.target.value)}
+              />
+              <datalist id="ccPlList">
+                {groups.map((g) => (
+                  <option key={g.name} value={g.name} />
+                ))}
+              </datalist>
+              {groups.length > 0 && (
+                <div className="ccRow ccPlPick">
+                  {groups.map((g) => (
+                    <button key={g.name} className="ccMini" onClick={() => setPl(g.name)}>
+                      {g.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
           <div className="ccRow">
-            <button className="ccBtn ccMiniBtn" onClick={add} disabled={busy}>{busy ? "올리는 중…" : "곡 추가"}</button>
+            <button className="ccBtn ccMiniBtn" onClick={add} disabled={busy}>{busy ? "올리는 중…" : "올리기"}</button>
             <button className="ccMini" onClick={() => { setAdding(false); setChosen(null); }}>취소</button>
           </div>
           <label className="ccCheck">
@@ -327,7 +394,6 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
       )}
 
       {err && <div className="ccErr">{err}</div>}
-
     </div>
   );
 }

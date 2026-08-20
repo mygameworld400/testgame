@@ -416,3 +416,40 @@ grant execute on function public.cc_quiz_add(text, text, text, text)      to ano
 
 /* 예전 3인자 버전 정리 */
 drop function if exists public.cc_quiz_add(text, text, text);
+
+-- ===========================================================
+-- 4단계 — 플레이리스트(앨범) 묶음
+--   곡마다 플레이리스트 이름을 달아 접었다 폈다 할 수 있게 합니다.
+--   기존 곡은 '기본' 플레이리스트로 들어갑니다.
+-- ===========================================================
+
+alter table public.cc_tracks add column if not exists pl text not null default '기본';
+
+create or replace function public.cc_track_list()
+returns json language plpgsql security definer set search_path = public as $$
+declare v json;
+begin
+  select coalesce(json_agg(json_build_object('id', id, 'title', title, 'path', path, 'pl', pl) order by pl, id), '[]'::json)
+    into v from public.cc_tracks;
+  return v;
+end; $$;
+
+create or replace function public.cc_track_add(p_host_code text, p_title text, p_path text, p_pl text default '기본')
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text; v_id bigint; v_pl text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  if coalesce(btrim(p_title), '') = '' or coalesce(btrim(p_path), '') = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  v_pl := coalesce(nullif(btrim(p_pl), ''), '기본');
+  insert into public.cc_tracks (title, path, pl) values (btrim(p_title), btrim(p_path), left(v_pl, 24))
+    returning id into v_id;
+  return json_build_object('ok', true, 'id', v_id, 'pl', v_pl);
+end; $$;
+
+grant execute on function public.cc_track_add(text, text, text, text) to anon, authenticated;
+drop function if exists public.cc_track_add(text, text, text);

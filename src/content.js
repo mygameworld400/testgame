@@ -56,8 +56,8 @@ export function shrinkImage(file, max = 720, quality = 0.72) {
 /* ---------- 음악 ---------- */
 
 export const trackList = () => call("cc_track_list");
-export const trackAdd = (hostCode, title, path) =>
-  call("cc_track_add", { p_host_code: hostCode, p_title: title, p_path: path });
+export const trackAdd = (hostCode, title, path, pl) =>
+  call("cc_track_add", { p_host_code: hostCode, p_title: title, p_path: path, p_pl: pl || "기본" });
 
 export async function trackDel(hostCode, id) {
   const r = await call("cc_track_del", { p_host_code: hostCode, p_id: id });
@@ -72,7 +72,7 @@ export async function trackDel(hostCode, id) {
 }
 
 /* 파일을 music 보관함에 올리고, 목록에 등록까지 합니다 */
-export async function uploadTrack(hostCode, file, title) {
+export async function uploadTrack(hostCode, file, title, pl) {
   if (!supabase) return { ok: false, error: "no_server" };
   if (file.size > 20 * 1024 * 1024) return { ok: false, error: "too_big" };
 
@@ -88,7 +88,7 @@ export async function uploadTrack(hostCode, file, title) {
     return { ok: false, error: /bucket/i.test(msg) ? "no_bucket" : "upload_failed", message: msg };
   }
 
-  const reg = await trackAdd(hostCode, title || file.name.replace(/\.[^.]+$/, ""), path);
+  const reg = await trackAdd(hostCode, title || file.name.replace(/\.[^.]+$/, ""), path, pl);
   if (!reg?.ok) {
     try {
       await supabase.storage.from("music").remove([path]);

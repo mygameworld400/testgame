@@ -501,7 +501,9 @@ function Town({ me, setMe, onKick }) {
   const [chatLog, setChatLog] = useState([]);
   const [history, setHistory] = useState([]);   // 이번 회차 대화 기록
   const [logOpen, setLogOpen] = useState(false);
-  const [track, setTrack] = useState(null);   // 지금 듣는 곡
+  const [queue, setQueue] = useState([]);    // 재생 목록
+  const [qi, setQi] = useState(0);           // 그중 몇 번째
+  const [plName, setPlName] = useState("");
   const [sit, setSit] = useState(null);      // 앉아 있는 의자 번호
   const [broken, setBroken] = useState([]);  // 뿌셔진 왁뿌볼
   const [quizMode, setQuizMode] = useState("solo");   // 퀴즈상가 개인전 / 팀전
@@ -997,6 +999,7 @@ function Town({ me, setMe, onKick }) {
 
   const ordered = useMemo(() => [...BUILDINGS].sort((a, b) => a.y - b.y), []);
   const roundNo = room?.round ?? me.round;
+  const track = queue[qi] || null;
   const R = scene ? ROOMS[scene] : null;
   const here = scene || "";
   const roomPeers = peerView.filter((p) => (p.r || "") === here);
@@ -1305,7 +1308,11 @@ function Town({ me, setMe, onKick }) {
               hostCode={me.hostCode}
               isHost={me.role === "host"}
               playingId={track?.id}
-              onPlay={(t) => setTrack(t)}
+              onPlay={(items, index, name) => {
+                setQueue(items);
+                setQi(index || 0);
+                setPlName(name || "");
+              }}
               onClose={() => setSheet(null)}
             />
           )}
@@ -1324,13 +1331,25 @@ function Town({ me, setMe, onKick }) {
       {track && (
         <div className="ccPlayBar">
           <span className="ccPlayDisc">◉</span>
-          <span className="ccPlayTitle">{track.title}</span>
+          <span className="ccPlayTitle">
+            {track.title}
+            {queue.length > 1 && (
+              <span className="ccPlayOf"> {qi + 1}/{queue.length}{plName ? ` · ${plName}` : ""}</span>
+            )}
+          </span>
           <button
             className="ccPlayBtn"
             title="재생 / 일시정지"
             onClick={() => { const a = audio.current; if (!a) return; if (a.paused) a.play(); else a.pause(); }}
           >
             ⏯
+          </button>
+          <button
+            className="ccPlayBtn"
+            title="다음 곡"
+            onClick={() => setQi((v) => (queue.length ? (v + 1) % queue.length : 0))}
+          >
+            ⏭
           </button>
           <button className="ccPlayBtn" title="음소거" onClick={() => setMuted((v) => !v)}>
             {muted || vol === 0 ? "🔇" : vol < 0.4 ? "🔈" : "🔊"}
@@ -1344,10 +1363,22 @@ function Town({ me, setMe, onKick }) {
             value={muted ? 0 : vol}
             onChange={(e) => { setMuted(false); setVol(Number(e.target.value)); }}
           />
-          <button className="ccPlayBtn" title="끄기" onClick={() => setTrack(null)}>✕</button>
+          <button className="ccPlayBtn" title="끄기" onClick={() => { setQueue([]); setQi(0); }}>✕</button>
         </div>
       )}
-      {track && <audio ref={audio} src={track.url} autoPlay loop onError={() => setToast("곡을 재생하지 못했어요")} />}
+      {track && (
+        <audio
+          ref={audio}
+          src={track.url}
+          autoPlay
+          onEnded={() => {
+            if (qi + 1 < queue.length) setQi(qi + 1);
+            else if (queue.length > 1) setQi(0);      /* 목록이 여러 곡이면 처음부터 다시 */
+            else audio.current?.play();               /* 한 곡이면 반복 */
+          }}
+          onError={() => setToast("곡을 재생하지 못했어요")}
+        />
+      )}
 
       {/* 모바일 조작 — 왼쪽 조이스틱, 오른쪽 액션 */}
       <div className="ccTouch">
@@ -1573,6 +1604,19 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccPlayBar{position:absolute;left:50%;top:14px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;
   background:#fff;border:4px solid ${C.line};padding:7px 11px;box-shadow:4px 4px 0 rgba(91,74,99,.3);
   max-width:min(360px,70vw);z-index:20}
+.ccPlayOf{font-size:10px;color:${C.inkSoft};margin-left:6px;font-weight:700}
+.ccPls{display:flex;flex-direction:column;gap:6px;margin:4px 0 8px;max-height:44vh;overflow:auto}
+.ccPl{border-bottom:2px solid #efe7f2}
+.ccPl:last-child{border-bottom:none}
+.ccPlHead{display:flex;align-items:center;gap:6px}
+.ccPlName{flex:1;display:flex;align-items:center;gap:8px;border:none;background:none;font-family:inherit;
+  font-weight:800;font-size:13px;color:${C.ink};padding:11px 2px;cursor:pointer;text-align:left}
+.ccPlArrow{font-size:11px;color:${C.inkSoft};width:12px}
+.ccPlN{font-size:10.5px;color:${C.inkSoft};font-weight:700}
+.ccPlPlay{border:3px solid ${C.line};background:#ffd45e;font-family:inherit;font-size:12px;
+  width:30px;height:30px;cursor:pointer;box-shadow:2px 2px 0 rgba(91,74,99,.22)}
+.ccPlPlay:active{transform:translate(2px,2px);box-shadow:none}
+.ccPlPick{flex-wrap:wrap;justify-content:flex-start}
 .ccPlayTitle{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ccPlayDisc{animation:ccSpin 2.4s linear infinite;font-size:15px}
 .ccPlayBtn{border:none;background:none;font-family:inherit;font-size:14px;cursor:pointer;padding:2px 3px;line-height:1}
