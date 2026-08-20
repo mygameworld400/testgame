@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
-import { CHAIRS, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, depth, proj } from "./rooms.jsx";
-import { blip, crack, crunch, splash } from "./sfx.js";
+import { CHAIRS, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, depth, keyCount, keyPos, proj } from "./rooms.jsx";
+import { blip, crack, crunch, keyclick, splash } from "./sfx.js";
 import { GachaSheet, MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
 import { findSfx, quizPacks, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
@@ -505,6 +505,7 @@ function Town({ me, setMe, onKick }) {
   const [plName, setPlName] = useState("");
   const [sit, setSit] = useState(null);      // 앉아 있는 의자 번호
   const [broken, setBroken] = useState([]);  // 뿌셔진 왁뿌볼
+  const [pressed, setPressed] = useState([]); // 눌린 키보드 키
   const [quizMode, setQuizMode] = useState("solo");   // 퀴즈상가 개인전 / 팀전
   const [games, setGames] = useState([]);            // 팀전 목록
   const [myGid, setMyGid] = useState(null);          // 내가 들어간 팀전
@@ -546,6 +547,7 @@ function Town({ me, setMe, onKick }) {
   const peersRef = useRef([]);
   const smooth = useRef(new Map());
   const brokenRef = useRef([]);
+  const pressedRef = useRef([]);
   const splashUrl = useRef(null);
   const chairRef = useRef(null);
   const audio = useRef(null);
@@ -558,6 +560,7 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { starsRef.current = stars; }, [stars]);
   useEffect(() => { peersRef.current = peers; }, [peers]);
   useEffect(() => { brokenRef.current = broken; }, [broken]);
+  useEffect(() => { pressedRef.current = pressed; }, [pressed]);
   useEffect(() => { gamesRef.current = games; }, [games]);
   useEffect(() => {
     myGidRef.current = myGid;
@@ -693,6 +696,19 @@ function Town({ me, setMe, onKick }) {
       window.removeEventListener("blur", blur);
     };
   }, [openBuilding, activateZone]);
+
+  /* 키보드 — 밟으면 쑥 들어갔다가 1.5초 뒤에 올라옵니다 */
+  const pressKey = useCallback((i, mine) => {
+    if (pressedRef.current.includes(i)) return;
+    pressedRef.current = [...pressedRef.current, i];
+    setPressed(pressedRef.current);
+    keyclick();
+    if (mine) chanRef.current?.fx({ t: "key", i });
+    setTimeout(() => {
+      pressedRef.current = pressedRef.current.filter((n) => n !== i);
+      setPressed(pressedRef.current);
+    }, 1500);
+  }, []);
 
   /* 왁뿌볼 — 밟으면 뿌셔지고 12초 뒤 다시 생깁니다 */
   const popBall = useCallback((i, mine) => {
@@ -906,6 +922,19 @@ function Town({ me, setMe, onKick }) {
           }
         }
 
+        /* 키보드 밟기 */
+        if (room.keys) {
+          const K = room.keys;
+          for (let i = 0; i < keyCount(K); i++) {
+            if (pressedRef.current.includes(i)) continue;
+            const c = keyPos(K, i);
+            if (Math.abs(p.x - c.x) < K.w / 2 && Math.abs(p.y - c.y) < K.h / 2) {
+              pressKey(i, true);
+              break;
+            }
+          }
+        }
+
         /* 수영 */
         if (room.water) {
           const w = room.water;
@@ -965,7 +994,7 @@ function Town({ me, setMe, onKick }) {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [popBall]);
+  }, [popBall, pressKey]);
 
   /* 같이 접속한 사람 */
   useEffect(() => {
@@ -988,6 +1017,10 @@ function Town({ me, setMe, onKick }) {
         if (!e) return;
         if (e.t === "ball") {
           if (sceneRef.current === "flower") popBall(e.i, false);
+          return;
+        }
+        if (e.t === "key") {
+          if (sceneRef.current === "flower") pressKey(e.i, false);
           return;
         }
         if (e.t === "game") { putGame(e.g); return; }
@@ -1151,6 +1184,7 @@ function Town({ me, setMe, onKick }) {
               waterPhase={wave}
               seats={seats}
               broken={broken}
+              pressed={pressed}
               skin={scene === "candy" ? QUIZ_SKIN[quizMode] : null}
             />
             <div className="ccRoomLayer">

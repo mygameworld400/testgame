@@ -103,12 +103,14 @@ export const ROOMS = {
     play: PLAY,
     blocks: [],
     crunch: { x: 500, y: 270, r: 150 },
-    /* 왁뿌볼 — 밟으면 뿌셔집니다 */
+    /* 왁뿌볼 — 한쪽에 모아둔 무더기, 밟으면 뿌셔집니다 */
     balls: [
-      { i: 0, x: 220, y: 120 }, { i: 1, x: 780, y: 130 }, { i: 2, x: 160, y: 330 },
-      { i: 3, x: 840, y: 340 }, { i: 4, x: 330, y: 450 }, { i: 5, x: 670, y: 460 },
-      { i: 6, x: 500, y: 90 },  { i: 7, x: 500, y: 470 },
+      { i: 0, x: 235, y: 300 }, { i: 1, x: 285, y: 285 }, { i: 2, x: 330, y: 305 },
+      { i: 3, x: 258, y: 340 }, { i: 4, x: 308, y: 345 }, { i: 5, x: 210, y: 345 },
+      { i: 6, x: 283, y: 380 }, { i: 7, x: 350, y: 350 },
     ],
+    /* 키보드 — 오른쪽에 세로로 긴 3열 × 10줄 */
+    keys: { x0: 762, y0: 80, cols: 3, rows: 10, w: 54, h: 40 },
     zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
   },
 
@@ -141,7 +143,7 @@ export const QUIZ_SKIN = {
   team: { floor: "#ffd6d6", floorLine: "#ffd6d6", wall: "#ffecec", wallDark: "#f5b3b3", side: "#ffe2e2", accent: "#e05b5b" },
 };
 
-export function RoomStage({ room, children, waterPhase, seats = [], broken = [], skin }) {
+export function RoomStage({ room, children, waterPhase, seats = [], broken = [], pressed = [], skin }) {
   const R = skin ? { ...room, ...skin } : room;
   const fl = proj(0, 0);
   const fr = proj(ROOM.w, 0);
@@ -166,7 +168,7 @@ export function RoomStage({ room, children, waterPhase, seats = [], broken = [],
       {R.id === "cake" && <BarProps seats={seats} />}
       {R.id === "candy" && <QuizProps R={R} />}
       {R.id === "post" && <PoolProps R={R} phase={waterPhase} />}
-      {R.id === "flower" && <SandProps R={R} broken={broken} />}
+      {R.id === "flower" && <SandProps R={R} broken={broken} pressed={pressed} />}
       {R.id === "carousel" && <GachaProps R={R} />}
 
       {/* 문 */}
@@ -420,8 +422,61 @@ function PoolProps({ R, phase }) {
   );
 }
 
+/* 키 하나의 방 좌표 (가운데) */
+export function keyPos(k, i) {
+  const c = i % k.cols;
+  const r = Math.floor(i / k.cols);
+  return { x: k.x0 + c * k.w + k.w / 2, y: k.y0 + r * k.h + k.h / 2 };
+}
+export const keyCount = (k) => k.cols * k.rows;
+
+/* 3열 × 10줄 키보드 — 밟으면 쑥 들어갑니다 */
+function Keyboard({ keys, pressed }) {
+  const cells = [];
+  for (let i = 0; i < keyCount(keys); i++) {
+    const c = keyPos(keys, i);
+    const p = proj(c.x, c.y);
+    const k = p.k;
+    const down = pressed.includes(i);
+    const w = (keys.w - 6) * k;
+    const h = (keys.h - 6) * k;
+    const drop = down ? 5 * k : 0;
+    cells.push(
+      <g key={i}>
+        {/* 키 옆면(두께) */}
+        <rect x={p.sx - w / 2} y={p.sy - h / 2 + 4 * k} width={w} height={h} fill="#8a7f6f" stroke="#5b4a63" strokeWidth="3" />
+        {/* 키 윗면 */}
+        <rect
+          x={p.sx - w / 2}
+          y={p.sy - h / 2 - 3 * k + drop}
+          width={w}
+          height={h}
+          fill={down ? "#e6dccb" : "#fffaf0"}
+          stroke="#5b4a63"
+          strokeWidth="3"
+        />
+      </g>
+    );
+  }
+  return (
+    <g>
+      {/* 키보드 판 */}
+      <rect
+        x={proj(keys.x0 - 10, keys.y0).sx}
+        y={proj(keys.x0, keys.y0 - 12).sy}
+        width={(keys.cols * keys.w + 20) * depth(keys.y0 + (keys.rows * keys.h) / 2)}
+        height={keys.rows * keys.h + 24}
+        fill="#6f6355"
+        stroke="#5b4a63"
+        strokeWidth="4"
+      />
+      {cells}
+    </g>
+  );
+}
+
 /* ASMR — 커다란 모래밭 */
-function SandProps({ R, broken = [] }) {
+function SandProps({ R, broken = [], pressed = [] }) {
   const c = proj(500, 270);
   const k = depth(270);
   const bits = [];
@@ -444,6 +499,7 @@ function SandProps({ R, broken = [] }) {
       <ellipse cx={c.sx} cy={c.sy} rx={R.crunch.r * k} ry={R.crunch.r * 0.52 * k} fill="#e8c98d" stroke="#5b4a63" strokeWidth="5" />
       <ellipse cx={c.sx} cy={c.sy - 8 * k} rx={R.crunch.r * 0.86 * k} ry={R.crunch.r * 0.44 * k} fill="#f7e3b8" />
       {bits}
+      {R.keys && <Keyboard keys={R.keys} pressed={pressed} />}
       {(R.balls || []).map((b) => {
         const p = proj(b.x, b.y);
         const k = p.k;

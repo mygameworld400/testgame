@@ -202,3 +202,39 @@ export function ding() {
     osc.stop(at + 0.3);
   });
 }
+
+/* 키보드 "톡" — 얇은 클릭 + 아주 짧은 저음 */
+export function keyclick() {
+  const ac = audio();
+  if (!ac) return;
+  const t0 = ac.currentTime;
+
+  const dur = 0.05;
+  const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * dur), ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 6);
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const bp = ac.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = 2600 + Math.random() * 900;
+  bp.Q.value = 1.4;
+  const g = ac.createGain();
+  g.gain.value = 0.32;
+  src.connect(bp).connect(g).connect(ac.destination);
+  src.start(t0);
+
+  const osc = ac.createOscillator();
+  const og = ac.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(190, t0);
+  osc.frequency.exponentialRampToValueAtTime(90, t0 + 0.05);
+  og.gain.setValueAtTime(0.0001, t0);
+  og.gain.exponentialRampToValueAtTime(0.1, t0 + 0.006);
+  og.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.07);
+  osc.connect(og).connect(ac.destination);
+  osc.start(t0);
+  osc.stop(t0 + 0.09);
+}
