@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { hasCloud, initCloud, loadCloud, loadLocal, saveCloud, saveLocal } from "./save.js";
 
 /* ===========================================================
    구름사탕 마을 — 구름 위에 떠 있는 파스텔 사탕 마을
@@ -150,6 +151,12 @@ const TREES = [
 ];
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+
+const SAVE_TEXT = {
+  off: "이 기기에만 저장",
+  local: "이 기기에만 저장",
+  cloud: "서버까지 저장",
+};
 
 /* 건물의 발치 충돌 박스 */
 function blockBox(b) {
@@ -521,6 +528,8 @@ export default function CloudCandyTown() {
   const [line, setLine] = useState("");
   const [stars, setStars] = useState(() => STAR_SPOTS.map(() => false));
   const [toast, setToast] = useState("");
+  /* "off" 서버 없음 · "local" 이 기기에만 · "cloud" 서버까지 저장됨 */
+  const [saveState, setSaveState] = useState(hasCloud ? "local" : "off");
 
   const posRef = useRef(pos);
   const camRef = useRef({ x: 0, y: 0 });
@@ -677,6 +686,92 @@ export default function CloudCandyTown() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  /* ---------- 세이브 불러오기 ---------- */
+  useEffect(() => {
+    let alive = true;
+    const apply = (d) => {
+      if (!alive || !d) return;
+      if (Array.isArray(d.stars) && d.stars.length === STAR_SPOTS.length) {
+        starsRef.current = d.stars;
+        setStars(d.stars);
+      }
+      if (d.pos && Number.isFinite(d.pos.x) && Number.isFinite(d.pos.y)) {
+        const p = {
+          x: clamp(d.pos.x, PLAY.x0, PLAY.x1),
+          y: clamp(d.pos.y, PLAY.y0, PLAY.y1),
+        };
+        posRef.current = p;
+        setPos(p);
+      }
+    };
+
+    /* 1) 이 기기 저장분을 먼저 즉시 복원 */
+    const local = loadLocal();
+    apply(local);
+
+    /* 2) 서버 저장분이 더 최신이면 그걸로 덮어쓰기 */
+    (async () => {
+      if (!hasCloud) return;
+      const id = await initCloud();
+      if (!alive) return;
+      if (!id) {
+        setSaveState("local");
+        return;
+      }
+      const cloud = await loadCloud();
+      if (!alive) return;
+      if (cloud && (!local || (cloud.at || "") > (local.at || ""))) apply(cloud);
+      setSaveState("cloud");
+      bootedRef.current = true;
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /* ---------- 세이브 저장 ---------- */
+  const dirty = useRef(false);
+  const bootedRef = useRef(false);
+
+  useEffect(() => {
+    dirty.current = true;
+  }, [stars]);
+
+  useEffect(() => {
+    const flush = async () => {
+      if (!dirty.current) return;
+      dirty.current = false;
+      const snapshot = {
+        stars: starsRef.current,
+        pos: posRef.current,
+        at: new Date().toISOString(),
+      };
+      saveLocal(snapshot);
+      if (!hasCloud || !bootedRef.current) return;
+      const ok = await saveCloud(snapshot);
+      setSaveState(ok ? "cloud" : "local");
+    };
+
+    /* 5초마다, 그리고 창을 닫거나 탭을 벗어날 때 */
+    const iv = setInterval(() => {
+      dirty.current = true; // 위치는 계속 바뀌므로 주기 저장
+      flush();
+    }, 5000);
+    const onHide = () => {
+      dirty.current = true;
+      flush();
+    };
+    window.addEventListener("pagehide", onHide);
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      clearInterval(iv);
+      window.removeEventListener("pagehide", onHide);
+      document.removeEventListener("visibilitychange", onHide);
+      onHide();
+    };
+  }, []);
+
   /* 토스트 자동 사라짐 */
   useEffect(() => {
     if (!toast) return undefined;
@@ -772,6 +867,9 @@ export default function CloudCandyTown() {
         <div className="ccChip">
           ⭐ {collected} / {STAR_SPOTS.length}
         </div>
+        <div className={"ccChip ccSave cc-" + saveState} title={SAVE_TEXT[saveState]}>
+          💾 {SAVE_TEXT[saveState]}
+        </div>
       </div>
       <div className="ccHelp ccChip">
         방향키 · WASD 로 이동 &nbsp;/&nbsp; 건물 앞에서 <b>Space</b>
@@ -853,6 +951,9 @@ body{font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sa
 .ccChip{background:rgba(255,255,255,.93);border:3px solid #fff;border-radius:999px;padding:8px 16px;font-weight:800;font-size:14px;
   box-shadow:0 6px 18px rgba(107,85,112,.16);color:${C.ink}}
 .ccTitle{background:linear-gradient(135deg,#fff,#ffe9f4)}
+.ccSave{font-size:12px;padding:8px 14px}
+.ccSave.cc-cloud{color:#2e9e78;border-color:#c8f0e0}
+.ccSave.cc-local,.ccSave.cc-off{color:#d08a2a;border-color:#ffe6bd}
 .ccHelp{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);font-size:13px;font-weight:700;color:${C.inkSoft};white-space:nowrap}
 .ccHelp b{color:${C.ink}}
 .ccToast{position:absolute;left:50%;top:78px;transform:translateX(-50%);background:#fff;border:3px solid #ffd98a;border-radius:999px;
