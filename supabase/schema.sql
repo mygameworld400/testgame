@@ -453,3 +453,21 @@ end; $$;
 
 grant execute on function public.cc_track_add(text, text, text, text) to anon, authenticated;
 drop function if exists public.cc_track_add(text, text, text);
+
+-- ===========================================================
+-- 5단계 — 오답일 때도 정답을 알려줍니다 (빨간펜 표시용)
+-- ===========================================================
+create or replace function public.cc_quiz_check(p_id bigint, p_guess text)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_answer text;
+begin
+  select answer into v_answer from public.cc_quiz where id = p_id;
+  if v_answer is null then
+    return json_build_object('ok', false, 'error', 'no_quiz');
+  end if;
+  return json_build_object(
+    'ok', true,
+    'correct', public.cc_norm(p_guess) = public.cc_norm(v_answer),
+    'answer', v_answer
+  );
+end; $$;

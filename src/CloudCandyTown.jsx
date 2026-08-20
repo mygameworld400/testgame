@@ -1570,15 +1570,20 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccDanger{background:#ffe0e0}
 .ccMiniBtn{font-size:12px;padding:9px 14px}
 .ccPacks{display:flex;flex-direction:column;gap:8px;margin:10px 0}
-.ccPack{display:flex;align-items:center;justify-content:space-between;border:3px solid ${C.line};
-  background:#fff;font-family:inherit;font-weight:800;font-size:13px;color:${C.ink};padding:13px 15px;
-  cursor:pointer;box-shadow:3px 3px 0 rgba(91,74,99,.2)}
+.ccPack{display:flex;align-items:center;gap:12px;border:3px solid ${C.line};
+  background:#fff;font-family:inherit;font-weight:800;font-size:14px;color:${C.ink};padding:11px 15px;
+  cursor:pointer;box-shadow:3px 3px 0 rgba(91,74,99,.2);text-align:left}
+.ccPack .ccPackName{flex:1}
+.ccBundle{flex:none}
 .ccPack:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(91,74,99,.2)}
 .ccPackN{font-size:11px;color:${C.inkSoft}}
 .ccPackBar{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px}
 .ccQuizImg{position:relative;border:4px solid ${C.line};background:#f4eef6;margin-bottom:10px}
 .ccQuizImg img{display:block;width:100%;max-height:38vh;object-fit:contain}
-.ccMark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:96px;font-weight:900}
+.ccMark{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.ccMarkSign{font-size:88px;font-weight:900;line-height:1}
+.ccRedPen{font-size:20px;font-weight:900;color:#e23b3b;background:rgba(255,255,255,.82);
+  border:3px solid #e23b3b;padding:4px 14px;transform:rotate(-4deg);text-shadow:1px 1px 0 #fff}
 .ccMarkO{color:#2e9e78}
 .ccMarkX{color:#e0685f}
 .ccShake{animation:ccShake .3s steps(2,end) 2}

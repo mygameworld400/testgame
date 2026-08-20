@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { buzz, ding } from "./sfx.js";
 
 import { SFX_PREFIX, isSfx, quizAdd, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
@@ -14,6 +15,27 @@ const ERR = {
 };
 const msgOf = (r) => ERR[r?.error] || ERR.server_error;
 
+const PACK_COLORS = ["#ff9ec4", "#8fe3c9", "#ffd45e", "#b6a6f0", "#7fc8f5"];
+
+/* 보따리 — 매듭 묶인 천 주머니 */
+function Bundle({ color }) {
+  return (
+    <svg className="ccBundle" viewBox="0 0 44 44" width="40" height="40">
+      {/* 매듭 */}
+      <path d="M17,12 l-6,-7 8,3 3,-4 3,4 8,-3 -6,7 z" fill={color} stroke="#5b4a63" strokeWidth="2.5" strokeLinejoin="round" />
+      {/* 주머니 */}
+      <path d="M22,12 c11,0 17,9 17,17 c0,7 -8,11 -17,11 c-9,0 -17,-4 -17,-11 c0,-8 6,-17 17,-17 z"
+        fill={color} stroke="#5b4a63" strokeWidth="2.5" strokeLinejoin="round" />
+      {/* 무늬 */}
+      <circle cx="14" cy="26" r="2.6" fill="#fff" opacity="0.85" />
+      <circle cx="24" cy="31" r="3" fill="#fff" opacity="0.85" />
+      <circle cx="32" cy="24" r="2.2" fill="#fff" opacity="0.85" />
+      {/* 묶인 선 */}
+      <path d="M11,17 c7,4 15,4 22,0" stroke="#5b4a63" strokeWidth="2.5" fill="none" />
+    </svg>
+  );
+}
+
 /* ============================ 퀴즈 ============================ */
 
 export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
@@ -23,7 +45,8 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
   const [list, setList] = useState(null);
   const [i, setI] = useState(0);
   const [guess, setGuess] = useState("");
-  const [result, setResult] = useState(null); // 'o' | 'x'
+  const [result, setResult] = useState(null);
+  const [shown, setShown] = useState(""); // 'o' | 'x'
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [adding, setAdding] = useState(false);
@@ -57,15 +80,18 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
     setBusy(false);
     if (!r?.ok) { setErr(msgOf(r)); return; }
     setResult(r.correct ? "o" : "x");
-    if (r.correct) {
-      setTimeout(() => {
+    setShown(r.answer || "");
+    if (r.correct) ding();
+    else buzz();
+    setTimeout(
+      () => {
         setResult(null);
+        setShown("");
         setGuess("");
         setI((v) => (inPack.length ? (v + 1) % inPack.length : 0));
-      }, 900);
-    } else {
-      setTimeout(() => setResult(null), 700);
-    }
+      },
+      r.correct ? 900 : 1900
+    );
   };
 
   const pick = async (e) => {
@@ -131,8 +157,9 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
             </p>
           )}
           <div className="ccPacks">
-            {(packs || []).map((p) => (
-              <button key={p.pack} className="ccPack" onClick={() => { setPack(p.pack); setI(0); }}>
+            {(packs || []).map((p, n) => (
+              <button key={p.pack} className="ccPack" onClick={() => { setPack(p.pack); setI(0); ding(); }}>
+                <Bundle color={PACK_COLORS[n % PACK_COLORS.length]} />
                 <span className="ccPackName">{p.pack} 퀴즈</span>
                 <span className="ccPackN">{p.n}문제</span>
               </button>
@@ -148,11 +175,16 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
         </div>
       )}
 
-      {q && !adding && (
+      {pack && q && !adding && (
         <>
           <div className={"ccQuizImg" + (result === "x" ? " ccShake" : "")}>
             <img src={q.image} alt="퀴즈" />
-            {result && <div className={"ccMark " + (result === "o" ? "ccMarkO" : "ccMarkX")}>{result === "o" ? "○" : "✕"}</div>}
+            {result && (
+              <div className={"ccMark " + (result === "o" ? "ccMarkO" : "ccMarkX")}>
+                <span className="ccMarkSign">{result === "o" ? "○" : "✕"}</span>
+                {result === "x" && shown && <span className="ccRedPen">정답 : {shown}</span>}
+              </div>
+            )}
           </div>
           <div className="ccQuizNav">
             <button className="ccMini" onClick={() => { setI((v) => (v - 1 + inPack.length) % inPack.length); setGuess(""); }}>◀</button>

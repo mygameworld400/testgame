@@ -161,3 +161,44 @@ export function crack() {
     s2.start(at);
   }
 }
+
+/* 오답 "삐빅" — 낮은 사각파 두 번 */
+export function buzz() {
+  const ac = audio();
+  if (!ac) return;
+  const t0 = ac.currentTime;
+  [0, 0.16].forEach((off, i) => {
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.type = "square";
+    osc.frequency.value = i === 0 ? 300 : 220;
+    const at = t0 + off;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.14, at + 0.01);
+    g.gain.setValueAtTime(0.14, at + 0.1);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.13);
+    osc.connect(g).connect(ac.destination);
+    osc.start(at);
+    osc.stop(at + 0.15);
+  });
+}
+
+/* 정답 "딩동" — 밝은 두 음 */
+export function ding() {
+  const ac = audio();
+  if (!ac) return;
+  const t0 = ac.currentTime;
+  [[880, 0], [1320, 0.12]].forEach(([f, off]) => {
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.type = "triangle";
+    osc.frequency.value = f;
+    const at = t0 + off;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.16, at + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.26);
+    osc.connect(g).connect(ac.destination);
+    osc.start(at);
+    osc.stop(at + 0.3);
+  });
+}
