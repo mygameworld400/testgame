@@ -10,7 +10,7 @@ const SEND_MS = 125;
 const STALE_MS = 8000;
 export const CHAT_MS = 3000;
 
-export function joinChannel({ round, me, getPose, onPeers }) {
+export function joinChannel({ round, me, getPose, onPeers, onChat }) {
   if (!supabase) return { stop: () => {}, chat: () => false };
 
   const peers = new Map();
@@ -31,6 +31,7 @@ export function joinChannel({ round, me, getPose, onPeers }) {
     if (!payload?.id || payload.id === me.id) return;
     const prev = peers.get(payload.id) || { id: payload.id, name: payload.name, slot: payload.slot, x: -999, y: -999 };
     peers.set(payload.id, { ...prev, msg: payload.text, msgAt: Date.now(), at: Date.now() });
+    onChat?.(payload);
     push();
   });
 
@@ -82,13 +83,13 @@ export function joinChannel({ round, me, getPose, onPeers }) {
   window.addEventListener("pagehide", bye);
 
   return {
-    chat(text) {
+    chat(text, room) {
       const t = (text || "").trim().slice(0, 60);
       if (!t) return false;
       ch.send({
         type: "broadcast",
         event: "chat",
-        payload: { id: me.id, name: me.name, slot: me.slot, text: t },
+        payload: { id: me.id, name: me.name, slot: me.slot, text: t, r: room || "" },
       });
       return true;
     },

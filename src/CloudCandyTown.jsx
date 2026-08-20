@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
+import { ROOM, ROOMS, RoomStage, SCREEN, depth, proj } from "./rooms.jsx";
+import { crunch, splash } from "./sfx.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
 
 /* ===========================================================
@@ -123,6 +125,13 @@ const JOIN_ERROR = {
   bad_round: "회차 번호는 1 이상이어야 해요.",
 };
 
+/* 방의 물 영역 안에 있는지 */
+function inWater(room, x, y) {
+  const w = room?.water;
+  if (!w) return false;
+  return Math.abs(x - w.x) < w.w / 2 && Math.abs(y - w.y) < w.d / 2;
+}
+
 function blockBox(b) {
   const w = 24 * b.scale;
   const h = 22 * b.scale;
@@ -163,10 +172,18 @@ function Building({ b, near }) {
 
 /* ============================ 캐릭터 ============================ */
 
-function Avatar({ name, slot, x, y, facing, moving, me, msg }) {
+function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false }) {
   const ch = charForSlot(slot);
   return (
-    <div className="ccAvatar" style={{ left: x, top: y, zIndex: Math.round(y) + 1 }}>
+    <div
+      className={"ccAvatar" + (swim ? " ccSwim" : "")}
+      style={{
+        left: x,
+        top: y,
+        zIndex: Math.round(y) + 1,
+        transform: `translate(-50%,-100%) scale(${scale})`,
+      }}
+    >
       {msg && <div className="ccBubble">{msg}</div>}
       <div className={"ccTag" + (me ? " ccTagMe" : "")}>{name}</div>
       <Pix
@@ -426,6 +443,11 @@ function Town({ me }) {
   const [peers, setPeers] = useState([]);
   const [panel, setPanel] = useState(false);
   const [chatText, setChatText] = useState("");
+  const [scene, setScene] = useState(null);      // null = 마을, 아니면 건물 id
+  const [zoneId, setZoneId] = useState(null);    // 방 안에서 가까이 있는 설치물
+  const [sheet, setSheet] = useState(null);      // 'lp' | 'quiz'
+  const [wave, setWave] = useState(0);
+  const [chatLog, setChatLog] = useState([]);
   const [myMsg, setMyMsg] = useState(null);
   const [roundInput, setRoundInput] = useState(String((me.round ?? 1) + 1));
   const [resetting, setResetting] = useState(false);
@@ -441,6 +463,11 @@ function Town({ me }) {
   const viewRef = useRef(view);
   const chanRef = useRef(null);
   const stick = useRef({ x: 0, y: 0 });
+  const sceneRef = useRef(null);
+  const zoneRef = useRef(null);
+  const worldPos = useRef({ x: 850, y: 660 });
+  const sfxAt = useRef(0);
+  const swimRef = useRef(false);
   const chatBox = useRef(null);
   const myMsgTimer = useRef(null);
 
@@ -451,12 +478,44 @@ function Town({ me }) {
   const collected = stars.filter(Boolean).length;
   const online = me.role === "solo" ? 1 : peers.length + 1;
 
+  /* 건물 안으로 */
+  const enterRoom = useCallback((id) => {
+    if (!ROOMS[id]) return;
+    worldPos.current = { ...posRef.current };
+    sceneRef.current = id;
+    const start = { x: ROOM.w / 2, y: ROOM.d - 60 };
+    posRef.current = start;
+    setPos(start);
+    setScene(id);
+    setSheet(null);
+    setToast(`${ROOMS[id].emoji} ${ROOMS[id].name} — ${ROOMS[id].hint}`);
+  }, []);
+
+  /* 마을로 */
+  const exitRoom = useCallback(() => {
+    sceneRef.current = null;
+    zoneRef.current = null;
+    setZoneId(null);
+    setSheet(null);
+    const back = worldPos.current;
+    posRef.current = { ...back };
+    setPos({ ...back });
+    setScene(null);
+  }, []);
+
+  /* 방 안에서 설치물 사용 */
+  const activateZone = useCallback((id) => {
+    if (!id) return;
+    if (id === "exit") { exitRoom(); return; }
+    setSheet(id);
+  }, [exitRoom]);
+
   const openBuilding = useCallback((id) => {
     const b = BUILDINGS.find((x) => x.id === id);
     if (!b) return;
     setLine(b.lines[Math.floor(Math.random() * b.lines.length)]);
-    setOpenId(id);
-  }, []);
+    enterRoom(id);
+  }, [enterRoom]);
 
   /* 화면 크기 */
   useEffect(() => {
@@ -479,7 +538,7 @@ function Town({ me }) {
       if (e.target instanceof HTMLInputElement) return;
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
       if (k === " ") {
-        if (openRef.current) setOpenId(null);
+        if (sceneRef.current) activateZone(zoneRef.current);
         else if (nearRef.current) openBuilding(nearRef.current);
         return;
       }
@@ -503,20 +562,21 @@ function Town({ me }) {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, [openBuilding]);
+  }, [openBuilding, activateZone]);
 
-  /* 게임 루프 */
+  /* 게임 루프 — 마을과 방 안 모두 여기서 돕니다 */
   useEffect(() => {
     let raf;
     let last = performance.now();
-    const boxes = BUILDINGS.map(blockBox);
+    const worldBoxes = BUILDINGS.map(blockBox);
     const R = 14;
-    const hit = (x, y) => boxes.some((b) => x + R > b.x1 && x - R < b.x2 && y + R > b.y1 && y - R < b.y2);
 
     const step = (now) => {
       const dt = Math.min(32, now - last) / 16.67;
       last = now;
       const k = keys.current;
+      const roomId = sceneRef.current;
+      const room = roomId ? ROOMS[roomId] : null;
 
       let dx = 0;
       let dy = 0;
@@ -528,14 +588,21 @@ function Town({ me }) {
       if (st.x || st.y) { dx = st.x; dy = st.y; }
       if (openRef.current) { dx = 0; dy = 0; }
 
+      const bounds = room
+        ? { x0: room.play.x0, x1: room.play.x1, y0: room.play.y0, y1: room.play.y1 }
+        : PLAY;
+      const boxes = room ? room.blocks : worldBoxes;
+      const hit = (x, y) => boxes.some((b) => x + R > b.x1 && x - R < b.x2 && y + R > b.y1 && y - R < b.y2);
+
       const isMoving = dx !== 0 || dy !== 0;
       if (isMoving) {
         const len = Math.hypot(dx, dy) || 1;
-        const sp = 3.4 * dt * Math.min(1, len);
+        const speed = room ? 3.0 : 3.4;
+        const sp = speed * dt * Math.min(1, len);
         let { x, y } = posRef.current;
-        const nx = clamp(x + (dx / len) * sp, PLAY.x0, PLAY.x1);
+        const nx = clamp(x + (dx / len) * sp, bounds.x0, bounds.x1);
         if (!hit(nx, y)) x = nx;
-        const ny = clamp(y + (dy / len) * sp, PLAY.y0, PLAY.y1);
+        const ny = clamp(y + (dy / len) * sp, bounds.y0, bounds.y1);
         if (!hit(x, ny)) y = ny;
         posRef.current = { x, y };
         setPos({ x, y });
@@ -550,6 +617,47 @@ function Town({ me }) {
       }
 
       const p = posRef.current;
+
+      if (room) {
+        /* --- 방 안 --- */
+        let z = null;
+        let zd = Infinity;
+        for (const zone of room.zones) {
+          const d = Math.hypot(p.x - zone.x, p.y - zone.y);
+          if (d < zone.r && d < zd) { z = zone.id; zd = d; }
+        }
+        if (z !== zoneRef.current) { zoneRef.current = z; setZoneId(z); }
+
+        /* 낙엽 밟는 소리 */
+        if (room.crunch && isMoving) {
+          const d = Math.hypot(p.x - room.crunch.x, (p.y - room.crunch.y) * 1.6);
+          if (d < room.crunch.r && now - sfxAt.current > 380) {
+            sfxAt.current = now;
+            crunch();
+          }
+        }
+
+        /* 수영 */
+        if (room.water) {
+          const w = room.water;
+          const inWater =
+            Math.abs(p.x - w.x) < w.w / 2 && Math.abs(p.y - w.y) < w.d / 2;
+          if (inWater !== swimRef.current) {
+            swimRef.current = inWater;
+            if (inWater) { splash(); sfxAt.current = now; }
+          } else if (inWater && isMoving && now - sfxAt.current > 700) {
+            sfxAt.current = now;
+            splash();
+          }
+          setWave(now / 260);
+        }
+
+        camRef.current = { x: 0, y: 0 };
+        raf = requestAnimationFrame(step);
+        return;
+      }
+
+      /* --- 마을 --- */
       let best = null;
       let bestD = Infinity;
       for (const b of BUILDINGS) {
@@ -601,8 +709,14 @@ function Town({ me }) {
         y: Math.round(posRef.current.y),
         f: facingRef.current,
         m: movingRef.current ? 1 : 0,
+        r: sceneRef.current || "",
       }),
       onPeers: setPeers,
+      /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
+      onChat: (msg) => {
+        if ((msg.r || "") === (sceneRef.current || "")) return;
+        setChatLog((l) => [...l.slice(-3), { ...msg, at: Date.now() }]);
+      },
     });
     chanRef.current = chan;
     return () => {
@@ -619,7 +733,7 @@ function Town({ me }) {
       chatBox.current?.blur();
       return;
     }
-    chanRef.current?.chat(t);
+    chanRef.current?.chat(t, sceneRef.current || "");
     setMyMsg(t);
     clearTimeout(myMsgTimer.current);
     myMsgTimer.current = setTimeout(() => setMyMsg(null), CHAT_MS);
@@ -665,59 +779,114 @@ function Town({ me }) {
   const open = openId ? BUILDINGS.find((b) => b.id === openId) : null;
   const ordered = useMemo(() => [...BUILDINGS].sort((a, b) => a.y - b.y), []);
   const roundNo = room?.round ?? me.round;
+  const R = scene ? ROOMS[scene] : null;
+  const here = scene || "";
+  const roomPeers = peers.filter((p) => (p.r || "") === here);
+  const roomZoom = R
+    ? Math.min(view.w / (SCREEN.w + 40), (view.h - 90) / (SCREEN.h + 20), 1.15)
+    : 1;
 
   return (
     <div className="ccRoot">
       <style>{CSS}</style>
-      <div className="ccSky" />
-
-      <div
-        className="ccClouds"
-        style={{ transform: `scale(${zoom}) translate3d(${-cam.x * 0.35}px, ${-cam.y * 0.35}px, 0)` }}
-      >
-        {CLOUDS.map(([x, y, s], i) => (
-          <div key={i} className="ccCloud" style={{ left: x, top: y, animationDelay: `${i * 1.3}s` }}>
-            <Pix map={DECO.cloud.map} palette={DECO.cloud.palette} scale={s} cacheKey="cloud" />
-          </div>
-        ))}
-      </div>
-
-      <div
-        className="ccWorld"
-        style={{
-          width: WORLD.w,
-          height: WORLD.h,
-          transform: `scale(${zoom}) translate3d(${-cam.x}px, ${-cam.y}px, 0)`,
-        }}
-      >
-        <Ground />
-
-        {TREES.map(([x, y, col], i) => (
-          <div key={i} className="ccTree" style={{ left: x - 30, top: y - 80, zIndex: Math.round(y) }}>
-            <Pix map={DECO.tree.map} palette={{ ...DECO.tree.palette, a: col }} scale={5} cacheKey={"tree-" + col} />
-          </div>
-        ))}
-
-        {STAR_SPOTS.map(([x, y], i) =>
-          stars[i] ? null : (
-            <div key={i} className="ccStar" style={{ left: x - 20, top: y - 20, animationDelay: `${i * 0.3}s` }}>
-              <Pix map={DECO.star.map} palette={DECO.star.palette} scale={4} cacheKey="star" />
+      {scene ? (
+        <div className="ccRoomBg" style={{ background: R.wallDark }}>
+          <div
+            className="ccRoomWrap"
+            style={{ width: SCREEN.w, height: SCREEN.h, transform: `translate(-50%,-50%) scale(${roomZoom})` }}
+          >
+            <RoomStage room={R} waterPhase={wave} />
+            <div className="ccRoomLayer">
+              {roomPeers.map((q) => {
+                const pr = proj(q.x, q.y);
+                return (
+                  <Avatar
+                    key={q.id}
+                    name={q.name}
+                    slot={q.slot}
+                    x={pr.sx}
+                    y={pr.sy}
+                    facing={q.f}
+                    moving={!!q.m}
+                    msg={q.msg}
+                    scale={pr.k}
+                    swim={inWater(R, q.x, q.y)}
+                  />
+                );
+              })}
+              <Avatar
+                name={me.name}
+                slot={me.slot}
+                x={proj(pos.x, pos.y).sx}
+                y={proj(pos.x, pos.y).sy}
+                facing={facing}
+                moving={moving}
+                me
+                msg={myMsg}
+                scale={depth(pos.y)}
+                swim={inWater(R, pos.x, pos.y)}
+              />
             </div>
-          )
-        )}
-
-        {ordered.map((b) => (
-          <div key={b.id} className="ccBWrap" style={{ zIndex: Math.round(b.y) }} onClick={() => openBuilding(b.id)}>
-            <Building b={b} near={nearId === b.id} />
           </div>
-        ))}
+          {zoneId && (
+            <button className="ccZoneHint" onClick={() => activateZone(zoneId)}>
+              SPACE — {R.zones.find((z) => z.id === zoneId)?.label}
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="ccSky" />
 
-        {peers.map((p) => (
-          <Avatar key={p.id} name={p.name} slot={p.slot} x={p.x} y={p.y} facing={p.f} moving={!!p.m} msg={p.msg} />
-        ))}
+          <div
+            className="ccClouds"
+            style={{ transform: `scale(${zoom}) translate3d(${-cam.x * 0.35}px, ${-cam.y * 0.35}px, 0)` }}
+          >
+            {CLOUDS.map(([x, y, s], i) => (
+              <div key={i} className="ccCloud" style={{ left: x, top: y, animationDelay: `${i * 1.3}s` }}>
+                <Pix map={DECO.cloud.map} palette={DECO.cloud.palette} scale={s} cacheKey="cloud" />
+              </div>
+            ))}
+          </div>
 
-        <Avatar name={me.name} slot={me.slot} x={pos.x} y={pos.y} facing={facing} moving={moving} me msg={myMsg} />
-      </div>
+          <div
+            className="ccWorld"
+            style={{
+              width: WORLD.w,
+              height: WORLD.h,
+              transform: `scale(${zoom}) translate3d(${-cam.x}px, ${-cam.y}px, 0)`,
+            }}
+          >
+            <Ground />
+
+            {TREES.map(([x, y, col], i) => (
+              <div key={i} className="ccTree" style={{ left: x - 30, top: y - 80, zIndex: Math.round(y) }}>
+                <Pix map={DECO.tree.map} palette={{ ...DECO.tree.palette, a: col }} scale={5} cacheKey={"tree-" + col} />
+              </div>
+            ))}
+
+            {STAR_SPOTS.map(([x, y], i) =>
+              stars[i] ? null : (
+                <div key={i} className="ccStar" style={{ left: x - 20, top: y - 20, animationDelay: `${i * 0.3}s` }}>
+                  <Pix map={DECO.star.map} palette={DECO.star.palette} scale={4} cacheKey="star" />
+                </div>
+              )
+            )}
+
+            {ordered.map((b) => (
+              <div key={b.id} className="ccBWrap" style={{ zIndex: Math.round(b.y) }} onClick={() => openBuilding(b.id)}>
+                <Building b={b} near={nearId === b.id} />
+              </div>
+            ))}
+
+            {roomPeers.map((p) => (
+              <Avatar key={p.id} name={p.name} slot={p.slot} x={p.x} y={p.y} facing={p.f} moving={!!p.m} msg={p.msg} />
+            ))}
+
+            <Avatar name={me.name} slot={me.slot} x={pos.x} y={pos.y} facing={facing} moving={moving} me msg={myMsg} />
+          </div>
+        </>
+      )}
 
       {/* 좌측 상단 */}
       <div className="ccHud">
@@ -859,11 +1028,11 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccPix{display:block;image-rendering:pixelated;image-rendering:crisp-edges;-webkit-user-drag:none}
 
 .ccSky{position:absolute;inset:0;background:linear-gradient(180deg,${C.sky1} 0%,${C.sky2} 60%,${C.sky3} 100%)}
-.ccClouds{position:absolute;inset:0;pointer-events:none}
+.ccClouds{position:absolute;inset:0;pointer-events:none;transform-origin:0 0}
 .ccCloud{position:absolute;animation:ccFloat 8s steps(4,end) infinite}
 @keyframes ccFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
 
-.ccWorld{position:absolute;left:0;top:0;will-change:transform}
+.ccWorld{position:absolute;left:0;top:0;will-change:transform;transform-origin:0 0}
 .ccGround{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
 .ccSlab{position:absolute;image-rendering:pixelated}
 
@@ -939,6 +1108,17 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccRoundBtn{flex:1;font-size:11px;padding:8px 6px;background:#ffd45e;color:${C.ink}}
 .ccHostReset{width:100%;margin-top:6px;font-size:11px;padding:8px;background:#fff;color:${C.ink}}
 .ccHostNote{margin:9px 0 0;font-size:10.5px;line-height:1.6;color:${C.inkSoft};font-weight:700}
+
+/* 방 내부 */
+.ccRoomBg{position:absolute;inset:0;overflow:hidden}
+.ccRoomWrap{position:absolute;left:50%;top:50%;transform-origin:50% 50%}
+.ccRoomSvg{position:absolute;left:0;top:0;image-rendering:auto}
+.ccRoomLayer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+.ccZoneHint{position:absolute;left:50%;bottom:86px;transform:translateX(-50%);background:#fff;
+  border:4px solid ${C.line};padding:9px 16px;font-size:13px;font-weight:700;color:${C.ink};
+  font-family:inherit;cursor:pointer;box-shadow:4px 4px 0 rgba(91,74,99,.3);animation:ccBlink 1s steps(2,end) infinite}
+.ccSwim .ccPix{animation:ccSwim .5s steps(2,end) infinite}
+@keyframes ccSwim{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 
 /* 모바일 조작 */
 .ccTouch{display:none}
