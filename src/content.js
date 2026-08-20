@@ -1,0 +1,105 @@
+import { supabase } from "./room.js";
+
+/* ===========================================================
+   게임 안에서 올리는 콘텐츠 — 퀴즈 이미지 / 음악 파일
+   추가·삭제는 호스트 코드를 서버에서 대조합니다.
+   =========================================================== */
+
+const call = async (fn, args) => {
+  if (!supabase) return { ok: false, error: "no_server" };
+  try {
+    const { data, error } = await supabase.rpc(fn, args || {});
+    if (error) {
+      return { ok: false, error: error.code === "PGRST202" ? "no_schema" : "server_error", message: error.message };
+    }
+    return data;
+  } catch (e) {
+    return { ok: false, error: "server_error", message: e?.message || "" };
+  }
+};
+
+/* ---------- 퀴즈 ---------- */
+
+export const quizList = () => call("cc_quiz_list");
+export const quizCheck = (id, guess) => call("cc_quiz_check", { p_id: id, p_guess: guess });
+export const quizAdd = (hostCode, image, answer) =>
+  call("cc_quiz_add", { p_host_code: hostCode, p_image: image, p_answer: answer });
+export const quizDel = (hostCode, id) => call("cc_quiz_del", { p_host_code: hostCode, p_id: id });
+
+/* 사진을 가로세로 720px 이하 JPEG 로 줄여서 base64 로 만듭니다.
+   폰 사진 원본(4MB)도 100KB 안팎으로 줄어들어 DB 에 그대로 담을 수 있어요. */
+export function shrinkImage(file, max = 720, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const cv = document.createElement("canvas");
+      cv.width = w;
+      cv.height = h;
+      const ctx = cv.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(cv.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("이미지를 읽지 못했어요"));
+    };
+    img.src = url;
+  });
+}
+
+/* ---------- 음악 ---------- */
+
+export const trackList = () => call("cc_track_list");
+export const trackAdd = (hostCode, title, path) =>
+  call("cc_track_add", { p_host_code: hostCode, p_title: title, p_path: path });
+
+export async function trackDel(hostCode, id) {
+  const r = await call("cc_track_del", { p_host_code: hostCode, p_id: id });
+  if (r?.ok && r.path && supabase) {
+    try {
+      await supabase.storage.from("music").remove([r.path]);
+    } catch {
+      /* 목록에서만 사라져도 괜찮습니다 */
+    }
+  }
+  return r;
+}
+
+/* 파일을 music 보관함에 올리고, 목록에 등록까지 합니다 */
+export async function uploadTrack(hostCode, file, title) {
+  if (!supabase) return { ok: false, error: "no_server" };
+  if (file.size > 20 * 1024 * 1024) return { ok: false, error: "too_big" };
+
+  const ext = (file.name.split(".").pop() || "mp3").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const path = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const up = await supabase.storage.from("music").upload(path, file, {
+    contentType: file.type || "audio/mpeg",
+    upsert: false,
+  });
+  if (up.error) {
+    const msg = up.error.message || "";
+    return { ok: false, error: /bucket/i.test(msg) ? "no_bucket" : "upload_failed", message: msg };
+  }
+
+  const reg = await trackAdd(hostCode, title || file.name.replace(/\.[^.]+$/, ""), path);
+  if (!reg?.ok) {
+    try {
+      await supabase.storage.from("music").remove([path]);
+    } catch {
+      /* 무시 */
+    }
+    return reg;
+  }
+  return { ok: true, id: reg.id, path };
+}
+
+export function trackUrl(path) {
+  if (!supabase || !path) return null;
+  return supabase.storage.from("music").getPublicUrl(path).data.publicUrl;
+}

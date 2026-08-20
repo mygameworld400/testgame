@@ -18,6 +18,12 @@ export function proj(x, y) {
 
 const PLAY = { x0: 90, x1: ROOM.w - 90, y0: 40, y1: ROOM.d - 30 };
 
+/* 리스닝바 의자 6개 — 그리기와 착석 판정이 같은 좌표를 씁니다 */
+export const CHAIRS = Array.from({ length: 6 }, (_, i) => {
+  const a = (Math.PI * 2 * i) / 6 + Math.PI / 6;
+  return { i, a, x: 500 + Math.cos(a) * 210, y: 210 + Math.sin(a) * 120 };
+});
+
 /* 원형 장애물을 사각 박스로 */
 const box = (x, y, w, h) => ({ x1: x - w / 2, x2: x + w / 2, y1: y - h / 2, y2: y + h / 2 });
 
@@ -27,15 +33,16 @@ export const ROOMS = {
     id: "cake",
     name: "리스닝바",
     emoji: "🎧",
-    floor: "#6b4a5c",
-    floorLine: "#7d5a6d",
-    wall: "#3d2b3f",
-    wallDark: "#2e2031",
-    side: "#4a3446",
+    floor: "#ffd9ea",
+    floorLine: "#ffd9ea",
+    wall: "#fff0f7",
+    wallDark: "#ffc8e0",
+    side: "#ffe6f2",
     accent: "#ff8fb6",
     hint: "가운데는 바, 오른쪽 LP 를 누르면 플레이리스트가 열려요",
     play: PLAY,
     blocks: [box(500, 210, 300, 150), box(500, 60, 420, 90)],
+    chairs: CHAIRS,
     zones: [
       { id: "lp", x: 880, y: 300, r: 90, label: "LP 플레이어" },
       { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
@@ -47,12 +54,12 @@ export const ROOMS = {
     id: "candy",
     name: "퀴즈상가",
     emoji: "❓",
-    floor: "#2f6f60",
-    floorLine: "#3c8474",
-    wall: "#1f4a41",
-    wallDark: "#17372f",
-    side: "#265a4f",
-    accent: "#8fe3c9",
+    floor: "#c9f2e4",
+    floorLine: "#c9f2e4",
+    wall: "#eafff8",
+    wallDark: "#a9e6d3",
+    side: "#dcfaf0",
+    accent: "#4ec9a6",
     hint: "화면 앞 단상에 올라서면 퀴즈가 시작돼요",
     play: PLAY,
     blocks: [box(500, 70, 520, 110)],
@@ -67,12 +74,12 @@ export const ROOMS = {
     id: "post",
     name: "수영장",
     emoji: "🏊",
-    floor: "#cfe3ee",
-    floorLine: "#b7d3e2",
-    wall: "#bfe6ff",
-    wallDark: "#9ed3f5",
-    side: "#d8eef8",
-    accent: "#4aa8e6",
+    floor: "#eaf6ff",
+    floorLine: "#eaf6ff",
+    wall: "#f2fbff",
+    wallDark: "#cfe9fb",
+    side: "#ddf2ff",
+    accent: "#bfe9ff",
     hint: "물에 들어가면 헤엄쳐요. 첨벙!",
     play: PLAY,
     blocks: [],
@@ -85,12 +92,12 @@ export const ROOMS = {
     id: "flower",
     name: "ASMR 타운",
     emoji: "🎙️",
-    floor: "#5a4433",
-    floorLine: "#6b523e",
-    wall: "#3a2b20",
-    wallDark: "#2b2018",
-    side: "#463426",
-    accent: "#c98a4b",
+    floor: "#ffe9cc",
+    floorLine: "#ffe9cc",
+    wall: "#fff7ec",
+    wallDark: "#f5d3a8",
+    side: "#fff0dd",
+    accent: "#ffcf95",
     hint: "가운데 낙엽 더미를 밟으면 소리가 나요",
     play: PLAY,
     blocks: [],
@@ -103,12 +110,12 @@ export const ROOMS = {
     id: "carousel",
     name: "먹방탭",
     emoji: "🍜",
-    floor: "#4a4258",
-    floorLine: "#585070",
-    wall: "#332d42",
-    wallDark: "#272233",
-    side: "#3d3650",
-    accent: "#ffd45e",
+    floor: "#e8e2ff",
+    floorLine: "#e8e2ff",
+    wall: "#f5f1ff",
+    wallDark: "#d3c9f7",
+    side: "#eee9ff",
+    accent: "#8b74e0",
     hint: "아직 준비중이에요",
     play: PLAY,
     blocks: [],
@@ -119,27 +126,12 @@ export const ROOMS = {
 
 /* ---------- 방 배경(벽/바닥/가구) ---------- */
 
-export function RoomStage({ room, children, waterPhase }) {
+export function RoomStage({ room, children, waterPhase, seats = [] }) {
   const R = room;
   const fl = proj(0, 0);
   const fr = proj(ROOM.w, 0);
   const nl = proj(0, ROOM.d);
   const nr = proj(ROOM.w, ROOM.d);
-
-  /* 바닥 격자 */
-  const lines = [];
-  for (let i = 1; i < 8; i++) {
-    const y = (ROOM.d / 8) * i;
-    const a = proj(0, y);
-    const b = proj(ROOM.w, y);
-    lines.push(<line key={"h" + i} x1={a.sx} y1={a.sy} x2={b.sx} y2={b.sy} stroke={R.floorLine} strokeWidth="3" />);
-  }
-  for (let i = 1; i < 10; i++) {
-    const x = (ROOM.w / 10) * i;
-    const a = proj(x, 0);
-    const b = proj(x, ROOM.d);
-    lines.push(<line key={"v" + i} x1={a.sx} y1={a.sy} x2={b.sx} y2={b.sy} stroke={R.floorLine} strokeWidth="3" />);
-  }
 
   return (
     <svg className="ccRoomSvg" viewBox={`0 0 ${SCREEN.w} ${SCREEN.h}`} width={SCREEN.w} height={SCREEN.h}>
@@ -154,10 +146,9 @@ export function RoomStage({ room, children, waterPhase }) {
       <rect x={fl.sx} y={fl.sy - 26} width={fr.sx - fl.sx} height={26} fill={R.wallDark} />
       {/* 바닥 */}
       <polygon points={`${fl.sx},${fl.sy} ${fr.sx},${fr.sy} ${nr.sx},${nr.sy} ${nl.sx},${nl.sy}`} fill={R.floor} />
-      {lines}
 
       {/* 방마다 다른 설치물 */}
-      {R.id === "cake" && <BarProps />}
+      {R.id === "cake" && <BarProps seats={seats} />}
       {R.id === "candy" && <QuizProps R={R} />}
       {R.id === "post" && <PoolProps R={R} phase={waterPhase} />}
       {R.id === "flower" && <LeafProps R={R} />}
@@ -175,8 +166,8 @@ function Door() {
   const w = 130 * p.k;
   return (
     <g>
-      <rect x={p.sx - w / 2} y={p.sy - 16} width={w} height={22} fill="#5b4a63" opacity="0.35" />
-      <text x={p.sx} y={p.sy + 4} textAnchor="middle" fontSize="17" fontWeight="700" fill="#fff">
+      <rect x={p.sx - w / 2} y={p.sy - 16} width={w} height={22} fill="#5b4a63" opacity="0.25" />
+      <text x={p.sx} y={p.sy + 4} textAnchor="middle" fontSize="17" fontWeight="700" fill="#5b4a63">
         ▼ 나가기
       </text>
     </g>
@@ -184,37 +175,59 @@ function Door() {
 }
 
 /* 리스닝바 — 바텐더 자리, 원형 테이블, 의자 6개, LP */
-function BarProps() {
+function BarProps({ seats = [] }) {
   const bar = proj(500, 60);
   const table = proj(500, 210);
-  const chairs = [];
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI * 2 * i) / 6 + Math.PI / 6;
-    const cx = 500 + Math.cos(a) * 210;
-    const cy = 210 + Math.sin(a) * 120;
-    const p = proj(cx, cy);
-    chairs.push(
-      <g key={i}>
-        <rect x={p.sx - 26 * p.k} y={p.sy - 34 * p.k} width={52 * p.k} height={20 * p.k} fill="#8a5f75" stroke="#3d2b3f" strokeWidth="3" />
-        <rect x={p.sx - 6 * p.k} y={p.sy - 16 * p.k} width={12 * p.k} height={18 * p.k} fill="#3d2b3f" />
+  const chairs = CHAIRS.map((c) => {
+    const p = proj(c.x, c.y);
+    const taken = seats.includes(c.i);
+    return (
+      <g key={c.i}>
+        <rect
+          x={p.sx - 26 * p.k}
+          y={p.sy - 34 * p.k}
+          width={52 * p.k}
+          height={20 * p.k}
+          fill={taken ? "#ff9ec4" : "#ffc0dd"}
+          stroke="#5b4a63"
+          strokeWidth="3"
+        />
+        <rect x={p.sx - 6 * p.k} y={p.sy - 16 * p.k} width={12 * p.k} height={18 * p.k} fill="#5b4a63" />
       </g>
     );
-  }
+  });
   return (
     <g>
       {/* 뒷벽 선반 */}
-      <rect x={330} y={60} width={340} height={16} fill="#8a5f75" />
-      <rect x={330} y={130} width={340} height={16} fill="#8a5f75" />
+      <rect x={330} y={60} width={340} height={16} fill="#ffc0dd" />
+      <rect x={330} y={130} width={340} height={16} fill="#ffc0dd" />
       {[0, 1, 2, 3, 4, 5, 6].map((i) => (
         <rect key={i} x={344 + i * 46} y={26} width={18} height={34} fill={i % 2 ? "#ffd45e" : "#ff8fb6"} />
       ))}
       {/* 바 카운터 */}
-      <rect x={bar.sx - 230 * bar.k} y={bar.sy - 60 * bar.k} width={460 * bar.k} height={70 * bar.k} fill="#8a5f75" stroke="#3d2b3f" strokeWidth="4" />
-      <rect x={bar.sx - 230 * bar.k} y={bar.sy - 60 * bar.k} width={460 * bar.k} height={14 * bar.k} fill="#c78ea6" />
+      <rect x={bar.sx - 230 * bar.k} y={bar.sy - 60 * bar.k} width={460 * bar.k} height={70 * bar.k} fill="#ffc0dd" stroke="#5b4a63" strokeWidth="4" />
+      <rect x={bar.sx - 230 * bar.k} y={bar.sy - 60 * bar.k} width={460 * bar.k} height={14 * bar.k} fill="#ff9ec4" />
       {/* 원형 테이블 */}
-      <ellipse cx={table.sx} cy={table.sy} rx={150 * table.k} ry={80 * table.k} fill="#8a5f75" stroke="#3d2b3f" strokeWidth="4" />
-      <ellipse cx={table.sx} cy={table.sy - 10 * table.k} rx={150 * table.k} ry={80 * table.k} fill="#a9748d" stroke="#3d2b3f" strokeWidth="4" />
+      <ellipse cx={table.sx} cy={table.sy} rx={150 * table.k} ry={80 * table.k} fill="#ffc0dd" stroke="#5b4a63" strokeWidth="4" />
+      <ellipse cx={table.sx} cy={table.sy - 10 * table.k} rx={150 * table.k} ry={80 * table.k} fill="#fff0f6" stroke="#5b4a63" strokeWidth="4" />
       {chairs}
+      {/* 앉은 사람 앞에 주스 한 잔 */}
+      {seats.map((i) => {
+        const c = CHAIRS[i];
+        if (!c) return null;
+        const jx = 500 + Math.cos(c.a) * 105;
+        const jy = 210 + Math.sin(c.a) * 58;
+        const p = proj(jx, jy);
+        const k = p.k;
+        return (
+          <g key={"juice" + i}>
+            <ellipse cx={p.sx} cy={p.sy + 2 * k} rx={13 * k} ry={5 * k} fill="#5b4a63" opacity="0.25" />
+            <rect x={p.sx - 11 * k} y={p.sy - 34 * k} width={22 * k} height={34 * k} fill="#ffb3cf" stroke="#5b4a63" strokeWidth="3" />
+            <rect x={p.sx - 11 * k} y={p.sy - 34 * k} width={22 * k} height={9 * k} fill="#fff0f6" stroke="#5b4a63" strokeWidth="3" />
+            <rect x={p.sx + 1 * k} y={p.sy - 50 * k} width={5 * k} height={20 * k} fill="#ffd45e" stroke="#5b4a63" strokeWidth="2" />
+          </g>
+        );
+      })}
       {/* 오른쪽 LP 플레이어 */}
       <LP />
     </g>
@@ -226,12 +239,12 @@ function LP() {
   const r = 78 * p.k;
   return (
     <g className="ccLp">
-      <rect x={p.sx - r - 10} y={p.sy - r - 10} width={(r + 10) * 2} height={(r + 10) * 2} fill="#2e2031" stroke="#ff8fb6" strokeWidth="4" />
-      <circle cx={p.sx} cy={p.sy} r={r} fill="#15101a" />
-      <circle cx={p.sx} cy={p.sy} r={r * 0.62} fill="none" stroke="#3a2f42" strokeWidth="3" />
+      <rect x={p.sx - r - 10} y={p.sy - r - 10} width={(r + 10) * 2} height={(r + 10) * 2} fill="#fff0f6" stroke="#ff8fb6" strokeWidth="4" />
+      <circle cx={p.sx} cy={p.sy} r={r} fill="#7a6480" />
+      <circle cx={p.sx} cy={p.sy} r={r * 0.62} fill="none" stroke="#c9b8d4" strokeWidth="3" />
       <circle cx={p.sx} cy={p.sy} r={r * 0.34} fill="#ff8fb6" />
-      <circle cx={p.sx} cy={p.sy} r={r * 0.08} fill="#15101a" />
-      <text x={p.sx} y={p.sy + r + 34} textAnchor="middle" fontSize="17" fontWeight="700" fill="#ffd6e6">
+      <circle cx={p.sx} cy={p.sy} r={r * 0.08} fill="#7a6480" />
+      <text x={p.sx} y={p.sy + r + 34} textAnchor="middle" fontSize="17" fontWeight="700" fill="#5b4a63">
         ♪ 플레이리스트
       </text>
     </g>
@@ -243,12 +256,12 @@ function QuizProps({ R }) {
   const stage = proj(500, 250);
   return (
     <g>
-      <rect x={280} y={40} width={440} height={230} fill="#0f2b26" stroke={R.accent} strokeWidth="6" />
-      <text x={500} y={165} textAnchor="middle" fontSize="46" fontWeight="900" fill={R.accent}>
+      <rect x={280} y={40} width={440} height={230} fill="#eafff8" stroke={R.accent} strokeWidth="6" />
+      <text x={500} y={165} textAnchor="middle" fontSize="46" fontWeight="900" fill="#2f8f74">
         Q U I Z
       </text>
-      <rect x={stage.sx - 130 * stage.k} y={stage.sy - 26 * stage.k} width={260 * stage.k} height={40 * stage.k} fill="#3c8474" stroke="#17372f" strokeWidth="4" />
-      <text x={stage.sx} y={stage.sy + 4 * stage.k} textAnchor="middle" fontSize={17 * stage.k} fontWeight="700" fill="#dffaee">
+      <rect x={stage.sx - 130 * stage.k} y={stage.sy - 26 * stage.k} width={260 * stage.k} height={40 * stage.k} fill="#8fe3c9" stroke="#5b4a63" strokeWidth="4" />
+      <text x={stage.sx} y={stage.sy + 4 * stage.k} textAnchor="middle" fontSize={17 * stage.k} fontWeight="700" fill="#5b4a63">
         정답 단상
       </text>
     </g>
@@ -276,19 +289,16 @@ function PoolProps({ R, phase }) {
     <g>
       <polygon
         points={`${back.sx},${back.sy} ${back2.sx},${back2.sy} ${front2.sx},${front2.sy} ${front.sx},${front.sy}`}
-        fill="#4aa8e6"
-        stroke="#2f7fb8"
+        fill="#bfe9ff"
+        stroke="#7fc8f5"
         strokeWidth="6"
       />
       <polygon
         points={`${back.sx},${back.sy} ${back2.sx},${back2.sy} ${front2.sx},${front2.sy} ${front.sx},${front.sy}`}
-        fill="#7fd2f7"
+        fill="#e6f7ff"
         opacity="0.55"
       />
       {waves}
-      {/* 튜브 */}
-      <ellipse cx={proj(760, 180).sx} cy={proj(760, 180).sy} rx={54 * depth(180)} ry={26 * depth(180)} fill="#ff8fb6" stroke="#ef6f9c" strokeWidth="4" />
-      <ellipse cx={proj(760, 180).sx} cy={proj(760, 180).sy} rx={24 * depth(180)} ry={11 * depth(180)} fill="#7fd2f7" />
     </g>
   );
 }
@@ -308,14 +318,14 @@ function LeafProps({ R }) {
         y={c.sy + Math.sin(a) * rr * 0.5 * k - 6}
         width={18}
         height={12}
-        fill={i % 3 === 0 ? "#e0a25c" : i % 3 === 1 ? "#c98a4b" : "#a86f39"}
+        fill={i % 3 === 0 ? "#ffcf95" : i % 3 === 1 ? "#f5bd7d" : "#ffdcaa"}
       />
     );
   }
   return (
     <g>
-      <ellipse cx={c.sx} cy={c.sy} rx={R.crunch.r * k} ry={R.crunch.r * 0.52 * k} fill="#8a5a2f" stroke="#5f3d1f" strokeWidth="5" />
-      <ellipse cx={c.sx} cy={c.sy - 8 * k} rx={R.crunch.r * 0.86 * k} ry={R.crunch.r * 0.44 * k} fill="#a86f39" />
+      <ellipse cx={c.sx} cy={c.sy} rx={R.crunch.r * k} ry={R.crunch.r * 0.52 * k} fill="#f0c088" stroke="#5b4a63" strokeWidth="5" />
+      <ellipse cx={c.sx} cy={c.sy - 8 * k} rx={R.crunch.r * 0.86 * k} ry={R.crunch.r * 0.44 * k} fill="#ffdcaa" />
       {bits}
     </g>
   );
@@ -324,11 +334,11 @@ function LeafProps({ R }) {
 function SoonProps({ R }) {
   return (
     <g>
-      <rect x={300} y={70} width={400} height={150} fill="#272233" stroke={R.accent} strokeWidth="6" />
-      <text x={500} y={140} textAnchor="middle" fontSize="42" fontWeight="900" fill={R.accent}>
+      <rect x={300} y={70} width={400} height={150} fill="#f5f1ff" stroke={R.accent} strokeWidth="6" />
+      <text x={500} y={140} textAnchor="middle" fontSize="42" fontWeight="900" fill="#6a56b8">
         준비중
       </text>
-      <text x={500} y={185} textAnchor="middle" fontSize="20" fontWeight="700" fill="#cdc6df">
+      <text x={500} y={185} textAnchor="middle" fontSize="20" fontWeight="700" fill="#5b4a63">
         곧 문 열어요
       </text>
     </g>

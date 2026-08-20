@@ -211,3 +211,154 @@ drop function if exists public.cc_new_round(text);
      select * from public.cc_players
       where round = (select current_round from public.cc_config) order by joined_at;
    =========================================================== */
+
+-- ===========================================================
+-- 2단계 — 게임 안에서 올리는 콘텐츠
+--   · 퀴즈: 이미지(작게 줄여 base64) + 정답을 DB 에 저장
+--   · 음악: 파일은 Storage 의 music 버킷, 목록은 DB 에 저장
+--   추가/삭제는 호스트 코드를 아는 사람만 가능합니다.
+-- ===========================================================
+
+create table if not exists public.cc_quiz (
+  id         bigserial primary key,
+  image      text not null,          -- data:image/jpeg;base64,...
+  answer     text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.cc_tracks (
+  id         bigserial primary key,
+  title      text not null,
+  path       text not null,          -- music 버킷 안의 파일 경로
+  created_at timestamptz not null default now()
+);
+
+alter table public.cc_quiz   enable row level security;
+alter table public.cc_tracks enable row level security;
+
+/* 답 맞추기용 정규화 — 공백/대소문자 무시 */
+create or replace function public.cc_norm(t text)
+returns text language sql immutable as $$
+  select lower(regexp_replace(coalesce(t, ''), '\s+', '', 'g'))
+$$;
+
+/* ---------- 퀴즈 ---------- */
+
+/* 목록에는 정답을 실어 보내지 않습니다 (미리 볼 수 없게) */
+create or replace function public.cc_quiz_list()
+returns json language plpgsql security definer set search_path = public as $$
+declare v json;
+begin
+  select coalesce(json_agg(json_build_object('id', id, 'image', image) order by id), '[]'::json)
+    into v from public.cc_quiz;
+  return v;
+end; $$;
+
+create or replace function public.cc_quiz_add(p_host_code text, p_image text, p_answer text)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text; v_id bigint;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  if coalesce(btrim(p_answer), '') = '' or coalesce(p_image, '') = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  if length(p_image) > 900000 then           -- 약 650KB 이상은 거절
+    return json_build_object('ok', false, 'error', 'too_big');
+  end if;
+  insert into public.cc_quiz (image, answer) values (p_image, btrim(p_answer)) returning id into v_id;
+  return json_build_object('ok', true, 'id', v_id);
+end; $$;
+
+create or replace function public.cc_quiz_del(p_host_code text, p_id bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  delete from public.cc_quiz where id = p_id;
+  return json_build_object('ok', true);
+end; $$;
+
+create or replace function public.cc_quiz_check(p_id bigint, p_guess text)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_answer text;
+begin
+  select answer into v_answer from public.cc_quiz where id = p_id;
+  if v_answer is null then
+    return json_build_object('ok', false, 'error', 'no_quiz');
+  end if;
+  if public.cc_norm(p_guess) = public.cc_norm(v_answer) then
+    return json_build_object('ok', true, 'correct', true, 'answer', v_answer);
+  end if;
+  return json_build_object('ok', true, 'correct', false);
+end; $$;
+
+/* ---------- 음악 ---------- */
+
+create or replace function public.cc_track_list()
+returns json language plpgsql security definer set search_path = public as $$
+declare v json;
+begin
+  select coalesce(json_agg(json_build_object('id', id, 'title', title, 'path', path) order by id), '[]'::json)
+    into v from public.cc_tracks;
+  return v;
+end; $$;
+
+create or replace function public.cc_track_add(p_host_code text, p_title text, p_path text)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text; v_id bigint;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  if coalesce(btrim(p_title), '') = '' or coalesce(btrim(p_path), '') = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  insert into public.cc_tracks (title, path) values (btrim(p_title), btrim(p_path)) returning id into v_id;
+  return json_build_object('ok', true, 'id', v_id);
+end; $$;
+
+create or replace function public.cc_track_del(p_host_code text, p_id bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text; v_path text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  select path into v_path from public.cc_tracks where id = p_id;
+  delete from public.cc_tracks where id = p_id;
+  return json_build_object('ok', true, 'path', v_path);
+end; $$;
+
+/* ---------- 음악 파일 보관함(Storage) ---------- */
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('music', 'music', true, 20971520)          -- 20MB 제한
+on conflict (id) do update set public = true, file_size_limit = 20971520;
+
+drop policy if exists "music 듣기" on storage.objects;
+create policy "music 듣기" on storage.objects
+  for select using (bucket_id = 'music');
+
+drop policy if exists "music 올리기" on storage.objects;
+create policy "music 올리기" on storage.objects
+  for insert with check (bucket_id = 'music');
+
+drop policy if exists "music 지우기" on storage.objects;
+create policy "music 지우기" on storage.objects
+  for delete using (bucket_id = 'music');
+
+/* ---------- 실행 권한 ---------- */
+grant execute on function public.cc_quiz_list()                    to anon, authenticated;
+grant execute on function public.cc_quiz_add(text, text, text)      to anon, authenticated;
+grant execute on function public.cc_quiz_del(text, bigint)          to anon, authenticated;
+grant execute on function public.cc_quiz_check(bigint, text)        to anon, authenticated;
+grant execute on function public.cc_track_list()                    to anon, authenticated;
+grant execute on function public.cc_track_add(text, text, text)     to anon, authenticated;
+grant execute on function public.cc_track_del(text, bigint)         to anon, authenticated;

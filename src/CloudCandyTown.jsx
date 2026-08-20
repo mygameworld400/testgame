@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
-import { ROOM, ROOMS, RoomStage, SCREEN, depth, proj } from "./rooms.jsx";
-import { crunch, splash } from "./sfx.js";
+import { CHAIRS, ROOM, ROOMS, RoomStage, SCREEN, depth, proj } from "./rooms.jsx";
+import { blip, crunch, splash } from "./sfx.js";
+import { MusicSheet, QuizSheet } from "./sheets.jsx";
 import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
 
 /* ===========================================================
@@ -185,6 +186,7 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = f
       }}
     >
       {msg && <div className="ccBubble">{msg}</div>}
+      {swim && <div className="ccTube" />}
       <div className={"ccTag" + (me ? " ccTagMe" : "")}>{name}</div>
       <Pix
         map={ch.map}
@@ -435,7 +437,6 @@ function Town({ me }) {
   const [view, setView] = useState({ w: 1000, h: 700 });
   const [zoom, setZoom] = useState(1);
   const [nearId, setNearId] = useState(null);
-  const [openId, setOpenId] = useState(null);
   const [stars, setStars] = useState(() => STAR_SPOTS.map(() => false));
   const [toast, setToast] = useState("");
   const [room, setRoom] = useState(null);
@@ -447,6 +448,8 @@ function Town({ me }) {
   const [sheet, setSheet] = useState(null);      // 'lp' | 'quiz'
   const [wave, setWave] = useState(0);
   const [chatLog, setChatLog] = useState([]);
+  const [track, setTrack] = useState(null);   // 지금 듣는 곡
+  const [sit, setSit] = useState(null);      // 앉아 있는 의자 번호
   const [myMsg, setMyMsg] = useState(null);
   const [roundInput, setRoundInput] = useState(String((me.round ?? 1) + 1));
   const [resetting, setResetting] = useState(false);
@@ -467,10 +470,14 @@ function Town({ me }) {
   const worldPos = useRef({ x: 850, y: 660 });
   const sfxAt = useRef(0);
   const swimRef = useRef(false);
+  const sheetRef = useRef(null);
+  const sitRef = useRef(null);
+  const chairRef = useRef(null);
+  const audio = useRef(null);
   const chatBox = useRef(null);
   const myMsgTimer = useRef(null);
 
-  useEffect(() => { openRef.current = openId; }, [openId]);
+  useEffect(() => { openRef.current = !!sheet; sheetRef.current = sheet; }, [sheet]);
   useEffect(() => { viewRef.current = { ...view, z: zoom }; }, [view, zoom]);
   useEffect(() => { starsRef.current = stars; }, [stars]);
 
@@ -494,6 +501,8 @@ function Town({ me }) {
   const exitRoom = useCallback(() => {
     sceneRef.current = null;
     zoneRef.current = null;
+    sitRef.current = null;
+    setSit(null);
     setZoneId(null);
     setSheet(null);
     const back = worldPos.current;
@@ -504,8 +513,29 @@ function Town({ me }) {
 
   /* 방 안에서 설치물 사용 */
   const activateZone = useCallback((id) => {
+    /* 앉아 있으면 무엇을 누르든 먼저 일어납니다 */
+    if (sitRef.current != null) {
+      const c = CHAIRS[sitRef.current];
+      sitRef.current = null;
+      setSit(null);
+      const back = { x: c.x, y: Math.min(ROOM.d - 40, c.y + 46) };
+      posRef.current = back;
+      setPos(back);
+      return;
+    }
     if (!id) return;
     if (id === "exit") { exitRoom(); return; }
+    if (id === "chair") {
+      const i = chairRef.current;
+      const c = CHAIRS[i];
+      if (!c) return;
+      sitRef.current = i;
+      setSit(i);
+      posRef.current = { x: c.x, y: c.y };
+      setPos({ x: c.x, y: c.y });
+      blip(760);
+      return;
+    }
     setSheet(id);
   }, [exitRoom]);
 
@@ -537,6 +567,7 @@ function Town({ me }) {
       if (e.target instanceof HTMLInputElement) return;
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
       if (k === " ") {
+        if (sheetRef.current) { setSheet(null); return; }
         if (sceneRef.current) activateZone(zoneRef.current);
         else if (nearRef.current) openBuilding(nearRef.current);
         return;
@@ -546,7 +577,7 @@ function Town({ me }) {
         return;
       }
       if (k === "escape") {
-        setOpenId(null);
+        setSheet(null);
         return;
       }
       keys.current[k] = true;
@@ -585,7 +616,7 @@ function Town({ me }) {
       if (k.arrowdown || k.s) dy += 1;
       const st = stick.current;
       if (st.x || st.y) { dx = st.x; dy = st.y; }
-      if (openRef.current) { dx = 0; dy = 0; }
+      if (openRef.current || sitRef.current != null) { dx = 0; dy = 0; }
 
       const bounds = room
         ? { x0: room.play.x0, x1: room.play.x1, y0: room.play.y0, y1: room.play.y1 }
@@ -625,6 +656,14 @@ function Town({ me }) {
           const d = Math.hypot(p.x - zone.x, p.y - zone.y);
           if (d < zone.r && d < zd) { z = zone.id; zd = d; }
         }
+        /* 의자 — 가까이 가면 앉을 수 있어요 */
+        if (room.chairs && sitRef.current == null) {
+          for (const c of room.chairs) {
+            const d = Math.hypot(p.x - c.x, (p.y - c.y) * 1.4);
+            if (d < 78 && d < zd) { z = "chair"; zd = d; chairRef.current = c.i; }
+          }
+        }
+        if (sitRef.current != null) z = "chair";
         if (z !== zoneRef.current) { zoneRef.current = z; setZoneId(z); }
 
         /* 낙엽 밟는 소리 */
@@ -709,6 +748,7 @@ function Town({ me }) {
         f: facingRef.current,
         m: movingRef.current ? 1 : 0,
         r: sceneRef.current || "",
+        st: sitRef.current == null ? -1 : sitRef.current,
       }),
       onPeers: setPeers,
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
@@ -789,6 +829,9 @@ function Town({ me }) {
   const R = scene ? ROOMS[scene] : null;
   const here = scene || "";
   const roomPeers = peers.filter((p) => (p.r || "") === here);
+  const seats = R?.chairs
+    ? [...roomPeers.filter((q) => q.st >= 0).map((q) => q.st), ...(sit == null ? [] : [sit])]
+    : [];
   const roomZoom = R
     ? Math.min(view.w / (SCREEN.w + 40), (view.h - 90) / (SCREEN.h + 20), 1.15)
     : 1;
@@ -802,7 +845,7 @@ function Town({ me }) {
             className="ccRoomWrap"
             style={{ width: SCREEN.w, height: SCREEN.h, transform: `translate(-50%,-50%) scale(${roomZoom})` }}
           >
-            <RoomStage room={R} waterPhase={wave} />
+            <RoomStage room={R} waterPhase={wave} seats={seats} />
             <div className="ccRoomLayer">
               {roomPeers.map((q) => {
                 const pr = proj(q.x, q.y);
@@ -837,7 +880,7 @@ function Town({ me }) {
           </div>
           {zoneId && (
             <button className="ccZoneHint" onClick={() => activateZone(zoneId)}>
-              SPACE — {R.zones.find((z) => z.id === zoneId)?.label}
+              SPACE — {zoneId === "chair" ? (sit == null ? "앉기" : "일어나기") : R.zones.find((z) => z.id === zoneId)?.label}
             </button>
           )}
         </div>
@@ -1006,11 +1049,87 @@ function Town({ me }) {
           <button
             className="ccAct ccActMain"
             onPointerDown={() => {
-              if (openId) setOpenId(null);
-              else if (nearRef.current) openBuilding(nearRef.current);
+              if (sheet) { setSheet(null); return; }
+              if (sceneRef.current) { activateZone(zoneRef.current || "exit"); return; }
+              if (nearRef.current) openBuilding(nearRef.current);
             }}
           >
-            {openId ? "닫기" : "들어가기"}
+            {sheet
+              ? "닫기"
+              : scene
+                ? zoneId === "chair"
+                  ? sit == null ? "앉기" : "일어나기"
+                  : zoneId === "exit" || !zoneId
+                    ? "나가기"
+                    : "열기"
+                : "들어가기"}
+          </button>
+          {me.role !== "solo" && (
+            <button className="ccAct" onPointerDown={() => chatBox.current?.focus()}>
+              💬
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 세로로 들고 있으면 가로 안내 */}
+      <div className="ccRotate">
+        <div className="ccRotateIcon">📱</div>
+        <div className="ccRotateText">가로로 돌려주세요</div>
+      </div>
+
+
+      {sheet && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          {sheet === "lp" && (
+            <MusicSheet
+              hostCode={me.hostCode}
+              isHost={me.role === "host"}
+              playingId={track?.id}
+              onPlay={(t) => setTrack(t)}
+              onClose={() => setSheet(null)}
+            />
+          )}
+          {sheet === "quiz" && (
+            <QuizSheet hostCode={me.hostCode} isHost={me.role === "host"} onClose={() => setSheet(null)} />
+          )}
+        </div>
+      )}
+
+      {/* 재생바 — 방을 옮겨도 계속 나옵니다 */}
+      {track && (
+        <div className="ccPlayBar">
+          <span className="ccPlayDisc">◉</span>
+          <span className="ccPlayTitle">{track.title}</span>
+          <button className="ccMini" onClick={() => { const a = audio.current; if (!a) return; if (a.paused) a.play(); else a.pause(); }}>
+            ⏯
+          </button>
+          <button className="ccMini" onClick={() => setTrack(null)}>✕</button>
+        </div>
+      )}
+      {track && <audio ref={audio} src={track.url} autoPlay loop onError={() => setToast("곡을 재생하지 못했어요")} />}
+
+      {/* 모바일 조작 — 왼쪽 조이스틱, 오른쪽 액션 */}
+      <div className="ccTouch">
+        <Stick onMove={(v) => { stick.current = v; }} />
+        <div className="ccActs">
+          <button
+            className="ccAct ccActMain"
+            onPointerDown={() => {
+              if (sheet) { setSheet(null); return; }
+              if (sceneRef.current) { activateZone(zoneRef.current || "exit"); return; }
+              if (nearRef.current) openBuilding(nearRef.current);
+            }}
+          >
+            {sheet
+              ? "닫기"
+              : scene
+                ? zoneId === "chair"
+                  ? sit == null ? "앉기" : "일어나기"
+                  : zoneId === "exit" || !zoneId
+                    ? "나가기"
+                    : "열기"
+                : "들어가기"}
           </button>
           {me.role !== "solo" && (
             <button className="ccAct" onPointerDown={() => chatBox.current?.focus()}>
@@ -1160,6 +1279,40 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccSheetEmpty{margin:0 0 8px;font-size:14px;font-weight:700;color:${C.ink}}
 .ccSheetNote{margin:0 0 18px;font-size:11.5px;line-height:1.6;font-weight:700;color:${C.inkSoft}}
 
+/* 시트(퀴즈·플레이리스트) */
+.ccSheetHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.ccX{border:3px solid ${C.line};background:#fff;font-family:inherit;font-weight:700;cursor:pointer;
+  width:30px;height:30px;font-size:13px;box-shadow:2px 2px 0 rgba(91,74,99,.25)}
+.ccRow{display:flex;gap:6px;align-items:center;justify-content:center}
+.ccHostRow{margin-top:12px;flex-wrap:wrap}
+.ccMini{border:3px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
+  font-size:11.5px;padding:7px 10px;cursor:pointer;box-shadow:2px 2px 0 rgba(91,74,99,.25)}
+.ccMini:active{transform:translate(2px,2px);box-shadow:0 0 0}
+.ccDanger{background:#ffe0e0}
+.ccMiniBtn{font-size:12px;padding:9px 14px}
+.ccQuizImg{position:relative;border:4px solid ${C.line};background:#f4eef6;margin-bottom:10px}
+.ccQuizImg img{display:block;width:100%;max-height:44vh;object-fit:contain}
+.ccMark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:96px;font-weight:900}
+.ccMarkO{color:#2e9e78}
+.ccMarkX{color:#e0685f}
+.ccShake{animation:ccShake .3s steps(2,end) 2}
+@keyframes ccShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.ccQuizNav{display:flex;align-items:center;justify-content:center;gap:12px;font-size:12px;font-weight:700;margin-bottom:10px}
+.ccAdd{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+.ccFile{font-family:inherit;font-size:11.5px;border:3px dashed ${C.line};padding:9px;background:#fffbe8}
+.ccPreview{width:100%;max-height:30vh;object-fit:contain;border:3px solid ${C.line}}
+.ccTracks{list-style:none;margin:0 0 8px;padding:0;max-height:40vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
+.ccTracks li{display:flex;gap:6px;align-items:center}
+.ccTrackBtn{flex:1;text-align:left;border:3px solid ${C.line};background:#fff;font-family:inherit;
+  font-weight:700;font-size:12.5px;padding:9px 11px;cursor:pointer;box-shadow:2px 2px 0 rgba(91,74,99,.2)}
+.ccTrackOn .ccTrackBtn{background:#ffe9a8}
+.ccPlayBar{position:absolute;left:50%;top:14px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;
+  background:#fff;border:4px solid ${C.line};padding:7px 11px;box-shadow:4px 4px 0 rgba(91,74,99,.3);
+  max-width:min(360px,70vw);z-index:20}
+.ccPlayTitle{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ccPlayDisc{animation:ccSpin 2.4s linear infinite;font-size:15px}
+@keyframes ccSpin{to{transform:rotate(360deg)}}
+
 /* 방 내부 */
 .ccRoomBg{position:absolute;inset:0;overflow:hidden}
 .ccRoomWrap{position:absolute;left:50%;top:50%;transform-origin:50% 50%}
@@ -1168,6 +1321,9 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccZoneHint{position:absolute;left:50%;bottom:86px;transform:translateX(-50%);background:#fff;
   border:4px solid ${C.line};padding:9px 16px;font-size:13px;font-weight:700;color:${C.ink};
   font-family:inherit;cursor:pointer;box-shadow:4px 4px 0 rgba(91,74,99,.3);animation:ccBlink 1s steps(2,end) infinite}
+.ccTube{position:absolute;left:50%;bottom:2px;width:74px;height:34px;margin-left:-37px;border-radius:50%;
+  border:5px solid #ff8fb6;background:transparent;box-shadow:0 0 0 4px ${C.line},inset 0 0 0 4px ${C.line};
+  animation:ccSwim .5s steps(2,end) infinite;z-index:2}
 .ccSwim .ccPix{animation:ccSwim .5s steps(2,end) infinite}
 @keyframes ccSwim{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 

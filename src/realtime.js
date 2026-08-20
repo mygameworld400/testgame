@@ -44,9 +44,18 @@ export function joinChannel({ round, me, getPose, onPeers, onChat }) {
 
   ch.subscribe((status) => {
     if (status !== "SUBSCRIBED") return;
+    /* 값이 그대로면 보내지 않습니다. 가만히 있을 때는 3초에 한 번만
+       살아 있다는 신호를 보내요 — 실시간 메시지 사용량을 크게 줄여줍니다. */
+    let lastSig = "";
+    let lastAt = 0;
     const send = () => {
       const pose = getPose();
       if (!pose) return;
+      const sig = JSON.stringify(pose);
+      const now = Date.now();
+      if (sig === lastSig && now - lastAt < 3000) return;
+      lastSig = sig;
+      lastAt = now;
       ch.send({
         type: "broadcast",
         event: "pose",
