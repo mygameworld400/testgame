@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
-import { CHAIRS, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, depth, keyCount, keyPos, proj } from "./rooms.jsx";
+import { CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, crack, crunch, keyclick, splash, unlockAudio } from "./sfx.js";
-import { FortuneSheet, GachaSheet, MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
+import { FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
 import { findSfx, quizPacks, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
 
@@ -12,8 +12,17 @@ import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, s
    방향키(또는 WASD)로 걷고, 건물 앞에서 Space, Enter 로 채팅해요.
    =========================================================== */
 
-const WORLD = { w: 1700, h: 1080 };
-const PLAY = { x0: 190, y0: 300, x1: 1520, y1: 900 };
+const WORLD = { w: 1700, h: 2040 };
+
+/* 걸어다닐 수 있는 구역들 — 윗섬 · 구름다리 · 아랫섬.
+   이 사각형들 밖으로는 못 나갑니다(마인크래프트처럼 아래로 이어져요). */
+const AREAS = [
+  { x0: 190, y0: 300, x1: 1520, y1: 900 },      // 윗섬
+  { x0: 800, y0: 880, x1: 900, y1: 1320 },      // 구름다리
+  { x0: 250, y0: 1320, x1: 1450, y1: 1860 },    // 아랫섬
+];
+const PLAY = { x0: 190, y0: 300, x1: 1520, y1: 1860 };
+const inArea = (x, y) => AREAS.some((a) => x >= a.x0 && x <= a.x1 && y >= a.y0 && y <= a.y1);
 
 const C = {
   sky1: "#bfe6ff",
@@ -67,6 +76,12 @@ const BUILDINGS = [
       "쿠키를 반으로 쪼개면 안에 쪽지가 들어 있어요.",
       "믿거나 말거나지만, 기분은 좋아질 거예요.",
     ] },
+  { id: "cafe", name: "구름카페", emoji: "☕", tag: "카페", x: 640, y: 1660, scale: 9, sprite: "cafe",
+    lines: [
+      "따끈한 거 한 잔 하고 가세요. 구름 라떼가 잘 나가요.",
+      "창가 자리 비었어요. 아래로 마을이 다 내려다보여요.",
+      "여긴 아무것도 안 해도 되는 곳이에요. 편하게 앉으세요.",
+    ] },
   { id: "carousel", name: "떵개방", emoji: "🍜", tag: "먹방", x: 1160, y: 880, scale: 10,
     lines: [
       "지금 라이브 켜져 있어요! 뒤에서 손 흔들면 화면에 나와요.",
@@ -78,6 +93,8 @@ const BUILDINGS = [
 const STAR_SPOTS = [
   [300, 700], [560, 640], [780, 930], [1000, 600], [1180, 700],
   [1440, 800], [980, 330], [430, 350], [1430, 380], [700, 980],
+  /* 아랫섬 */
+  [400, 1620], [1260, 1520], [980, 1420], [520, 1840], [1340, 1740],
 ];
 
 const CLOUDS = [
@@ -89,6 +106,9 @@ const TREES = [
   [250, 620, "#ff9ec4"], [430, 930, "#8fe3c9"], [990, 500, "#ffd45e"],
   [1470, 640, "#b6a6f0"], [880, 720, "#ff9ec4"], [1330, 960, "#8fe3c9"],
   [520, 420, "#ffd45e"], [1060, 990, "#b6a6f0"],
+  /* 아랫섬 */
+  [330, 1430, "#ff9ec4"], [1300, 1420, "#8fe3c9"], [380, 1780, "#ffd45e"],
+  [1240, 1800, "#b6a6f0"], [880, 1840, "#ff9ec4"], [1180, 1620, "#ffd45e"],
 ];
 
 /* 섬 — 계단식 사각형으로 쌓아 픽셀 느낌을 냅니다 */
@@ -114,6 +134,36 @@ const PATHS = [
   { x: 1128, y: 616, w: 64, h: 240 },
   { x: 560, y: 816, w: 632, h: 48 },
 ];
+/* 구름다리 — 윗섬에서 아랫섬으로 */
+const BRIDGE = [
+  { x: 776, y: 900, w: 148, h: 420 },
+];
+const BRIDGE_RAIL = [
+  { x: 770, y: 900, w: 10, h: 420 },
+  { x: 920, y: 900, w: 10, h: 420 },
+];
+
+/* 아랫섬 */
+const ISLAND2 = [
+  { x: 300, y: 1300, w: 1100, h: 22 },
+  { x: 250, y: 1322, w: 1200, h: 22 },
+  { x: 214, y: 1344, w: 1272, h: 520 },
+  { x: 250, y: 1864, w: 1200, h: 22 },
+  { x: 300, y: 1886, w: 1100, h: 22 },
+];
+const SOIL2 = [
+  { x: 340, y: 1908, w: 1020, h: 38 },
+  { x: 430, y: 1946, w: 840, h: 34 },
+  { x: 560, y: 1980, w: 580, h: 28 },
+  { x: 720, y: 2008, w: 260, h: 22 },
+];
+const PATHS2 = [
+  { x: 812, y: 1320, w: 76, h: 180 },
+  { x: 420, y: 1500, w: 720, h: 60 },
+  { x: 600, y: 1560, w: 64, h: 120 },
+  { x: 1040, y: 1560, w: 64, h: 200 },
+];
+
 const POND = [
   { x: 1360, y: 780, w: 168, h: 24 },
   { x: 1336, y: 804, w: 216, h: 64 },
@@ -181,12 +231,12 @@ function Pix({ map, palette, scale, cacheKey, className, style, alt = "" }) {
 /* ============================ 건물 ============================ */
 
 function Building({ b, near }) {
-  const sp = BUILDING_SPRITES[b.id];
+  const sp = BUILDING_SPRITES[b.sprite || b.id];
   const w = 24 * b.scale;
   const h = 22 * b.scale;
   return (
     <div className="ccBuilding" style={{ left: b.x - w / 2, top: b.y - h, width: w }}>
-      <Pix map={sp.map} palette={sp.palette} scale={b.scale} cacheKey={"b-" + b.id} className={near ? "ccNear" : ""} />
+      <Pix map={sp.map} palette={sp.palette} scale={b.scale} cacheKey={"b-" + (b.sprite || b.id)} className={near ? "ccNear" : ""} />
       <div className="ccSign">
         {b.emoji} {b.name}
       </div>
@@ -197,7 +247,7 @@ function Building({ b, near }) {
 
 /* ============================ 캐릭터 ============================ */
 
-function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false }) {
+function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false, hold = null }) {
   const ch = charForSlot(slot);
   return (
     <div
@@ -212,7 +262,10 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = f
       {msg && <div className="ccBubble">{msg}</div>}
       {!msg && waiting && <div className="ccWaitTag">팀전 대기중…</div>}
       {swim && <div className="ccTube ccTubeBack" />}
-      <div className={"ccTag" + (me ? " ccTagMe" : "")}>{name}</div>
+      <div className={"ccTag" + (me ? " ccTagMe" : "")}>
+        {hold && <span className="ccHold">{hold}</span>}
+        {name}
+      </div>
       <Pix
         map={ch.map}
         palette={ch.palette}
@@ -321,6 +374,25 @@ function Ground() {
       )}
       {PATHS.map((r, i) =>
         slab(r, "p" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" })
+      )}
+
+      {/* 구름다리 */}
+      {BRIDGE.map((r, i) =>
+        slab(r, "br" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" })
+      )}
+      {BRIDGE_RAIL.map((r, i) => slab(r, "rl" + i, { background: C.edge }))}
+
+      {/* 아랫섬 */}
+      {SOIL2.map((r, i) => slab(r, "s2" + i, { background: i % 2 ? C.soilDark : C.soil }))}
+      {ISLAND2.map((r, i) => slab(r, "i2" + i, { background: C.edge }))}
+      {ISLAND2.map((r, i) =>
+        slab({ x: r.x, y: r.y, w: r.w, h: Math.max(0, r.h - 8) }, "g2" + i, {
+          backgroundImage: `url(${grass})`,
+          backgroundSize: "48px 48px",
+        })
+      )}
+      {PATHS2.map((r, i) =>
+        slab(r, "p2" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" })
       )}
       {POND.map((r, i) => slab(r, "w" + i, { background: i === 1 ? C.pond : C.pondDark }))}
       <div className="ccSlab" style={{ left: 1372, top: 816, width: 48, height: 12, background: "#ffffff", opacity: 0.7 }} />
@@ -510,6 +582,8 @@ function Town({ me, setMe, onKick }) {
   const [qi, setQi] = useState(0);           // 그중 몇 번째
   const [plName, setPlName] = useState("");
   const [sit, setSit] = useState(null);      // 앉아 있는 의자 번호
+  const [spent, setSpent] = useState(0);     // 메뉴 사면서 쓴 별
+  const [holding, setHolding] = useState(null);   // 들고 있는 메뉴
   const [broken, setBroken] = useState([]);  // 뿌셔진 왁뿌볼
   const [pressed, setPressed] = useState([]); // 눌린 키보드 키
   const [quizMode, setQuizMode] = useState("solo");   // 퀴즈상가 개인전 / 팀전
@@ -550,6 +624,7 @@ function Town({ me, setMe, onKick }) {
   const swimRef = useRef(false);
   const sheetRef = useRef(null);
   const sitRef = useRef(null);
+  const holdRef = useRef(-1);
   const gamesRef = useRef([]);
   const myGidRef = useRef(null);
   const waitRef = useRef(0);
@@ -578,6 +653,7 @@ function Town({ me, setMe, onKick }) {
   }, [myGid, games]);
 
   const collected = stars.filter(Boolean).length;
+  const balance = Math.max(0, collected - spent);
   const online = me.role === "solo" ? 1 : peers.length + 1;
 
   /* 건물 안으로 */
@@ -611,7 +687,9 @@ function Town({ me, setMe, onKick }) {
   const activateZone = useCallback((id) => {
     /* 앉아 있으면 무엇을 누르든 먼저 일어납니다 */
     if (sitRef.current != null) {
-      const c = CHAIRS[sitRef.current];
+      const room0 = ROOMS[sceneRef.current];
+      const c = (room0?.chairs || CHAIRS).find((x) => x.i === sitRef.current);
+      if (!c) { sitRef.current = null; setSit(null); return; }
       sitRef.current = null;
       setSit(null);
       const room = ROOMS[sceneRef.current];
@@ -624,7 +702,8 @@ function Town({ me, setMe, onKick }) {
     if (id === "exit") { exitRoom(); return; }
     if (id === "chair") {
       const i = chairRef.current;
-      const c = CHAIRS[i];
+      const room1 = ROOMS[sceneRef.current];
+      const c = (room1?.chairs || CHAIRS).find((x) => x.i === i);
       if (!c) return;
       sitRef.current = i;
       setSit(i);
@@ -739,6 +818,14 @@ function Town({ me, setMe, onKick }) {
       pressedRef.current = pressedRef.current.filter((n) => n !== i);
       setPressed(pressedRef.current);
     }, 1500);
+  }, []);
+
+  /* 메뉴 사기 — 별을 쓰고 손에 듭니다 */
+  const buyMenu = useCallback((item) => {
+    setSpent((v) => v + item.price);
+    setHolding(item);
+    holdRef.current = MENU.findIndex((m) => m.id === item.id);
+    setToast(`${item.emoji} ${item.name} 를 샀어요`);
   }, []);
 
   /* 왁뿌볼 — 밟으면 뿌셔지고 12초 뒤 다시 생깁니다 */
@@ -872,9 +959,9 @@ function Town({ me, setMe, onKick }) {
         const sp = speed * dt * Math.min(1, len);
         let { x, y } = posRef.current;
         const nx = clamp(x + (dx / len) * sp, bounds.x0, bounds.x1);
-        if (!hit(nx, y)) x = nx;
+        if (!hit(nx, y) && (room || inArea(nx, y))) x = nx;
         const ny = clamp(y + (dy / len) * sp, bounds.y0, bounds.y1);
-        if (!hit(x, ny)) y = ny;
+        if (!hit(x, ny) && (room || inArea(x, ny))) y = ny;
         posRef.current = { x, y };
         setPos({ x, y });
         if (dx !== 0) {
@@ -1042,6 +1129,7 @@ function Town({ me, setMe, onKick }) {
         r: sceneRef.current || "",
         st: sitRef.current == null ? -1 : sitRef.current,
         w: waitRef.current,
+        hd: holdRef.current,
       }),
       onPeers: setPeers,
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
@@ -1224,6 +1312,17 @@ function Town({ me, setMe, onKick }) {
               skin={scene === "candy" ? QUIZ_SKIN[quizMode] : null}
             />
             <div className="ccRoomLayer">
+              {R.staff && (
+                <Avatar
+                  name="직원"
+                  slot={2}
+                  x={proj(R.staff.x, R.staff.y).sx}
+                  y={proj(R.staff.x, R.staff.y).sy}
+                  facing={1}
+                  moving={false}
+                  scale={depth(R.staff.y)}
+                />
+              )}
               {roomPeers.map((q) => {
                 const pr = proj(q.x, q.y);
                 return (
@@ -1239,6 +1338,7 @@ function Town({ me, setMe, onKick }) {
                     scale={pr.k}
                     swim={inWater(R, q.x, q.y)}
                     waiting={!!q.w}
+                    hold={q.hd >= 0 ? MENU[q.hd]?.emoji : null}
                   />
                 );
               })}
@@ -1254,6 +1354,7 @@ function Town({ me, setMe, onKick }) {
                 scale={depth(pos.y)}
                 swim={inWater(R, pos.x, pos.y)}
                 waiting={!!waitRef.current && !!myGid}
+                hold={holding?.emoji || null}
               />
             </div>
           </div>
@@ -1333,10 +1434,32 @@ function Town({ me, setMe, onKick }) {
             ))}
 
             {roomPeers.map((p) => (
-              <Avatar key={p.id} name={p.name} slot={p.slot} x={p.x} y={p.y} facing={p.f} moving={!!p.m} msg={p.msg} />
+              <Avatar
+            key={p.id}
+            name={p.name}
+            slot={p.slot}
+            x={p.x}
+            y={p.y}
+            facing={p.f}
+            moving={!!p.m}
+            msg={p.msg}
+            waiting={!!p.w}
+            hold={p.hd >= 0 ? MENU[p.hd]?.emoji : null}
+          />
             ))}
 
-            <Avatar name={me.name} slot={me.slot} x={pos.x} y={pos.y} facing={facing} moving={moving} me msg={myMsg} />
+            <Avatar
+          name={me.name}
+          slot={me.slot}
+          x={pos.x}
+          y={pos.y}
+          facing={facing}
+          moving={moving}
+          me
+          msg={myMsg}
+          waiting={!!waitRef.current && !!myGid}
+          hold={holding?.emoji || null}
+        />
           </div>
         </>
       )}
@@ -1532,6 +1655,14 @@ function Town({ me, setMe, onKick }) {
                 chanRef.current?.fx({ t: "score", id: deviceId(), name: me.name, ok: sc.ok, done: sc.done })
               }
               onClose={() => { setSheet(null); setTeamPack(null); }}
+            />
+          )}
+          {sheet === "menu" && (
+            <MenuSheet
+              balance={balance}
+              holding={holding}
+              onBuy={buyMenu}
+              onClose={() => setSheet(null)}
             />
           )}
           {sheet === "fortune" && (
@@ -1787,6 +1918,19 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccMode.ccModeOn{transform:translate(4px,4px);box-shadow:0 0 0 rgba(0,0,0,0);filter:saturate(1.3)}
 .ccMode:not(.ccModeOn){opacity:.72}
 
+.ccHold{margin-right:4px}
+.ccBalance{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;
+  font-weight:800;background:#fff8ec;border:3px solid ${C.line};padding:8px 12px;margin-bottom:10px}
+.ccHolding{font-size:11px;font-weight:700;color:${C.inkSoft}}
+.ccMenu{display:flex;flex-direction:column;gap:6px;max-height:44vh;overflow:auto;margin-bottom:8px}
+.ccMenuItem{display:flex;align-items:center;gap:10px;border:3px solid ${C.line};background:#fff;
+  font-family:inherit;font-weight:800;font-size:13px;color:${C.ink};padding:10px 12px;cursor:pointer;
+  box-shadow:3px 3px 0 rgba(91,74,99,.18);text-align:left}
+.ccMenuItem:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(91,74,99,.18)}
+.ccMenuNo{opacity:.45}
+.ccMenuEmoji{font-size:20px}
+.ccMenuName{flex:1}
+.ccMenuPrice{font-size:12px;color:#c08a2a}
 .ccFortuneText{margin:10px 4px 16px;font-size:16px;font-weight:800;line-height:1.6;color:${C.ink};
   background:#fffbe8;border:3px solid ${C.line};padding:14px 12px}
 .ccCookieShake{animation:ccShake .18s steps(2,end) infinite}

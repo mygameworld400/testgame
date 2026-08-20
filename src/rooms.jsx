@@ -20,6 +20,28 @@ const PLAY = { x0: 90, x1: ROOM.w - 90, y0: 40, y1: ROOM.d - 30 };
 
 /* LP바 의자 6개 — 그리기와 착석 판정이 같은 좌표를 씁니다 */
 export const TABLE = { x: 500, y: 250 };
+/* 카페 메뉴 — 별(⭐)로 삽니다 */
+export const MENU = [
+  { id: "latte", name: "구름 라떼", emoji: "☕", price: 2 },
+  { id: "berry", name: "딸기 스무디", emoji: "🍓", price: 3 },
+  { id: "shake", name: "바닐라 쉐이크", emoji: "🥤", price: 3 },
+  { id: "cake", name: "초코 케이크", emoji: "🍰", price: 4 },
+  { id: "madel", name: "마들렌", emoji: "🥐", price: 1 },
+  { id: "cookie", name: "구름 쿠키", emoji: "🍪", price: 1 },
+];
+
+/* 카운터에 서 있는 직원 */
+export const CAFE_STAFF = { x: 500, y: 118 };
+
+/* 카페 — 2인 테이블 3개 (의자 6개) */
+export const CAFE_TABLES = [
+  { x: 260, y: 250 }, { x: 500, y: 330 }, { x: 740, y: 250 },
+];
+export const CAFE_CHAIRS = CAFE_TABLES.flatMap((t, n) => [
+  { i: n * 2, x: t.x - 82, y: t.y + 8, t: n },
+  { i: n * 2 + 1, x: t.x + 82, y: t.y + 8, t: n },
+]);
+
 export const CHAIRS = Array.from({ length: 6 }, (_, i) => {
   const a = (Math.PI * 2 * i) / 6 + Math.PI / 6;
   return { i, a, x: TABLE.x + Math.cos(a) * 200, y: TABLE.y + Math.sin(a) * 105 };
@@ -114,6 +136,28 @@ export const ROOMS = {
     zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
   },
 
+  /* ☕ 구름카페 — 카운터 + 2인 테이블 3개 */
+  cafe: {
+    id: "cafe",
+    name: "구름카페",
+    emoji: "☕",
+    floor: "#ffe7d6",
+    floorLine: "#ffe7d6",
+    wall: "#fff4ea",
+    wallDark: "#e8bfa0",
+    side: "#ffeee2",
+    accent: "#e08a5c",
+    hint: "의자에 앉으면 음료가 나와요",
+    play: PLAY,
+    blocks: [box(500, 70, 460, 90), ...CAFE_TABLES.map((t) => box(t.x, t.y, 120, 80))],
+    chairs: CAFE_CHAIRS,
+    staff: CAFE_STAFF,
+    zones: [
+      { id: "menu", x: 500, y: 160, r: 120, label: "메뉴판 보기" },
+      { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
+    ],
+  },
+
   /* 🍜 떵개방 — 준비중 */
   carousel: {
     id: "carousel",
@@ -170,6 +214,7 @@ export function RoomStage({ room, children, waterPhase, seats = [], broken = [],
       {R.id === "post" && <PoolProps R={R} phase={waterPhase} />}
       {R.id === "flower" && <SandProps R={R} broken={broken} pressed={pressed} />}
       {R.id === "carousel" && <GachaProps R={R} />}
+      {R.id === "cafe" && <CafeProps R={R} seats={seats} />}
 
       {/* 문 */}
       <Door />
@@ -468,6 +513,78 @@ function Keyboard({ keys, pressed }) {
       <rect x={keys.sx - pad} y={keys.sy - pad} width={bw} height={bh} rx="6" fill="#7c7061" stroke="#5b4a63" strokeWidth="4" />
       <rect x={keys.sx - pad + 4} y={keys.sy - pad + 4} width={bw - 8} height={bh - 8} rx="4" fill="#8d8171" />
       {cells}
+    </g>
+  );
+}
+
+/* 카페 — 카운터, 2인 테이블, 앉으면 나오는 음료 */
+function CafeProps({ R, seats = [] }) {
+  const bar = proj(500, 70);
+  return (
+    <g>
+      {/* 뒷벽 선반과 컵들 */}
+      <rect x={330} y={70} width={340} height={14} fill="#d9a988" />
+      <rect x={330} y={140} width={340} height={14} fill="#d9a988" />
+      {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+        <rect key={i} x={344 + i * 46} y={40} width={18} height={30} rx="3"
+          fill={i % 3 === 0 ? "#ffb9a8" : i % 3 === 1 ? "#fff4ec" : "#8fd8a8"} stroke="#8a5a3c" strokeWidth="2" />
+      ))}
+      {/* 메뉴판 */}
+      <rect x={700} y={44} width={150} height={104} fill="#fff8f0" stroke="#8a5a3c" strokeWidth="4" />
+      {[0, 1, 2, 3].map((i) => (
+        <rect key={i} x={716} y={62 + i * 22} width={118 - i * 14} height={7} fill="#e0bfa8" />
+      ))}
+      {/* 카운터 */}
+      <rect x={bar.sx - 230 * bar.k} y={bar.sy - 56 * bar.k} width={460 * bar.k} height={66 * bar.k}
+        fill="#d9a988" stroke="#8a5a3c" strokeWidth="4" />
+      <rect x={bar.sx - 230 * bar.k} y={bar.sy - 56 * bar.k} width={460 * bar.k} height={13 * bar.k} fill="#f0cdb4" />
+      {/* 커피 머신 */}
+      <rect x={bar.sx + 90 * bar.k} y={bar.sy - 96 * bar.k} width={70 * bar.k} height={44 * bar.k}
+        fill="#fff4ec" stroke="#8a5a3c" strokeWidth="3" />
+      <circle cx={bar.sx + 125 * bar.k} cy={bar.sy - 74 * bar.k} r={9 * bar.k} fill="#e08a5c" />
+
+      {/* 테이블과 의자 */}
+      {CAFE_TABLES.map((t, n) => {
+        const p = proj(t.x, t.y);
+        const k = p.k;
+        return (
+          <g key={"t" + n}>
+            <ellipse cx={p.sx} cy={p.sy} rx={62 * k} ry={34 * k} fill="#d9a988" stroke="#8a5a3c" strokeWidth="4" />
+            <ellipse cx={p.sx} cy={p.sy - 9 * k} rx={62 * k} ry={34 * k} fill="#fff4ec" stroke="#8a5a3c" strokeWidth="4" />
+          </g>
+        );
+      })}
+      {CAFE_CHAIRS.map((c) => {
+        const p = proj(c.x, c.y);
+        const k = p.k;
+        const taken = seats.includes(c.i);
+        return (
+          <g key={"c" + c.i}>
+            <rect x={p.sx - 22 * k} y={p.sy - 30 * k} width={44 * k} height={18 * k}
+              fill={taken ? "#ffb9a8" : "#d9a988"} stroke="#8a5a3c" strokeWidth="3" />
+            <rect x={p.sx - 5 * k} y={p.sy - 14 * k} width={10 * k} height={16 * k} fill="#8a5a3c" />
+          </g>
+        );
+      })}
+      {/* 앉은 사람 앞에 음료 */}
+      {seats.map((i) => {
+        const c = CAFE_CHAIRS[i];
+        if (!c) return null;
+        const t = CAFE_TABLES[c.t];
+        const jx = c.x < t.x ? t.x - 34 : t.x + 34;
+        const p = proj(jx, t.y - 4);
+        const k = p.k;
+        return (
+          <g key={"cup" + i}>
+            <ellipse cx={p.sx} cy={p.sy + 2 * k} rx={12 * k} ry={5 * k} fill="#8a5a3c" opacity="0.3" />
+            <rect x={p.sx - 10 * k} y={p.sy - 26 * k} width={20 * k} height={26 * k} rx={3 * k}
+              fill="#fff8f0" stroke="#8a5a3c" strokeWidth="3" />
+            <rect x={p.sx - 10 * k} y={p.sy - 26 * k} width={20 * k} height={8 * k} fill="#c98a5c" />
+            <path d={`M${p.sx + 10 * k},${p.sy - 20 * k} q${8 * k},${3 * k} 0,${10 * k}`}
+              stroke="#8a5a3c" strokeWidth="3" fill="none" />
+          </g>
+        );
+      })}
     </g>
   );
 }

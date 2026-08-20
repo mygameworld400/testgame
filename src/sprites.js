@@ -265,6 +265,38 @@ export const BUILDING_SPRITES = {
       d: "#ffcf8a", p: "#ffffff", a: "#e8874a", k: "#a9762f",
     },
   },
+
+  /* ☕ 카페 — 줄무늬 차양 + 지붕 위 커피컵 간판 */
+  cafe: {
+    map: [
+      ".........oooooo.........",
+      "........oppppppo........",
+      "........oppppppooo......",
+      "........oppppppo.o......",
+      "........oppppppoo.......",
+      ".........oooooo.........",
+      "..oooooooooooooooooooo..",
+      "..WWrrWWrrWWrrWWrrWWrr..",
+      "..WWrrWWrrWWrrWWrrWWrr..",
+      "..oooooooooooooooooooo..",
+      "..obbbbbbbbbbbbbbbbbbo..",
+      "..oooooooooobbbbbbbbbo..",
+      "..oowwwowwwobooooooobo..",
+      "..oowwwowwwobodddddobo..",
+      "..oowwwowwwobodddddobo..",
+      "..oowwwowwwobodddddobo..",
+      "..oowwwowwwoboddddoobo..",
+      "..oooooooooobodddddobo..",
+      ".gobbbbbbbbbbodddddogo..",
+      ".gobbbbbbbbbbodddddogo..",
+      "..obbbbbbbbbbodddddobo..",
+      "..oooooooooooooooooooo..",
+    ],
+    palette: {
+      o: "#8a5a3c", r: "#ffb9a8", W: "#fff4ec", b: "#fff8f0", w: "#cdeeff",
+      d: "#ffd9c0", p: "#ffffff", g: "#8fd8a8", a: "#e08a5c",
+    },
+  },
 };
 
 /* ---------- 장식 ---------- */

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { blip, buzz, ding } from "./sfx.js";
+import { MENU } from "./rooms.jsx";
 
 import { DAY, SFX_PREFIX, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
@@ -1029,6 +1030,55 @@ export function FortuneSheet({ hostCode, isHost, onClose }) {
       )}
 
       {err && <div className="ccErr">{err}</div>}
+    </div>
+  );
+}
+
+
+/* ============================ 카페 메뉴판 ============================ */
+
+export function MenuSheet({ balance, holding, onBuy, onClose }) {
+  const [msg, setMsg] = useState("");
+
+  const buy = (item) => {
+    if (balance < item.price) {
+      buzz();
+      setMsg(`별이 ${item.price - balance}개 더 필요해요.`);
+      return;
+    }
+    onBuy(item);
+    ding();
+    setMsg(`${item.name} 나왔습니다!`);
+  };
+
+  return (
+    <div className="ccPanel ccSheet" onClick={(e) => e.stopPropagation()}>
+      <div className="ccSheetHead">
+        <h2 className="ccSheetTitle">☕ 메뉴판</h2>
+        <button className="ccX" onClick={onClose}>✕</button>
+      </div>
+
+      <div className="ccBalance">
+        내 별 <b>⭐ {balance}</b>
+        {holding && <span className="ccHolding">들고 있음 {holding.emoji} {holding.name}</span>}
+      </div>
+
+      <div className="ccMenu">
+        {MENU.map((m) => (
+          <button
+            key={m.id}
+            className={"ccMenuItem" + (balance < m.price ? " ccMenuNo" : "")}
+            onClick={() => buy(m)}
+          >
+            <span className="ccMenuEmoji">{m.emoji}</span>
+            <span className="ccMenuName">{m.name}</span>
+            <span className="ccMenuPrice">⭐ {m.price}</span>
+          </button>
+        ))}
+      </div>
+
+      {msg && <p className="ccSheetNote">{msg}</p>}
+      <p className="ccSheetNote">별은 마을을 돌아다니며 주울 수 있어요.</p>
     </div>
   );
 }
