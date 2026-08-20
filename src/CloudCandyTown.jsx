@@ -186,7 +186,7 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = f
       }}
     >
       {msg && <div className="ccBubble">{msg}</div>}
-      {swim && <div className="ccTube" />}
+      {swim && <div className="ccTube ccTubeBack" />}
       <div className={"ccTag" + (me ? " ccTagMe" : "")}>{name}</div>
       <Pix
         map={ch.map}
@@ -195,6 +195,7 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = f
         cacheKey={"c-" + ch.id}
         className={(moving ? "ccWalk " : "") + (facing < 0 ? "ccFlip" : "")}
       />
+      {swim && <div className="ccTube ccTubeFront" />}
     </div>
   );
 }
@@ -1321,9 +1322,13 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccZoneHint{position:absolute;left:50%;bottom:86px;transform:translateX(-50%);background:#fff;
   border:4px solid ${C.line};padding:9px 16px;font-size:13px;font-weight:700;color:${C.ink};
   font-family:inherit;cursor:pointer;box-shadow:4px 4px 0 rgba(91,74,99,.3);animation:ccBlink 1s steps(2,end) infinite}
-.ccTube{position:absolute;left:50%;bottom:2px;width:74px;height:34px;margin-left:-37px;border-radius:50%;
-  border:5px solid #ff8fb6;background:transparent;box-shadow:0 0 0 4px ${C.line},inset 0 0 0 4px ${C.line};
-  animation:ccSwim .5s steps(2,end) infinite;z-index:2}
+.ccAvatar .ccPix{position:relative;z-index:2}
+/* 튜브 — 뒤쪽 반은 캐릭터 뒤, 앞쪽 반만 앞에 그려서 실제로 끼고 있는 것처럼 보이게 */
+.ccTube{position:absolute;left:50%;bottom:1px;width:80px;height:26px;margin-left:-40px;border-radius:50%;
+  border:6px solid #ff8fb6;box-shadow:0 0 0 3px ${C.line},inset 0 0 0 3px ${C.line};
+  animation:ccSwim .5s steps(2,end) infinite;pointer-events:none}
+.ccTubeBack{z-index:1}
+.ccTubeFront{z-index:3;clip-path:inset(52% -14px -14px -14px)}
 .ccSwim .ccPix{animation:ccSwim .5s steps(2,end) infinite}
 @keyframes ccSwim{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 
