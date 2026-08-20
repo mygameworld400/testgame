@@ -75,11 +75,11 @@ export const ROOMS = {
     id: "post",
     name: "수영장",
     emoji: "🏊",
-    floor: "#eaf6ff",
-    floorLine: "#eaf6ff",
+    floor: "#ffe8d6",
+    floorLine: "#ffe8d6",
     wall: "#f2fbff",
-    wallDark: "#cfe9fb",
-    side: "#ddf2ff",
+    wallDark: "#e8a06a",
+    side: "#ffdcc0",
     accent: "#bfe9ff",
     hint: "물에 들어가면 헤엄쳐요. 첨벙!",
     play: PLAY,
@@ -281,7 +281,72 @@ function QuizProps({ R }) {
   );
 }
 
-/* 수영장 — 물 + 물결 + 레인 */
+/* 뒷벽 전체를 채우는 해변 노을 벽화 — 픽셀 느낌으로 가로 띠를 쌓습니다 */
+function SunsetMural() {
+  const x0 = proj(0, 0).sx;          // 뒷벽 왼쪽 끝
+  const x1 = proj(ROOM.w, 0).sx;     // 뒷벽 오른쪽 끝
+  const w = x1 - x0;
+  const H = ROOM.wall;               // 벽 높이
+  const sea = H * 0.62;              // 수평선 위치
+
+  /* 하늘 — 위에서 아래로 보라 → 분홍 → 주황 */
+  const sky = ["#4a3070", "#633a7c", "#8a4879", "#b25873", "#d1686a", "#e87f63", "#f79a5f", "#ffb673", "#ffd08a"];
+  const bandH = sea / sky.length;
+  /* 바다 — 아래로 갈수록 짙게 */
+  const water = ["#f0a06a", "#d98a72", "#a97490", "#7a5f96", "#5b4e8c", "#463c74"];
+  const wH = (H - sea) / water.length;
+
+  const rays = [];
+  for (let i = 0; i < 7; i++) {
+    const yy = sea + i * wH * 0.95;
+    const ww = 26 - i * 2.4;
+    rays.push(
+      <rect key={"ray" + i} x={x0 + w / 2 - ww / 2} y={yy} width={ww} height={Math.max(3, wH * 0.45)} fill="#ffe6a8" opacity={0.8 - i * 0.09} />
+    );
+  }
+
+  return (
+    <g>
+      <defs>
+        <clipPath id="ccWallClip">
+          <rect x={x0} y={0} width={w} height={H} />
+        </clipPath>
+      </defs>
+      <g clipPath="url(#ccWallClip)">
+        {sky.map((c, i) => (
+          <rect key={"s" + i} x={x0} y={i * bandH} width={w} height={bandH + 1} fill={c} />
+        ))}
+        {/* 해 */}
+        <circle cx={x0 + w / 2} cy={sea - 26} r="30" fill="#fff0b8" />
+        <circle cx={x0 + w / 2} cy={sea - 26} r="22" fill="#fffbe0" />
+        {/* 구름 띠 */}
+        <rect x={x0 + w * 0.1} y={sea * 0.42} width={w * 0.26} height="7" fill="#ffd9a8" opacity="0.75" />
+        <rect x={x0 + w * 0.58} y={sea * 0.3} width={w * 0.3} height="6" fill="#ffc9a0" opacity="0.7" />
+        <rect x={x0 + w * 0.66} y={sea * 0.52} width={w * 0.2} height="6" fill="#ffe0bb" opacity="0.7" />
+        {/* 바다 */}
+        {water.map((c, i) => (
+          <rect key={"w" + i} x={x0} y={sea + i * wH} width={w} height={wH + 1} fill={c} />
+        ))}
+        {rays}
+        {/* 야자수 실루엣 */}
+        {[x0 + 34, x1 - 40].map((px, i) => (
+          <g key={"palm" + i} fill="#2e2140">
+            <rect x={px - 4} y={sea - 96} width="8" height="96" />
+            <rect x={px - 34} y={sea - 104} width="30" height="7" />
+            <rect x={px + 4} y={sea - 104} width="30" height="7" />
+            <rect x={px - 28} y={sea - 116} width="22" height="7" />
+            <rect x={px + 6} y={sea - 116} width="22" height="7" />
+            <rect x={px - 12} y={sea - 124} width="24" height="8" />
+          </g>
+        ))}
+      </g>
+      {/* 벽화 테두리 */}
+      <rect x={x0} y={0} width={w} height={H} fill="none" stroke="#5b4a63" strokeWidth="4" />
+    </g>
+  );
+}
+
+/* 수영장 — 벽화 + 물 + 물결 */
 function PoolProps({ R, phase }) {
   const w = R.water;
   const back = proj(w.x - w.w / 2, w.y - w.d / 2);
@@ -300,6 +365,7 @@ function PoolProps({ R, phase }) {
   }
   return (
     <g>
+      <SunsetMural />
       <polygon
         points={`${back.sx},${back.sy} ${back2.sx},${back2.sy} ${front2.sx},${front2.sy} ${front.sx},${front.sy}`}
         fill="#bfe9ff"
