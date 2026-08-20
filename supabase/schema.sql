@@ -362,3 +362,57 @@ grant execute on function public.cc_quiz_check(bigint, text)        to anon, aut
 grant execute on function public.cc_track_list()                    to anon, authenticated;
 grant execute on function public.cc_track_add(text, text, text)     to anon, authenticated;
 grant execute on function public.cc_track_del(text, bigint)         to anon, authenticated;
+
+-- ===========================================================
+-- 3단계 — 퀴즈 패키지(주제)
+--   문제마다 주제를 달아 묶음으로 고를 수 있게 합니다.
+--   기존 문제는 전부 '과자' 패키지로 들어갑니다.
+-- ===========================================================
+
+alter table public.cc_quiz add column if not exists pack text not null default '과자';
+
+create or replace function public.cc_quiz_list()
+returns json language plpgsql security definer set search_path = public as $$
+declare v json;
+begin
+  select coalesce(json_agg(json_build_object('id', id, 'image', image, 'pack', pack) order by id), '[]'::json)
+    into v from public.cc_quiz;
+  return v;
+end; $$;
+
+/* 주제 목록 + 문제 수 */
+create or replace function public.cc_quiz_packs()
+returns json language plpgsql security definer set search_path = public as $$
+declare v json;
+begin
+  select coalesce(json_agg(json_build_object('pack', pack, 'n', n) order by n desc, pack), '[]'::json)
+    into v
+    from (select pack, count(*) as n from public.cc_quiz group by pack) t;
+  return v;
+end; $$;
+
+create or replace function public.cc_quiz_add(p_host_code text, p_image text, p_answer text, p_pack text default '과자')
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text; v_id bigint; v_pack text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  if coalesce(btrim(p_answer), '') = '' or coalesce(p_image, '') = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  if length(p_image) > 900000 then
+    return json_build_object('ok', false, 'error', 'too_big');
+  end if;
+  v_pack := coalesce(nullif(btrim(p_pack), ''), '과자');
+  insert into public.cc_quiz (image, answer, pack) values (p_image, btrim(p_answer), left(v_pack, 20))
+    returning id into v_id;
+  return json_build_object('ok', true, 'id', v_id, 'pack', v_pack);
+end; $$;
+
+grant execute on function public.cc_quiz_packs()                          to anon, authenticated;
+grant execute on function public.cc_quiz_add(text, text, text, text)      to anon, authenticated;
+
+/* 예전 3인자 버전 정리 */
+drop function if exists public.cc_quiz_add(text, text, text);
