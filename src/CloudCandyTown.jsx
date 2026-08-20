@@ -884,7 +884,7 @@ function Town({ me, setMe, onKick }) {
       onPeers: setPeers,
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
       onFx: (e) => {
-        if (e?.t === "ball") popBall(e.i, false);
+        if (e?.t === "ball" && sceneRef.current === "flower") popBall(e.i, false);
       },
       onChat: (msg) => {
         const at = Date.now();
@@ -1116,7 +1116,11 @@ function Town({ me, setMe, onKick }) {
         )}
         <div className="ccChip">{me.role === "host" ? "왕관" : charForSlot(me.slot).label} · {me.name}</div>
         <div className="ccChip">별 {collected} / {STAR_SPOTS.length}</div>
-        {me.role !== "solo" && <div className="ccChip">접속 {online}명</div>}
+        {me.role !== "solo" && (
+          <div className="ccChip" title={roomPeers.map((p) => p.name).join(", ")}>
+            {scene ? `이 방 ${roomPeers.length + 1}명` : `접속 ${online}명`}
+          </div>
+        )}
       </div>
 
       {/* 우측 상단 — 회차 */}
