@@ -304,7 +304,7 @@ function Ground() {
 
 /* ============================ 입장 화면 ============================ */
 
-function JoinGate({ onJoined }) {
+function JoinGate({ onJoined, notice }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState(savedHostCode());
   const [showCode, setShowCode] = useState(!!savedHostCode());
@@ -379,6 +379,8 @@ function JoinGate({ onJoined }) {
           {hasServer ? `${status?.round ?? "-"}번 테스트` : "서버 없이 둘러보기"}
         </p>
 
+        {notice && <div className="ccNotice">{notice}</div>}
+
         {hasServer && (
           <div className={"ccSeatCount" + (full ? " ccSeatFull" : "")}>
             {full ? `정원 마감 ${cap} / ${cap}` : `${taken} / ${cap} 명 입장`}
@@ -437,18 +439,26 @@ function JoinGate({ onJoined }) {
 
 export default function CloudCandyTown() {
   const [me, setMe] = useState(null);
+  const [notice, setNotice] = useState("");
+
+  /* 회차가 바뀌면 이전 회차 사람들은 전부 입장 화면으로 나옵니다 */
+  const kick = useCallback((msg) => {
+    setMe(null);
+    setNotice(msg || "");
+  }, []);
+
   if (!me) {
     return (
       <>
         <style>{CSS}</style>
-        <JoinGate onJoined={setMe} />
+        <JoinGate notice={notice} onJoined={(v) => { setNotice(""); setMe(v); }} />
       </>
     );
   }
-  return <Town me={me} setMe={setMe} />;
+  return <Town me={me} setMe={setMe} onKick={kick} />;
 }
 
-function Town({ me, setMe }) {
+function Town({ me, setMe, onKick }) {
   const [pos, setPos] = useState({ x: 850, y: 660 });
   const [facing, setFacing] = useState(1);
   const [moving, setMoving] = useState(false);
@@ -831,13 +841,13 @@ function Town({ me, setMe }) {
       if (!alive) return;
       setRoom(s?.ok ? s : null);
       if (s?.ok && me.round && s.round !== me.round) {
-        setToast(`${s.round}번 테스트가 시작됐어요! 새로고침해서 다시 입장해주세요`);
+        onKick(`${s.round}번 테스트가 시작됐어요. 다시 입장해주세요.`);
       }
     };
     tick();
     const iv = setInterval(tick, 5000);
     return () => { alive = false; clearInterval(iv); };
-  }, [me]);
+  }, [me, onKick]);
 
   /* 회차 지정 (호스트 전용) */
   const doRound = useCallback(async (n) => {
@@ -848,10 +858,13 @@ function Town({ me, setMe }) {
     if (r?.ok) {
       setRoom({ ok: true, round: r.round, capacity: r.capacity, taken: 0, players: [] });
       setToast(`${r.round}번 테스트를 시작했어요. 자리 ${r.capacity}개가 비었습니다`);
+      /* 호스트는 새 회차에 다시 등록해서 그대로 남습니다 (게스트만 나가요) */
+      const again = await joinRoom(me.name, me.hostCode);
+      setMe({ ...me, round: r.round, role: again?.role || "host", slot: again?.slot ?? 0 });
     } else {
       setToast(JOIN_ERROR[r?.error] || JOIN_ERROR.server_error);
     }
-  }, [me, resetting]);
+  }, [me, resetting, setMe]);
 
   useEffect(() => {
     if (!chatLog.length) return undefined;
@@ -1418,6 +1431,8 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccGateSub{margin:0 0 12px;font-size:12px;font-weight:700;color:${C.inkSoft}}
 .ccSeatCount{margin:0 0 12px;font-size:13px;font-weight:900;color:#2e9e78}
 .ccSeatFull{color:#e0685f}
+.ccNotice{margin:0 0 12px;background:#fff6e0;border:3px solid #f0b23f;padding:9px 11px;font-size:12px;
+  font-weight:700;line-height:1.5;color:${C.ink}}
 .ccInput{width:100%;border:3px solid ${C.line};padding:11px 12px;font-size:14px;font-weight:700;
   color:${C.ink};outline:none;text-align:center;font-family:inherit;background:#fff}
 .ccInput:focus{background:#fffbe8}
