@@ -597,6 +597,7 @@ function Town({ me, setMe, onKick }) {
   const [plName, setPlName] = useState("");
   const [sit, setSit] = useState(null);      // 앉아 있는 의자 번호
   const [spent, setSpent] = useState(0);     // 메뉴 사면서 쓴 별
+  const [roomStars, setRoomStars] = useState({});   // 방마다 주운 별
   const [holding, setHolding] = useState(null);   // 들고 있는 메뉴
   const [broken, setBroken] = useState([]);  // 뿌셔진 왁뿌볼
   const [pressed, setPressed] = useState([]); // 눌린 키보드 키
@@ -639,6 +640,7 @@ function Town({ me, setMe, onKick }) {
   const sheetRef = useRef(null);
   const sitRef = useRef(null);
   const holdRef = useRef(-1);
+  const roomStarsRef = useRef({});
   const gamesRef = useRef([]);
   const myGidRef = useRef(null);
   const waitRef = useRef(0);
@@ -659,6 +661,7 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { peersRef.current = peers; }, [peers]);
   useEffect(() => { brokenRef.current = broken; }, [broken]);
   useEffect(() => { pressedRef.current = pressed; }, [pressed]);
+  useEffect(() => { roomStarsRef.current = roomStars; }, [roomStars]);
   useEffect(() => { gamesRef.current = games; }, [games]);
   useEffect(() => {
     myGidRef.current = myGid;
@@ -666,7 +669,8 @@ function Town({ me, setMe, onKick }) {
     waitRef.current = g && g.state === "wait" ? 1 : 0;
   }, [myGid, games]);
 
-  const collected = stars.filter(Boolean).length;
+  const roomTaken = Object.values(roomStars).reduce((n, list) => n + list.filter(Boolean).length, 0);
+  const collected = stars.filter(Boolean).length + roomTaken;
   const balance = Math.max(0, collected - spent);
   const online = me.role === "solo" ? 1 : peers.length + 1;
 
@@ -1043,6 +1047,22 @@ function Town({ me, setMe, onKick }) {
           }
         }
 
+        /* 방 안에 있는 별 줍기 */
+        if (room.stars) {
+          const got = roomStarsRef.current[room.id] || room.stars.map(() => false);
+          let idx = -1;
+          room.stars.forEach((st, i) => {
+            if (!got[i] && Math.hypot(p.x - st.x, (p.y - st.y) * 1.4) < 40) idx = i;
+          });
+          if (idx >= 0) {
+            const next = got.slice();
+            next[idx] = true;
+            roomStarsRef.current = { ...roomStarsRef.current, [room.id]: next };
+            setRoomStars(roomStarsRef.current);
+            setToast("별을 주웠어요");
+          }
+        }
+
         /* 왁뿌볼 밟기 */
         if (room.balls) {
           for (const b of room.balls) {
@@ -1338,6 +1358,24 @@ function Town({ me, setMe, onKick }) {
               skin={scene === "candy" ? QUIZ_SKIN[quizMode] : null}
             />
             <div className="ccRoomLayer">
+              {(R.stars || []).map((st, i) => {
+                if ((roomStars[R.id] || [])[i]) return null;
+                const pr = proj(st.x, st.y);
+                return (
+                  <div
+                    key={"rs" + i}
+                    className="ccStar ccRoomStar"
+                    style={{
+                      left: pr.sx - 20 * pr.k,
+                      top: pr.sy - 46 * pr.k,
+                      animationDelay: `${i * 0.4}s`,
+                      transform: `scale(${pr.k})`,
+                    }}
+                  >
+                    <Pix map={DECO.star.map} palette={DECO.star.palette} scale={4} cacheKey="star" />
+                  </div>
+                );
+              })}
               {R.staff && (
                 <Avatar
                   name="직원"
@@ -1498,7 +1536,7 @@ function Town({ me, setMe, onKick }) {
           </button>
         )}
         <div className="ccChip">{me.role === "host" ? "왕관" : charForSlot(me.slot).label} · {me.name}</div>
-        <div className="ccChip">별 {collected} / {STAR_SPOTS.length}</div>
+        <div className="ccChip">별 {balance}{spent > 0 ? ` (모은 ${collected})` : ""}</div>
         {me.role !== "solo" && (
           <div className="ccChip" title={roomPeers.map((p) => p.name).join(", ")}>
             {scene ? `이 방 ${roomPeers.length + 1}명` : `접속 ${online}명`}
@@ -1881,6 +1919,7 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 
 .ccTree{position:absolute;animation:ccSway 3s steps(3,end) infinite}
 @keyframes ccSway{0%,100%{transform:translateX(0)}50%{transform:translateX(3px)}}
+.ccRoomStar{transform-origin:50% 100%}
 .ccStar{position:absolute;z-index:5;animation:ccStarF 1.6s steps(3,end) infinite}
 @keyframes ccStarF{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 

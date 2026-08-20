@@ -66,6 +66,7 @@ export const ROOMS = {
     play: PLAY,
     blocks: [box(TABLE.x, TABLE.y, 290, 130), box(500, 60, 420, 80)],
     chairs: CHAIRS,
+    stars: [{ x: 150, y: 120 }, { x: 860, y: 130 }, { x: 500, y: 460 }],
     zones: [
       { id: "lp", x: 880, y: 300, r: 90, label: "LP 플레이어" },
       { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
@@ -86,6 +87,7 @@ export const ROOMS = {
     hint: "화면 앞 단상에 올라서면 퀴즈가 시작돼요",
     play: PLAY,
     blocks: [box(500, 70, 520, 110)],
+    stars: [{ x: 160, y: 420 }, { x: 850, y: 430 }, { x: 180, y: 130 }],
     zones: [
       { id: "quiz", x: 500, y: 250, r: 110, label: "퀴즈 시작" },
       { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
@@ -107,6 +109,7 @@ export const ROOMS = {
     play: PLAY,
     blocks: [],
     water: { x: 500, y: 260, w: 620, d: 300 },
+    stars: [{ x: 140, y: 130 }, { x: 880, y: 140 }, { x: 500, y: 470 }],
     zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
   },
 
@@ -133,6 +136,7 @@ export const ROOMS = {
     ],
     /* 키보드 — 오른쪽에 세로로 긴 3열 × 10줄 */
     keys: { sx: 706, sy: 372, cols: 3, rows: 10, w: 60, h: 33, gap: 4 },
+    stars: [{ x: 140, y: 150 }, { x: 480, y: 470 }, { x: 640, y: 120 }],
     zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
   },
 
@@ -152,6 +156,7 @@ export const ROOMS = {
     blocks: [box(500, 70, 460, 90), ...CAFE_TABLES.map((t) => box(t.x, t.y, 120, 80))],
     chairs: CAFE_CHAIRS,
     staff: CAFE_STAFF,
+    stars: [{ x: 150, y: 430 }, { x: 870, y: 430 }, { x: 500, y: 470 }],
     zones: [
       { id: "menu", x: 500, y: 160, r: 120, label: "메뉴판 보기" },
       { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
@@ -172,6 +177,7 @@ export const ROOMS = {
     hint: "가운데 가챠를 눌러 오늘의 메뉴를 뽑아보세요",
     play: PLAY,
     blocks: [box(500, 150, 260, 150)],
+    stars: [{ x: 160, y: 420 }, { x: 850, y: 420 }, { x: 500, y: 470 }],
     zones: [
       { id: "gacha", x: 500, y: 290, r: 130, label: "메뉴 가챠" },
       { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
