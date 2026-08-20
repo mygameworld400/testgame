@@ -1196,31 +1196,6 @@ function Town({ me, setMe }) {
       </div>
 
 
-      {sheet === "lp" && (
-        <div className="ccModalWrap" onClick={() => setSheet(null)}>
-          <div className="ccPanel ccSheet" onClick={(e) => e.stopPropagation()}>
-            <h2 className="ccSheetTitle">♪ 플레이리스트</h2>
-            <p className="ccSheetEmpty">아직 등록된 곡이 없어요.</p>
-            <p className="ccSheetNote">
-              곡 올리기는 다음 단계에서 붙일게요. 준비되면 호스트가 여기서 파일을 바로 올릴 수 있습니다.
-            </p>
-            <button className="ccBtn" onClick={() => setSheet(null)}>닫기</button>
-          </div>
-        </div>
-      )}
-
-      {sheet === "quiz" && (
-        <div className="ccModalWrap" onClick={() => setSheet(null)}>
-          <div className="ccPanel ccSheet" onClick={(e) => e.stopPropagation()}>
-            <h2 className="ccSheetTitle">❓ 퀴즈</h2>
-            <p className="ccSheetEmpty">아직 등록된 문제가 없어요.</p>
-            <p className="ccSheetNote">
-              이미지 문제 추가도 다음 단계에서 붙일게요. 호스트가 사진과 정답을 올리면 바로 반영됩니다.
-            </p>
-            <button className="ccBtn" onClick={() => setSheet(null)}>닫기</button>
-          </div>
-        </div>
-      )}
 
     </div>
   );
