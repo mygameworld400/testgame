@@ -699,7 +699,7 @@ export function GachaSheet({ hostCode, isHost, onClose }) {
   const [editId, setEditId] = useState(null);
   const [editName, setEditName] = useState("");
   const [busy, setBusy] = useState(false);
-  const prev = useRef(lastDraw());
+  const prev = useRef(lastDraw("gacha"));
 
   const load = useCallback(async () => {
     const r = await foodList();
@@ -728,7 +728,7 @@ export function GachaSheet({ hostCode, isHost, onClose }) {
         clearInterval(iv);
         const win = foods[Math.floor(Math.random() * foods.length)].name;
         setPick(win);
-        saveDraw(win);
+        saveDraw("gacha", win);
         prev.current = { at: Date.now(), food: win };
         setStep("done");
         ding();
@@ -877,6 +877,7 @@ export function GachaSheet({ hostCode, isHost, onClose }) {
 export function FortuneSheet({ hostCode, isHost, onClose }) {
   const [items, setItems] = useState(null);
   const [pick, setPick] = useState(null);
+  const prev = useRef(lastDraw("fortune"));
   const [opening, setOpening] = useState(false);
   const [manage, setManage] = useState(false);
   const [newText, setNewText] = useState("");
@@ -893,12 +894,29 @@ export function FortuneSheet({ hostCode, isHost, onClose }) {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (prev.current) setPick(prev.current.food);
+  }, []);
+
+  const left = () => {
+    if (!prev.current) return "";
+    const ms = DAY - (Date.now() - prev.current.at);
+    if (ms <= 0) return "";
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+  };
+
   const draw = () => {
     if (!items?.length) { setErr("아직 등록된 문장이 없어요."); return; }
+    if (left()) return;
     setOpening(true);
     blip(880);
     setTimeout(() => {
-      setPick(items[Math.floor(Math.random() * items.length)].text);
+      const win = items[Math.floor(Math.random() * items.length)].text;
+      setPick(win);
+      saveDraw("fortune", win);
+      prev.current = { at: Date.now(), food: win };
       setOpening(false);
       ding();
     }, 700);
@@ -953,10 +971,15 @@ export function FortuneSheet({ hostCode, isHost, onClose }) {
           {!pick && !opening && <p className="ccGachaAsk">쿠키를 열면 오늘의 한마디가 나와요</p>}
           {opening && <p className="ccGachaAsk">쿠키를 여는 중…</p>}
           {pick && !opening && <p className="ccFortuneText">{pick}</p>}
+          {left() && (
+            <p className="ccSheetNote">하루에 하나씩만 열 수 있어요. {left()} 뒤에 다시 열 수 있어요.</p>
+          )}
           <div className="ccRow">
-            <button className="ccBtn ccMiniBtn" onClick={draw} disabled={opening}>
-              {pick ? "다시 뽑기" : "뽑기"}
-            </button>
+            {!left() && (
+              <button className="ccBtn ccMiniBtn" onClick={draw} disabled={opening}>
+                {pick ? "다시 뽑기" : "뽑기"}
+              </button>
+            )}
             <button className="ccMini" onClick={onClose}>닫기</button>
           </div>
         </>

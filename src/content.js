@@ -129,12 +129,12 @@ export const foodEdit = (hostCode, id, name) =>
 export const foodDel = (hostCode, id) => call("cc_food_del", { p_host_code: hostCode, p_id: id });
 
 /* 하루 한 번만 뽑게 — 이 기기에 뽑은 시각을 남깁니다 */
-const GACHA_KEY = "ccGacha";
 export const DAY = 24 * 60 * 60 * 1000;
 
-export function lastDraw() {
+/* kind 별로 따로 기록합니다 ("gacha", "fortune" …) */
+export function lastDraw(kind = "gacha") {
   try {
-    const raw = localStorage.getItem(GACHA_KEY);
+    const raw = localStorage.getItem("ccDraw:" + kind);
     if (!raw) return null;
     const v = JSON.parse(raw);
     if (!v?.at || Date.now() - v.at > DAY) return null;   // 24시간 지나면 초기화
@@ -144,9 +144,9 @@ export function lastDraw() {
   }
 }
 
-export function saveDraw(food) {
+export function saveDraw(kind, value) {
   try {
-    localStorage.setItem(GACHA_KEY, JSON.stringify({ at: Date.now(), food }));
+    localStorage.setItem("ccDraw:" + kind, JSON.stringify({ at: Date.now(), food: value }));
   } catch {
     /* 무시 */
   }

@@ -61,7 +61,7 @@ const BUILDINGS = [
       "여기 유리온실은 소리가 정말 잘 울려요. 한번 속삭여 보세요.",
       "가장 인기 있는 건 사탕 껍질 부스럭 소리래요. 이해는 안 되지만요.",
     ] },
-  { id: "fortune", name: "포춘쿠키", emoji: "🥠", tag: "운세", x: 275, y: 870, scale: 5.5, sheet: "fortune",
+  { id: "fortune", name: "포춘쿠키", emoji: "🥠", tag: "운세", x: 250, y: 770, scale: 5.5, sheet: "fortune",
     lines: [
       "오늘의 한마디, 하나 열어보고 가세요.",
       "쿠키를 반으로 쪼개면 안에 쪽지가 들어 있어요.",
