@@ -1,4 +1,4 @@
-# testgame
+# 메롱
 
 Vite + React 로 만드는 게임/인터랙티브 사이트.
 

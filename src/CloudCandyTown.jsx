@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, startNewRound } from "./room.js";
-import { joinChannel } from "./realtime.js";
+import { CHAT_MS, joinChannel } from "./realtime.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
 
 /* ===========================================================
-   구름사탕 마을 — 구름 위에 떠 있는 픽셀 사탕 마을
-   방향키(또는 WASD)로 걷고, 건물 앞에서 Space 로 들어가요.
+   메롱 — 구름 위에 떠 있는 픽셀 마을
+   방향키(또는 WASD)로 걷고, 건물 앞에서 Space, Enter 로 채팅해요.
    =========================================================== */
 
 const WORLD = { w: 1700, h: 1080 };
@@ -33,17 +33,17 @@ const C = {
 const PX = 4; // 캐릭터 확대 배율
 
 const BUILDINGS = [
-  { id: "cake", name: "폭신폭신 케이크 카페", emoji: "🍰", tag: "카페", x: 430, y: 500, scale: 10,
+  { id: "cake", name: "리스닝바", emoji: "🎧", tag: "음악", x: 430, y: 500, scale: 10,
     lines: [
-      "딸기 생크림 한 조각 드릴까요? 오늘은 유난히 폭신하게 구워졌어요.",
-      "창가 자리가 비었어요. 구름이 지나가는 게 제일 잘 보이는 자리랍니다.",
-      "설탕을 너무 많이 넣어서 케이크가 살짝 떠올랐어요. 붙잡아 주세요!",
+      "오늘 밤 첫 곡 나갑니다. 헤드폰 하나 골라서 아무 자리나 앉으세요.",
+      "신청곡 받아요. 구름 위에서 듣기 좋은 걸로 부탁드려요.",
+      "여기선 아무 말 안 해도 돼요. 다들 각자 음악만 듣다 가거든요.",
     ] },
-  { id: "candy", name: "알록달록 사탕가게", emoji: "🍭", tag: "상점", x: 830, y: 430, scale: 10,
+  { id: "candy", name: "퀴즈상가", emoji: "❓", tag: "퀴즈", x: 830, y: 430, scale: 10,
     lines: [
-      "오늘의 사탕은 '무지개 소용돌이' 맛이에요. 세 번 핥으면 색이 바뀌어요.",
-      "막대사탕 나무에서 방금 딴 신선한 사탕이에요!",
-      "너무 크게 부풀린 풍선껌은 지붕 위로 날아가 버렸어요… 보이면 알려주세요.",
+      "1번 문제! 구름사탕 마을에 건물이 몇 개 있게요? …너무 쉬웠나요?",
+      "정답 맞히면 사탕 하나, 틀리면 사탕 두 개 드려요. 손해 볼 일 없어요.",
+      "오답 노트를 여기 다 붙여놨어요. 아무도 안 가져가더라고요.",
     ] },
   { id: "post", name: "토끼 우체국", emoji: "💌", tag: "우편", x: 1270, y: 510, scale: 10,
     lines: [
@@ -51,17 +51,17 @@ const BUILDINGS = [
       "구름 너머 마을까지도 이틀이면 도착해요. 비 오는 날엔 하루 더요.",
       "분홍 봉투에 넣으면 받는 사람이 열 때 반짝이가 쏟아져요. 인기 상품!",
     ] },
-  { id: "flower", name: "몽글몽글 꽃집", emoji: "🌷", tag: "꽃집", x: 590, y: 860, scale: 9,
+  { id: "flower", name: "ASMR 타운", emoji: "🎙️", tag: "ASMR", x: 590, y: 860, scale: 9,
     lines: [
-      "이 화분은 물을 주면 노래를 불러요. 가끔 음이 틀리지만 귀여워요.",
-      "구름솜 튤립이 오늘 아침에 활짝 폈어요. 만지면 폭신해요!",
-      "꽃다발 하나 만들어 드릴까요? 리본 색은 마음대로 고르세요.",
+      "쉿… 지금 빗소리 녹음 중이에요. 발소리만 살살 부탁드려요.",
+      "여기 유리온실은 소리가 정말 잘 울려요. 한번 속삭여 보세요.",
+      "가장 인기 있는 건 사탕 껍질 부스럭 소리래요. 이해는 안 되지만요.",
     ] },
-  { id: "carousel", name: "별빛 회전목마", emoji: "🎠", tag: "놀이터", x: 1160, y: 880, scale: 10,
+  { id: "carousel", name: "먹방탭", emoji: "🍜", tag: "먹방", x: 1160, y: 880, scale: 10,
     lines: [
-      "한 바퀴 돌 때마다 별가루가 조금씩 떨어져요. 눈 감지 말고 보세요!",
-      "제일 앞자리 유니콘은 언제나 인기 만점이에요. 지금은 비어 있어요!",
-      "해 질 무렵에 타면 목마들이 진짜로 하늘을 달리는 것처럼 보여요.",
+      "지금 라이브 켜져 있어요! 뒤에서 손 흔들면 화면에 나와요.",
+      "오늘 메뉴는 구름국수예요. 후루룩 소리가 제일 중요하대요.",
+      "한 바퀴 돌면서 먹으면 두 배로 맛있다는 게 여기 규칙입니다.",
     ] },
 ];
 
@@ -163,10 +163,11 @@ function Building({ b, near }) {
 
 /* ============================ 캐릭터 ============================ */
 
-function Avatar({ name, slot, x, y, facing, moving, me }) {
+function Avatar({ name, slot, x, y, facing, moving, me, msg }) {
   const ch = charForSlot(slot);
   return (
     <div className="ccAvatar" style={{ left: x, top: y, zIndex: Math.round(y) + 1 }}>
+      {msg && <div className="ccBubble">{msg}</div>}
       <div className={"ccTag" + (me ? " ccTagMe" : "")}>{name}</div>
       <Pix
         map={ch.map}
@@ -278,7 +279,7 @@ function JoinGate({ onJoined }) {
             />
           ))}
         </div>
-        <h1 className="ccGateTitle">구름사탕 마을</h1>
+        <h1 className="ccGateTitle">메롱</h1>
         <p className="ccGateSub">
           {hasServer ? `${status?.round ?? "-"}번 테스트` : "서버 없이 둘러보기"}
         </p>
@@ -366,6 +367,8 @@ function Town({ me }) {
   const [room, setRoom] = useState(null);
   const [peers, setPeers] = useState([]);
   const [panel, setPanel] = useState(false);
+  const [chatText, setChatText] = useState("");
+  const [myMsg, setMyMsg] = useState(null);
   const [roundInput, setRoundInput] = useState(String((me.round ?? 1) + 1));
   const [resetting, setResetting] = useState(false);
 
@@ -378,6 +381,9 @@ function Town({ me }) {
   const openRef = useRef(null);
   const starsRef = useRef(stars);
   const viewRef = useRef(view);
+  const chanRef = useRef(null);
+  const chatBox = useRef(null);
+  const myMsgTimer = useRef(null);
 
   useEffect(() => { openRef.current = openId; }, [openId]);
   useEffect(() => { viewRef.current = view; }, [view]);
@@ -410,6 +416,10 @@ function Town({ me }) {
       if (k === " ") {
         if (openRef.current) setOpenId(null);
         else if (nearRef.current) openBuilding(nearRef.current);
+        return;
+      }
+      if (k === "enter") {
+        chatBox.current?.focus();
         return;
       }
       if (k === "escape") {
@@ -513,7 +523,7 @@ function Town({ me }) {
   /* 같이 접속한 사람 */
   useEffect(() => {
     if (!hasServer || me.role === "solo" || !me.round) return undefined;
-    return joinChannel({
+    const chan = joinChannel({
       round: me.round,
       me: { id: deviceId(), name: me.name, slot: me.slot },
       getPose: () => ({
@@ -524,7 +534,26 @@ function Town({ me }) {
       }),
       onPeers: setPeers,
     });
+    chanRef.current = chan;
+    return () => {
+      chanRef.current = null;
+      chan.stop();
+    };
   }, [me]);
+
+  /* 채팅 보내기 — 내 머리 위에도 3초간 띄웁니다 */
+  const sendChat = useCallback(() => {
+    const t = chatText.trim().slice(0, 60);
+    setChatText("");
+    if (!t) {
+      chatBox.current?.blur();
+      return;
+    }
+    chanRef.current?.chat(t);
+    setMyMsg(t);
+    clearTimeout(myMsgTimer.current);
+    myMsgTimer.current = setTimeout(() => setMyMsg(null), CHAT_MS);
+  }, [chatText]);
 
   /* 참가자 현황 */
   useEffect(() => {
@@ -608,10 +637,10 @@ function Town({ me }) {
         ))}
 
         {peers.map((p) => (
-          <Avatar key={p.id} name={p.name} slot={p.slot} x={p.x} y={p.y} facing={p.f} moving={!!p.m} />
+          <Avatar key={p.id} name={p.name} slot={p.slot} x={p.x} y={p.y} facing={p.f} moving={!!p.m} msg={p.msg} />
         ))}
 
-        <Avatar name={me.name} slot={me.slot} x={pos.x} y={pos.y} facing={facing} moving={moving} me />
+        <Avatar name={me.name} slot={me.slot} x={pos.x} y={pos.y} facing={facing} moving={moving} me msg={myMsg} />
       </div>
 
       {/* 좌측 상단 */}
@@ -629,7 +658,30 @@ function Town({ me }) {
         </div>
       )}
 
-      <div className="ccHelp">방향키 · WASD 이동 / 건물 앞에서 SPACE</div>
+      {me.role === "solo" ? (
+        <div className="ccHelp">방향키 · WASD 이동 / 건물 앞에서 SPACE</div>
+      ) : (
+        <form
+          className="ccChatBar"
+          onSubmit={(e) => {
+            e.preventDefault();
+            sendChat();
+          }}
+        >
+          <input
+            ref={chatBox}
+            className="ccChatInput"
+            value={chatText}
+            maxLength={60}
+            placeholder="Enter 를 눌러 채팅…"
+            onChange={(e) => setChatText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") e.currentTarget.blur();
+            }}
+          />
+          <button className="ccChatBtn" type="submit">보내기</button>
+        </form>
+      )}
 
       {toast && <div className="ccToast">{toast}</div>}
 
@@ -740,6 +792,22 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccTag{white-space:nowrap;text-align:center;font-size:11px;font-weight:700;margin-bottom:3px;
   background:#fff;border:2px solid ${C.line};padding:1px 6px;box-shadow:2px 2px 0 rgba(91,74,99,.25)}
 .ccTagMe{background:#ffe9a8}
+.ccBubble{position:relative;max-width:180px;margin:0 auto 4px;white-space:pre-wrap;word-break:break-all;
+  text-align:center;font-size:12px;font-weight:700;line-height:1.45;background:#fff;border:3px solid ${C.line};
+  padding:5px 9px;box-shadow:3px 3px 0 rgba(91,74,99,.25);animation:ccPop .12s steps(2,end)}
+.ccBubble:after{content:"";position:absolute;left:50%;top:100%;margin-left:-5px;width:0;height:0;
+  border:6px solid transparent;border-top-color:${C.line}}
+@keyframes ccPop{from{transform:translateY(6px)}to{transform:translateY(0)}}
+
+.ccChatBar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:6px;
+  width:min(420px,86vw)}
+.ccChatInput{flex:1;border:3px solid ${C.line};background:rgba(255,255,255,.95);padding:9px 11px;
+  font-size:13px;font-weight:700;color:${C.ink};font-family:inherit;outline:none;
+  box-shadow:3px 3px 0 rgba(91,74,99,.25)}
+.ccChatInput:focus{background:#fffbe8}
+.ccChatBtn{border:3px solid ${C.line};background:#ffd45e;color:${C.ink};font-weight:700;font-size:12px;
+  padding:9px 12px;cursor:pointer;font-family:inherit;box-shadow:3px 3px 0 rgba(91,74,99,.25)}
+.ccChatBtn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(91,74,99,.25)}
 
 .ccTree{position:absolute;animation:ccSway 3s steps(3,end) infinite}
 @keyframes ccSway{0%,100%{transform:translateX(0)}50%{transform:translateX(3px)}}
@@ -780,7 +848,8 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
   font-size:14px;color:${C.ink};box-shadow:3px 3px 0 rgba(91,74,99,.25);touch-action:none;font-family:inherit}
 .ccPadBtn:active{background:#ffe9a8;transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(91,74,99,.25)}
 .ccUp{left:52px;top:0}.ccDown{left:52px;bottom:0}.ccLeft{left:0;top:52px}.ccRight{right:0;top:52px}
-@media (hover:none) and (pointer:coarse){.ccPad{display:block}.ccHelp{display:none}}
+@media (hover:none) and (pointer:coarse){.ccPad{display:block}.ccHelp{display:none}
+  .ccChatBar{left:14px;transform:none;width:min(320px,56vw)}}
 
 .ccBtn{border:3px solid ${C.line};background:#ff8fb6;color:#fff;font-weight:700;font-size:13px;
   padding:11px 18px;cursor:pointer;font-family:inherit;box-shadow:4px 4px 0 rgba(91,74,99,.3)}
