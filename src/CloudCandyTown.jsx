@@ -809,18 +809,6 @@ function Town({ me, setMe, onKick }) {
     myMsgTimer.current = setTimeout(() => setMyMsg(null), CHAT_MS);
   }, [chatText]);
 
-  /* 게임 안에서 호스트로 전환 — 나갔다 들어올 필요 없이 */
-  const becomeHost = useCallback(async (code) => {
-    const r = await joinRoom(me.name, code);
-    if (r?.ok && r.role === "host") {
-      rememberHostCode(code);
-      setMe({ ...me, role: "host", slot: 0, hostCode: code });
-      setToast("호스트로 전환됐어요");
-      return { ok: true };
-    }
-    return { ok: false, error: r?.error || "bad_code" };
-  }, [me, setMe]);
-
   /* 올려둔 물소리가 있으면 가져옵니다 */
   useEffect(() => {
     if (!hasServer) return;
@@ -1142,19 +1130,13 @@ function Town({ me, setMe, onKick }) {
             <MusicSheet
               hostCode={me.hostCode}
               isHost={me.role === "host"}
-              onBecomeHost={becomeHost}
               playingId={track?.id}
               onPlay={(t) => setTrack(t)}
               onClose={() => setSheet(null)}
             />
           )}
           {sheet === "quiz" && (
-            <QuizSheet
-              hostCode={me.hostCode}
-              isHost={me.role === "host"}
-              onBecomeHost={becomeHost}
-              onClose={() => setSheet(null)}
-            />
+            <QuizSheet hostCode={me.hostCode} isHost={me.role === "host"} onClose={() => setSheet(null)} />
           )}
         </div>
       )}
@@ -1324,8 +1306,6 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccRow{display:flex;gap:6px;align-items:center;justify-content:center}
 .ccHostRow{margin-top:12px;flex-wrap:wrap}
 .ccHostTop{margin:0 0 12px}
-.ccHostLogin{display:flex;gap:6px;margin-top:12px}
-.ccHostLogin .ccInput{font-size:12px;padding:8px}
 .ccAddBtn{background:#ffd45e;color:${C.line}}
 .ccMini{border:3px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
   font-size:11.5px;padding:7px 10px;cursor:pointer;box-shadow:2px 2px 0 rgba(91,74,99,.25)}
@@ -1344,11 +1324,18 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccCheck{display:flex;gap:7px;align-items:center;font-size:11.5px;font-weight:700;color:${C.inkSoft};text-align:left}
 .ccFile{font-family:inherit;font-size:11.5px;border:3px dashed ${C.line};padding:9px;background:#fffbe8}
 .ccPreview{width:100%;max-height:30vh;object-fit:contain;border:3px solid ${C.line}}
-.ccTracks{list-style:none;margin:0 0 8px;padding:0;max-height:40vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
-.ccTracks li{display:flex;gap:6px;align-items:center}
-.ccTrackBtn{flex:1;text-align:left;border:3px solid ${C.line};background:#fff;font-family:inherit;
-  font-weight:700;font-size:12.5px;padding:9px 11px;cursor:pointer;box-shadow:2px 2px 0 rgba(91,74,99,.2)}
-.ccTrackOn .ccTrackBtn{background:#ffe9a8}
+.ccTracks{list-style:none;margin:2px 0 6px;padding:0;max-height:42vh;overflow:auto;text-align:left}
+.ccTracks li{display:flex;align-items:center;gap:4px;border-bottom:2px solid #efe7f2}
+.ccTracks li:last-child{border-bottom:none}
+.ccTrackBtn{flex:1;display:flex;align-items:center;gap:10px;text-align:left;border:none;background:none;
+  font-family:inherit;font-weight:700;font-size:13px;color:${C.ink};padding:11px 4px;cursor:pointer}
+.ccTrackNo{font-size:11px;color:${C.inkSoft};min-width:18px}
+.ccTrackName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccTrackOn .ccTrackBtn{color:#c05a86}
+.ccTrackOn .ccTrackNo{color:#c05a86}
+.ccTrackDel{border:none;background:none;font-family:inherit;font-size:12px;color:${C.inkSoft};
+  padding:8px;cursor:pointer}
+.ccTrackDel:hover{color:#e0685f}
 .ccPlayBar{position:absolute;left:50%;top:14px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;
   background:#fff;border:4px solid ${C.line};padding:7px 11px;box-shadow:4px 4px 0 rgba(91,74,99,.3);
   max-width:min(360px,70vw);z-index:20}

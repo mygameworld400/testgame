@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-const useS = useState;
 
 import { SFX_PREFIX, isSfx, quizAdd, quizCheck, quizDel, quizList, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
@@ -15,43 +14,9 @@ const ERR = {
 };
 const msgOf = (r) => ERR[r?.error] || ERR.server_error;
 
-/* 게스트로 들어왔을 때, 여기서 바로 호스트 코드를 넣을 수 있게 */
-function HostLogin({ onBecomeHost, what }) {
-  const [code, setCode] = useS("");
-  const [err, setErr] = useS("");
-  const [busy, setBusy] = useS(false);
-  if (!onBecomeHost) return null;
-  return (
-    <>
-      <p className="ccSheetNote">{what} 추가는 호스트만 할 수 있어요.</p>
-      <div className="ccHostLogin">
-        <input
-          className="ccInput"
-          value={code}
-          placeholder="호스트 코드"
-          onChange={(e) => setCode(e.target.value)}
-        />
-        <button
-          className="ccMini"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            const r = await onBecomeHost(code.trim());
-            setBusy(false);
-            if (!r?.ok) setErr(ERR[r?.error] || ERR.bad_code);
-          }}
-        >
-          호스트로
-        </button>
-      </div>
-      {err && <div className="ccErr">{err}</div>}
-    </>
-  );
-}
-
 /* ============================ 퀴즈 ============================ */
 
-export function QuizSheet({ hostCode, isHost, onClose, onBecomeHost }) {
+export function QuizSheet({ hostCode, isHost, onClose }) {
   const [list, setList] = useState(null);
   const [i, setI] = useState(0);
   const [guess, setGuess] = useState("");
@@ -199,14 +164,13 @@ export function QuizSheet({ hostCode, isHost, onClose, onBecomeHost }) {
 
       {err && <div className="ccErr">{err}</div>}
 
-      {!isHost && <HostLogin onBecomeHost={onBecomeHost} what="문제" />}
     </div>
   );
 }
 
 /* ============================ 플레이리스트 ============================ */
 
-export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId, onBecomeHost }) {
+export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
   const [list, setList] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -278,12 +242,17 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId, onBec
 
       {songs.length > 0 && (
         <ul className="ccTracks">
-          {songs.map((t) => (
+          {songs.map((t, n) => (
             <li key={t.id} className={playingId === t.id ? "ccTrackOn" : ""}>
               <button className="ccTrackBtn" onClick={() => onPlay({ id: t.id, title: t.title, url: trackUrl(t.path) })}>
-                {playingId === t.id ? "▶" : "♪"} {t.title}
+                <span className="ccTrackNo">{playingId === t.id ? "▶" : String(n + 1).padStart(2, "0")}</span>
+                <span className="ccTrackName">{t.title}</span>
               </button>
-              {isHost && <button className="ccMini ccDanger" onClick={() => remove(t.id)} disabled={busy}>삭제</button>}
+              {isHost && (
+                <button className="ccTrackDel" onClick={() => remove(t.id)} disabled={busy} title="삭제">
+                  ✕
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -323,7 +292,6 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId, onBec
 
       {err && <div className="ccErr">{err}</div>}
 
-      {!isHost && <HostLogin onBecomeHost={onBecomeHost} what="곡" />}
     </div>
   );
 }
