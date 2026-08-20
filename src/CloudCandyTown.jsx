@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, startNewRound } from "./room.js";
+import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, crack, crunch, keyclick, splash, unlockAudio } from "./sfx.js";
@@ -181,6 +181,7 @@ const JOIN_ERROR = {
   server_error: "서버와 통신하지 못했어요. 잠시 뒤 다시 시도해주세요.",
   bad_code: "호스트 코드가 맞지 않아요.",
   bad_round: "회차 번호는 1 이상이어야 해요.",
+  closed: "베타테스트 시간이 아닙니다. 다음에 다시 와주세요.",
 };
 
 /* 방의 물 영역 안에 있는지 */
@@ -455,6 +456,7 @@ function JoinGate({ onJoined, notice }) {
   const taken = status?.taken ?? 0;
   const cap = status?.capacity ?? 5;
   const full = status?.ok && status.full;
+  const closed = status?.ok && status.closed && !showCode;
 
   return (
     <div className="ccGate">
@@ -479,20 +481,30 @@ function JoinGate({ onJoined, notice }) {
 
         {notice && <div className="ccNotice">{notice}</div>}
 
-        {hasServer && (
+        {closed && (
+          <div className="ccClosed">
+            베타테스트 시간이 아닙니다.
+            <br />
+            다음에 다시 와주세요.
+          </div>
+        )}
+
+        {hasServer && !closed && (
           <div className={"ccSeatCount" + (full ? " ccSeatFull" : "")}>
             {full ? `정원 마감 ${cap} / ${cap}` : `${taken} / ${cap} 명 입장`}
           </div>
         )}
 
-        <input
-          className="ccInput"
-          value={name}
-          maxLength={12}
-          placeholder="이름을 정해주세요"
-          onChange={(e) => setName(e.target.value)}
-          autoFocus
-        />
+        {!closed && (
+          <input
+            className="ccInput"
+            value={name}
+            maxLength={12}
+            placeholder="이름을 정해주세요"
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+          />
+        )}
 
         {showCode ? (
           <input
@@ -509,9 +521,11 @@ function JoinGate({ onJoined, notice }) {
 
         {err && <div className="ccErr">{err}</div>}
 
-        <button className="ccBtn ccGateBtn" type="submit" disabled={busy || (full && !showCode)}>
-          {busy ? "입장하는 중…" : full && !showCode ? "정원이 찼어요" : "마을로 들어가기"}
-        </button>
+        {!closed && (
+          <button className="ccBtn ccGateBtn" type="submit" disabled={busy || (full && !showCode)}>
+            {busy ? "입장하는 중…" : full && !showCode ? "정원이 찼어요" : "마을로 들어가기"}
+          </button>
+        )}
 
         {solo && (
           <button
@@ -523,7 +537,7 @@ function JoinGate({ onJoined, notice }) {
           </button>
         )}
 
-        {hasServer && (
+        {hasServer && !closed && (
           <p className="ccGateNote">
             선착순 {cap}명까지 들어올 수 있어요. 진행 상황은 저장되지 않습니다.
           </p>
@@ -1248,6 +1262,18 @@ function Town({ me, setMe, onKick }) {
     return () => { alive = false; clearInterval(iv); };
   }, [me, onKick]);
 
+  /* 비공개 모드 (호스트 전용) */
+  const toggleClosed = useCallback(async () => {
+    const next = !room?.closed;
+    const r = await setClosed(me.hostCode, next);
+    if (r?.ok) {
+      setRoom((v) => ({ ...(v || {}), closed: next }));
+      setToast(next ? "비공개 모드 — 호스트만 들어올 수 있어요" : "다시 공개됐어요");
+    } else {
+      setToast(JOIN_ERROR[r?.error] || JOIN_ERROR.server_error);
+    }
+  }, [me, room]);
+
   /* 회차 지정 (호스트 전용) */
   const doRound = useCallback(async (n) => {
     if (resetting) return;
@@ -1485,6 +1511,7 @@ function Town({ me, setMe, onKick }) {
         <div className="ccRound">
           <span className="ccRoundNum">{roundNo}</span>번 테스트
           {room?.ok && <span className="ccRoundSub">{room.taken} / {room.capacity}</span>}
+          {room?.closed && <span className="ccClosedTag">비공개</span>}
         </div>
       )}
 
@@ -1583,6 +1610,12 @@ function Town({ me, setMe, onKick }) {
               </div>
               <button className="ccBtn ccHostReset" onClick={() => doRound(null)} disabled={resetting}>
                 다음 회차로 넘기기
+              </button>
+              <button
+                className={"ccBtn ccHostReset" + (room?.closed ? " ccClosedOn" : "")}
+                onClick={toggleClosed}
+              >
+                {room?.closed ? "비공개 해제하기" : "비공개 모드 켜기"}
               </button>
               <p className="ccHostNote">
                 시작하면 그 회차 참가자 기록이 지워지고 자리 {room?.capacity ?? 5}개가 새로 열려요.
@@ -2168,6 +2201,10 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccGateSub{margin:0 0 12px;font-size:12px;font-weight:700;color:${C.inkSoft}}
 .ccSeatCount{margin:0 0 12px;font-size:13px;font-weight:900;color:#2e9e78}
 .ccSeatFull{color:#e0685f}
+.ccClosed{margin:14px 0 6px;background:#fff0f0;border:4px solid #e0685f;padding:16px 12px;
+  font-size:14px;font-weight:800;line-height:1.7;color:#c9524a}
+.ccClosedOn{background:#ffd8d8;color:${C.ink}}
+.ccClosedTag{background:#e0685f;color:#fff;font-size:10px;padding:2px 6px;border:2px solid ${C.line};margin-left:6px}
 .ccNotice{margin:0 0 12px;background:#fff6e0;border:3px solid #f0b23f;padding:9px 11px;font-size:12px;
   font-weight:700;line-height:1.5;color:${C.ink}}
 .ccInput{width:100%;border:3px solid ${C.line};padding:11px 12px;font-size:14px;font-weight:700;

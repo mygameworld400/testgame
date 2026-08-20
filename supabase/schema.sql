@@ -761,3 +761,120 @@ grant execute on function public.cc_fortune_list()                   to anon, au
 grant execute on function public.cc_fortune_add(text, text)           to anon, authenticated;
 grant execute on function public.cc_fortune_edit(text, bigint, text)  to anon, authenticated;
 grant execute on function public.cc_fortune_del(text, bigint)         to anon, authenticated;
+
+-- ===========================================================
+-- 10단계 — 비공개 모드
+--   켜면 호스트 외에는 아무도 입장할 수 없습니다.
+-- ===========================================================
+
+alter table public.cc_config add column if not exists closed boolean not null default false;
+
+create or replace function public.cc_status()
+returns json language plpgsql security definer set search_path = public as $$
+declare v_round int; v_cap int; v_taken int; v_list json; v_closed boolean;
+begin
+  select current_round, capacity, closed into v_round, v_cap, v_closed
+    from public.cc_config where id = 1;
+
+  select count(*) into v_taken
+    from public.cc_players where round = v_round and role = 'guest';
+
+  select coalesce(json_agg(json_build_object('name', name, 'role', role, 'slot', slot)
+                           order by joined_at), '[]'::json)
+    into v_list
+    from public.cc_players where round = v_round;
+
+  return json_build_object(
+    'ok', true, 'round', v_round, 'capacity', v_cap, 'closed', v_closed,
+    'taken', v_taken, 'full', v_taken >= v_cap, 'players', v_list
+  );
+end; $$;
+
+create or replace function public.cc_set_closed(p_host_code text, p_closed boolean)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  update public.cc_config set closed = coalesce(p_closed, false) where id = 1;
+  return json_build_object('ok', true, 'closed', coalesce(p_closed, false));
+end; $$;
+
+/* 비공개일 때는 호스트 코드가 있어야만 들어올 수 있습니다 */
+create or replace function public.cc_join(p_device text, p_name text, p_host_code text default null)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  v_round int; v_cap int; v_code text; v_name text; v_role text;
+  v_slot int; v_taken int; v_closed boolean; v_is_host boolean;
+  v_exist public.cc_players;
+begin
+  select current_round, capacity, host_code, closed
+    into v_round, v_cap, v_code, v_closed
+    from public.cc_config where id = 1;
+
+  v_name := btrim(coalesce(p_name, ''));
+  if v_name = '' then
+    return json_build_object('ok', false, 'error', 'no_name');
+  end if;
+  v_name := left(v_name, 12);
+  v_is_host := p_host_code is not null and btrim(p_host_code) = v_code;
+
+  if v_closed and not v_is_host then
+    return json_build_object('ok', false, 'error', 'closed');
+  end if;
+
+  select * into v_exist
+    from public.cc_players where round = v_round and device = p_device;
+  if found then
+    if exists (select 1 from public.cc_players
+                where round = v_round and lower(name) = lower(v_name) and id <> v_exist.id) then
+      return json_build_object('ok', false, 'error', 'name_taken');
+    end if;
+    if v_is_host and v_exist.role <> 'host' then
+      update public.cc_players set name = v_name, role = 'host', slot = 0 where id = v_exist.id;
+      select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
+      return json_build_object('ok', true, 'rejoined', true, 'upgraded', true, 'name', v_name,
+                               'role', 'host', 'slot', 0, 'round', v_round,
+                               'capacity', v_cap, 'taken', v_taken);
+    end if;
+    update public.cc_players set name = v_name where id = v_exist.id;
+    select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
+    return json_build_object('ok', true, 'rejoined', true, 'name', v_name, 'role', v_exist.role,
+                             'slot', v_exist.slot, 'round', v_round, 'capacity', v_cap, 'taken', v_taken);
+  end if;
+
+  if v_is_host then
+    v_role := 'host';
+    v_slot := 0;
+  else
+    v_role := 'guest';
+    select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
+    if v_taken >= v_cap then
+      return json_build_object('ok', false, 'error', 'full', 'taken', v_taken,
+                               'capacity', v_cap, 'round', v_round);
+    end if;
+    select min(s) into v_slot
+      from generate_series(1, v_cap) as s
+     where not exists (select 1 from public.cc_players
+                        where round = v_round and role = 'guest' and slot = s);
+    if v_slot is null then
+      return json_build_object('ok', false, 'error', 'full', 'taken', v_cap,
+                               'capacity', v_cap, 'round', v_round);
+    end if;
+  end if;
+
+  if exists (select 1 from public.cc_players where round = v_round and lower(name) = lower(v_name)) then
+    return json_build_object('ok', false, 'error', 'name_taken');
+  end if;
+
+  insert into public.cc_players (round, device, name, role, slot)
+    values (v_round, p_device, v_name, v_role, v_slot);
+
+  select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
+  return json_build_object('ok', true, 'name', v_name, 'role', v_role, 'slot', v_slot,
+                           'round', v_round, 'capacity', v_cap, 'taken', v_taken);
+end; $$;
+
+grant execute on function public.cc_set_closed(text, boolean) to anon, authenticated;
