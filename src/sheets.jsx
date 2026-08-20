@@ -431,7 +431,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
                       </button>
                       {isHost && (
                         <>
-                          <label className="ccMini ccPlPic" title="커버 이미지">
+                          <label className="ccPlIcon" title="커버 이미지 등록">
                             🖼
                             <input
                               ref={coverFile}
@@ -442,7 +442,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
                             />
                           </label>
                           <button
-                            className="ccMini"
+                            className="ccPlIcon"
                             title="이름 수정"
                             onClick={() => { setEditing(g.name); setEditName(g.name); }}
                           >

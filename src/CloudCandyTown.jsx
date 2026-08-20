@@ -1626,7 +1626,9 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccPlCoverNone{display:flex;align-items:center;justify-content:center;background:#f6eef8;color:${C.inkSoft};font-size:13px}
 .ccPlTitle{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ccPlEdit{flex:1;font-size:12.5px;padding:8px 10px;text-align:left}
-.ccPlPic{cursor:pointer;display:flex;align-items:center}
+.ccPlIcon{border:none;background:none;font-family:inherit;font-size:14px;color:${C.inkSoft};
+  padding:6px 4px;cursor:pointer;display:flex;align-items:center;line-height:1}
+.ccPlIcon:hover{color:${C.ink}}
 .ccPlArrow{font-size:11px;color:${C.inkSoft};width:12px}
 .ccPlN{font-size:10.5px;color:${C.inkSoft};font-weight:700}
 .ccPlPlay{border:3px solid ${C.line};background:#ffd45e;font-family:inherit;font-size:12px;
