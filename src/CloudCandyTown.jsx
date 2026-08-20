@@ -1398,13 +1398,16 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccTag{white-space:nowrap;text-align:center;font-size:11px;font-weight:800;margin-bottom:2px;color:${C.ink};
   text-shadow:-2px 0 #fff,2px 0 #fff,0 -2px #fff,0 2px #fff,-2px -2px #fff,2px -2px #fff,-2px 2px #fff,2px 2px #fff}
 .ccTagMe{color:#c05a86}
-.ccBubble{position:relative;max-width:170px;margin:0 auto 10px;white-space:pre-wrap;word-break:break-all;
+.ccBubble{position:relative;max-width:170px;margin:0 auto 14px;white-space:pre-wrap;word-break:break-all;
   text-align:center;font-size:12px;font-weight:700;line-height:1.4;background:#fff;border:3px solid ${C.line};
   padding:9px 15px;border-radius:999px;box-shadow:3px 3px 0 rgba(91,74,99,.2);animation:ccPop .12s steps(2,end)}
-.ccBubble:after{content:"";position:absolute;left:50%;top:100%;margin-left:-9px;margin-top:1px;
-  width:9px;height:9px;border-radius:50%;background:#fff;border:3px solid ${C.line}}
-.ccBubble:before{content:"";position:absolute;left:50%;top:calc(100% + 12px);margin-left:-3px;
-  width:5px;height:5px;border-radius:50%;background:#fff;border:2px solid ${C.line};z-index:1}
+/* 캐릭터를 가리키는 뾰족한 꼬리 — 진한 삼각형 위에 흰 삼각형을 덮어 테두리를 만듭니다 */
+.ccBubble:after{content:"";position:absolute;left:50%;top:100%;margin-left:-8px;z-index:0;
+  width:0;height:0;border-style:solid;border-width:17px 8px 0 8px;
+  border-color:${C.line} transparent transparent transparent}
+.ccBubble:before{content:"";position:absolute;left:50%;top:calc(100% - 3px);margin-left:-5px;z-index:1;
+  width:0;height:0;border-style:solid;border-width:14px 5px 0 5px;
+  border-color:#fff transparent transparent transparent}
 @keyframes ccPop{from{transform:translateY(6px)}to{transform:translateY(0)}}
 
 .ccChatBar{position:absolute;left:50%;bottom:calc(14px + var(--kb, 0px));transform:translateX(-50%);display:flex;gap:6px;
