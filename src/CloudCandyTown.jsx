@@ -1414,8 +1414,8 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
   border-color:#fff transparent transparent transparent}
 @keyframes ccPop{from{transform:translateY(6px)}to{transform:translateY(0)}}
 
-.ccChatBar{position:absolute;left:50%;bottom:calc(14px + var(--kb, 0px));transform:translateX(-50%);display:flex;gap:6px;
-  width:min(420px,86vw)}
+.ccChatBar{position:absolute;left:16px;bottom:calc(16px + var(--kb, 0px));display:flex;gap:6px;
+  width:min(380px,52vw);z-index:19}
 .ccChatInput{flex:1;border:3px solid ${C.line};background:rgba(255,255,255,.95);padding:9px 11px;
   font-size:13px;font-weight:700;color:${C.ink};font-family:inherit;outline:none;
   box-shadow:3px 3px 0 rgba(91,74,99,.25)}
@@ -1441,7 +1441,7 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccRoundNum{font-size:22px;font-weight:900}
 .ccRoundSub{font-size:11px;color:${C.inkSoft};margin-left:4px}
 
-.ccHelp{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font-size:11px;font-weight:700;
+.ccHelp{position:absolute;right:16px;bottom:16px;font-size:11px;font-weight:700;
   color:${C.ink};background:rgba(255,255,255,.9);border:2px solid ${C.line};padding:5px 10px;white-space:nowrap}
 .ccToast{position:absolute;left:50%;top:74px;transform:translateX(-50%);background:#fff;border:4px solid ${C.line};
   padding:9px 16px;font-weight:700;font-size:13px;box-shadow:4px 4px 0 rgba(91,74,99,.3);white-space:nowrap}
@@ -1459,8 +1459,8 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccHostNote{margin:9px 0 0;font-size:10.5px;line-height:1.6;color:${C.inkSoft};font-weight:700}
 
 .ccExitChip{cursor:pointer;background:#ffe9a8}
-.ccFeed{position:absolute;left:50%;bottom:calc(60px + var(--kb, 0px));transform:translateX(-50%);
-  width:min(420px,86vw);display:flex;flex-direction:column;gap:4px;cursor:pointer;z-index:18}
+.ccFeed{position:absolute;left:16px;bottom:calc(62px + var(--kb, 0px));
+  width:min(380px,52vw);display:flex;flex-direction:column;gap:4px;cursor:pointer;z-index:18}
 .ccFeedLine{background:rgba(255,255,255,.95);border:3px solid ${C.line};padding:5px 9px;font-size:12px;
   font-weight:700;line-height:1.45;box-shadow:2px 2px 0 rgba(91,74,99,.18);
   animation:ccFeedFade .6s 3s forwards;word-break:break-all}
@@ -1469,8 +1469,8 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 @keyframes ccFeedFade{to{opacity:.32}}
 .ccFeed:hover .ccFeedLine{opacity:1;animation:none}
 
-.ccHistory{position:absolute;left:50%;bottom:calc(60px + var(--kb, 0px));transform:translateX(-50%);
-  width:min(420px,90vw);max-height:52vh;display:flex;flex-direction:column;padding:14px 16px;z-index:22}
+.ccHistory{position:absolute;left:16px;bottom:calc(62px + var(--kb, 0px));
+  width:min(400px,58vw);max-height:52vh;display:flex;flex-direction:column;padding:14px 16px;z-index:22}
 .ccHistoryBody{flex:1;overflow:auto;text-align:left;display:flex;flex-direction:column;gap:7px;margin-bottom:8px}
 .ccHistLine{font-size:12px;font-weight:700;line-height:1.5;color:${C.ink}}
 .ccHistWho{margin-right:6px;color:${C.inkSoft}}
@@ -1583,9 +1583,9 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
   .ccTouch{display:block}
   .ccHelp{display:none}
   /* 채팅바·피드·기록을 같은 자리에 세로로 쌓습니다 (조이스틱 오른쪽) */
-  .ccChatBar{left:150px;transform:none;width:min(300px,44vw);bottom:calc(16px + var(--kb, 0px))}
-  .ccFeed{left:150px;transform:none;width:min(300px,44vw);bottom:calc(62px + var(--kb, 0px))}
-  .ccHistory{left:150px;transform:none;width:min(360px,52vw);max-height:46vh;bottom:calc(62px + var(--kb, 0px))}
+  .ccChatBar{left:158px;width:min(300px,42vw);bottom:calc(16px + var(--kb, 0px))}
+  .ccFeed{left:158px;width:min(300px,42vw);bottom:calc(62px + var(--kb, 0px))}
+  .ccHistory{left:158px;width:min(340px,50vw);max-height:44vh;bottom:calc(62px + var(--kb, 0px))}
   .ccHud{max-width:44vw}
   .ccHud .ccChip{font-size:11px;padding:5px 9px}
 }
