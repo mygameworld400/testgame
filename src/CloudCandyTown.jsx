@@ -675,6 +675,19 @@ function Town({ me, setMe, onKick }) {
     };
   }, [openBuilding, activateZone]);
 
+  /* 왁뿌볼 — 밟으면 뿌셔지고 12초 뒤 다시 생깁니다 */
+  const popBall = useCallback((i, mine) => {
+    if (brokenRef.current.includes(i)) return;
+    brokenRef.current = [...brokenRef.current, i];
+    setBroken(brokenRef.current);
+    crack();
+    if (mine) chanRef.current?.fx({ t: "ball", i, r: "flower" });
+    setTimeout(() => {
+      brokenRef.current = brokenRef.current.filter((n) => n !== i);
+      setBroken(brokenRef.current);
+    }, 12000);
+  }, []);
+
   /* 게임 루프 — 마을과 방 안 모두 여기서 돕니다 */
   useEffect(() => {
     let raf;
@@ -902,19 +915,6 @@ function Town({ me, setMe, onKick }) {
     clearTimeout(myMsgTimer.current);
     myMsgTimer.current = setTimeout(() => setMyMsg(null), CHAT_MS);
   }, [chatText, me]);
-
-  /* 왁뿌볼 — 밟으면 뿌셔지고 12초 뒤 다시 생깁니다 */
-  const popBall = useCallback((i, mine) => {
-    if (brokenRef.current.includes(i)) return;
-    brokenRef.current = [...brokenRef.current, i];
-    setBroken(brokenRef.current);
-    crack();
-    if (mine) chanRef.current?.fx({ t: "ball", i, r: "flower" });
-    setTimeout(() => {
-      brokenRef.current = brokenRef.current.filter((n) => n !== i);
-      setBroken(brokenRef.current);
-    }, 12000);
-  }, []);
 
   /* 기록을 열거나 새 말이 오면 맨 아래로 내려줍니다 */
   useEffect(() => {
