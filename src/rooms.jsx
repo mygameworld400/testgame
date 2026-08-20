@@ -281,6 +281,21 @@ function QuizProps({ R }) {
   );
 }
 
+/* 벽화 위 반짝임 위치 — 매번 같은 자리에 나오도록 고정값으로 둡니다 */
+const STARS = [
+  { x: 0.08, y: 0.14, s: 9, d: 0 }, { x: 0.2, y: 0.3, s: 7, d: 0.7 },
+  { x: 0.32, y: 0.1, s: 8, d: 1.4 }, { x: 0.46, y: 0.22, s: 6, d: 0.35 },
+  { x: 0.6, y: 0.12, s: 9, d: 1.1 }, { x: 0.72, y: 0.28, s: 7, d: 1.8 },
+  { x: 0.86, y: 0.16, s: 8, d: 0.5 }, { x: 0.94, y: 0.34, s: 6, d: 1.6 },
+  { x: 0.14, y: 0.44, s: 6, d: 2.1 }, { x: 0.8, y: 0.46, s: 6, d: 0.9 },
+];
+const SHIMMER = [
+  { x: 0.12, y: 0.18, w: 26, d: 0, t: 3.2 }, { x: 0.3, y: 0.42, w: 34, d: 0.8, t: 4 },
+  { x: 0.52, y: 0.28, w: 22, d: 1.5, t: 3.6 }, { x: 0.66, y: 0.58, w: 30, d: 0.4, t: 4.4 },
+  { x: 0.82, y: 0.36, w: 26, d: 2.2, t: 3.4 }, { x: 0.2, y: 0.72, w: 38, d: 1.1, t: 4.8 },
+  { x: 0.58, y: 0.8, w: 30, d: 2.6, t: 4.2 },
+];
+
 /* 뒷벽 전체를 채우는 해변 노을 벽화 — 픽셀 느낌으로 가로 띠를 쌓습니다 */
 function SunsetMural() {
   const x0 = proj(0, 0).sx;          // 뒷벽 왼쪽 끝
@@ -316,7 +331,15 @@ function SunsetMural() {
         {sky.map((c, i) => (
           <rect key={"s" + i} x={x0} y={i * bandH} width={w} height={bandH + 1} fill={c} />
         ))}
-        {/* 해 */}
+        {/* 반짝이는 별 — 하늘 위쪽에 흩뿌립니다 */}
+        {STARS.map((st, i) => (
+          <g key={"star" + i} className="ccMuralStar" style={{ animationDelay: `${st.d}s` }}>
+            <rect x={x0 + w * st.x - st.s / 2} y={sea * st.y - 1} width={st.s} height="2.5" fill="#fff7d6" />
+            <rect x={x0 + w * st.x - 1.2} y={sea * st.y - st.s / 2} width="2.5" height={st.s} fill="#fff7d6" />
+          </g>
+        ))}
+        {/* 해 — 은은하게 커졌다 작아집니다 */}
+        <circle cx={x0 + w / 2} cy={sea - 26} r="34" fill="#ffdf9a" opacity="0.55" className="ccMuralGlow" />
         <circle cx={x0 + w / 2} cy={sea - 26} r="30" fill="#fff0b8" />
         <circle cx={x0 + w / 2} cy={sea - 26} r="22" fill="#fffbe0" />
         {/* 구름 띠 */}
@@ -328,6 +351,19 @@ function SunsetMural() {
           <rect key={"w" + i} x={x0} y={sea + i * wH} width={w} height={wH + 1} fill={c} />
         ))}
         {rays}
+        {/* 물빛 반짝임 — 좌우로 흐르며 깜빡입니다 */}
+        {SHIMMER.map((sh, i) => (
+          <rect
+            key={"sh" + i}
+            className="ccMuralShimmer"
+            x={x0 + w * sh.x}
+            y={sea + (H - sea) * sh.y}
+            width={sh.w}
+            height="3"
+            fill="#fff3c4"
+            style={{ animationDelay: `${sh.d}s`, animationDuration: `${sh.t}s` }}
+          />
+        ))}
         {/* 야자수 실루엣 */}
         {[x0 + 34, x1 - 40].map((px, i) => (
           <g key={"palm" + i} fill="#2e2140">

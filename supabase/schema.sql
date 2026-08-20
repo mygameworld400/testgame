@@ -471,3 +471,79 @@ begin
     'answer', v_answer
   );
 end; $$;
+
+-- ===========================================================
+-- 6단계 — 플레이리스트 이름 수정 · 커버 이미지
+--   커버는 작게 줄인 이미지를 그대로 DB 에 담습니다(수십 KB).
+--   이름 수정과 커버 등록은 호스트만.
+-- ===========================================================
+
+create table if not exists public.cc_playlists (
+  name       text primary key,
+  cover      text,
+  updated_at timestamptz not null default now()
+);
+alter table public.cc_playlists enable row level security;
+
+create or replace function public.cc_pl_list()
+returns json language plpgsql security definer set search_path = public as $$
+declare v json;
+begin
+  select coalesce(json_agg(json_build_object('name', name, 'cover', cover) order by name), '[]'::json)
+    into v from public.cc_playlists;
+  return v;
+end; $$;
+
+/* 커버 등록·교체 */
+create or replace function public.cc_pl_cover(p_host_code text, p_name text, p_cover text)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  if coalesce(btrim(p_name), '') = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  if p_cover is not null and length(p_cover) > 200000 then      -- 약 145KB 제한
+    return json_build_object('ok', false, 'error', 'too_big');
+  end if;
+  insert into public.cc_playlists (name, cover, updated_at)
+    values (btrim(p_name), p_cover, now())
+  on conflict (name) do update set cover = excluded.cover, updated_at = now();
+  return json_build_object('ok', true);
+end; $$;
+
+/* 이름 바꾸기 — 곡들의 소속도 같이 옮깁니다 */
+create or replace function public.cc_pl_rename(p_host_code text, p_old text, p_new text)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text; v_old text; v_new text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  v_old := btrim(coalesce(p_old, ''));
+  v_new := left(btrim(coalesce(p_new, '')), 24);
+  if v_old = '' or v_new = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  if v_old = v_new then
+    return json_build_object('ok', true, 'name', v_new);
+  end if;
+
+  update public.cc_tracks set pl = v_new where pl = v_old;
+
+  /* 커버도 새 이름으로 옮깁니다 (같은 이름이 이미 있으면 기존 커버 유지) */
+  update public.cc_playlists set name = v_new, updated_at = now()
+   where name = v_old
+     and not exists (select 1 from public.cc_playlists where name = v_new);
+  delete from public.cc_playlists where name = v_old;
+
+  return json_build_object('ok', true, 'name', v_new);
+end; $$;
+
+grant execute on function public.cc_pl_list()                        to anon, authenticated;
+grant execute on function public.cc_pl_cover(text, text, text)       to anon, authenticated;
+grant execute on function public.cc_pl_rename(text, text, text)      to anon, authenticated;

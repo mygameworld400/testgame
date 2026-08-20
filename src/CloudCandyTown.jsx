@@ -1615,6 +1615,11 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccPlHead{display:flex;align-items:center;gap:6px}
 .ccPlName{flex:1;display:flex;align-items:center;gap:8px;border:none;background:none;font-family:inherit;
   font-weight:800;font-size:13px;color:${C.ink};padding:11px 2px;cursor:pointer;text-align:left}
+.ccPlCover{width:30px;height:30px;flex:none;border:2px solid ${C.line};object-fit:cover;display:block}
+.ccPlCoverNone{display:flex;align-items:center;justify-content:center;background:#f6eef8;color:${C.inkSoft};font-size:13px}
+.ccPlTitle{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccPlEdit{flex:1;font-size:12.5px;padding:8px 10px;text-align:left}
+.ccPlPic{cursor:pointer;display:flex;align-items:center}
 .ccPlArrow{font-size:11px;color:${C.inkSoft};width:12px}
 .ccPlN{font-size:10.5px;color:${C.inkSoft};font-weight:700}
 .ccPlPlay{border:3px solid ${C.line};background:#ffd45e;font-family:inherit;font-size:12px;
@@ -1631,6 +1636,14 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccVol::-moz-range-thumb{width:12px;height:12px;background:#ff8fb6;border:3px solid ${C.line};
   border-radius:0;cursor:pointer}
 @keyframes ccSpin{to{transform:rotate(360deg)}}
+
+/* 수영장 노을 벽화 반짝임 */
+.ccMuralStar{animation:ccMuralTw 2.6s steps(3,end) infinite;transform-origin:center}
+@keyframes ccMuralTw{0%,100%{opacity:.15}45%{opacity:1}60%{opacity:.5}}
+.ccMuralGlow{animation:ccMuralGlow 3.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes ccMuralGlow{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:.7;transform:scale(1.12)}}
+.ccMuralShimmer{animation-name:ccMuralSh;animation-timing-function:ease-in-out;animation-iteration-count:infinite;opacity:0}
+@keyframes ccMuralSh{0%,100%{opacity:0;transform:translateX(-10px)}45%{opacity:.9;transform:translateX(6px)}70%{opacity:.25;transform:translateX(12px)}}
 
 /* 방 내부 */
 .ccRoomBg{position:absolute;inset:0;overflow:hidden}

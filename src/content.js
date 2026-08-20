@@ -53,6 +53,14 @@ export function shrinkImage(file, max = 720, quality = 0.72) {
   });
 }
 
+/* ---------- 플레이리스트(이름·커버) ---------- */
+
+export const plList = () => call("cc_pl_list");
+export const plCover = (hostCode, name, cover) =>
+  call("cc_pl_cover", { p_host_code: hostCode, p_name: name, p_cover: cover });
+export const plRename = (hostCode, oldName, newName) =>
+  call("cc_pl_rename", { p_host_code: hostCode, p_old: oldName, p_new: newName });
+
 /* ---------- 음악 ---------- */
 
 export const trackList = () => call("cc_track_list");
