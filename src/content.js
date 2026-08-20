@@ -22,8 +22,9 @@ const call = async (fn, args) => {
 
 export const quizList = () => call("cc_quiz_list");
 export const quizCheck = (id, guess) => call("cc_quiz_check", { p_id: id, p_guess: guess });
-export const quizAdd = (hostCode, image, answer) =>
-  call("cc_quiz_add", { p_host_code: hostCode, p_image: image, p_answer: answer });
+export const quizPacks = () => call("cc_quiz_packs");
+export const quizAdd = (hostCode, image, answer, pack) =>
+  call("cc_quiz_add", { p_host_code: hostCode, p_image: image, p_answer: answer, p_pack: pack || "과자" });
 export const quizDel = (hostCode, id) => call("cc_quiz_del", { p_host_code: hostCode, p_id: id });
 
 /* 사진을 가로세로 720px 이하 JPEG 로 줄여서 base64 로 만듭니다.

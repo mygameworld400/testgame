@@ -133,8 +133,14 @@ export const ROOMS = {
 
 /* ---------- 방 배경(벽/바닥/가구) ---------- */
 
-export function RoomStage({ room, children, waterPhase, seats = [], broken = [] }) {
-  const R = room;
+/* 퀴즈상가 모드별 색 — 개인전 파랑, 팀전 빨강 */
+export const QUIZ_SKIN = {
+  solo: { floor: "#cfe6ff", floorLine: "#cfe6ff", wall: "#e9f4ff", wallDark: "#a9d2f5", side: "#dcecff", accent: "#3d8fd6" },
+  team: { floor: "#ffd6d6", floorLine: "#ffd6d6", wall: "#ffecec", wallDark: "#f5b3b3", side: "#ffe2e2", accent: "#e05b5b" },
+};
+
+export function RoomStage({ room, children, waterPhase, seats = [], broken = [], skin }) {
+  const R = skin ? { ...room, ...skin } : room;
   const fl = proj(0, 0);
   const fr = proj(ROOM.w, 0);
   const nl = proj(0, ROOM.d);
@@ -263,12 +269,12 @@ function QuizProps({ R }) {
   const stage = proj(500, 250);
   return (
     <g>
-      <rect x={280} y={40} width={440} height={230} fill="#eafff8" stroke={R.accent} strokeWidth="6" />
-      <text x={500} y={165} textAnchor="middle" fontSize="46" fontWeight="900" fill="#2f8f74">
+      <rect x={280} y={40} width={440} height={230} fill="#ffffff" stroke={R.accent} strokeWidth="6" />
+      <text x={500} y={165} textAnchor="middle" fontSize="46" fontWeight="900" fill={R.accent}>
         Q U I Z
       </text>
-      <rect x={stage.sx - 130 * stage.k} y={stage.sy - 26 * stage.k} width={260 * stage.k} height={40 * stage.k} fill="#8fe3c9" stroke="#5b4a63" strokeWidth="4" />
-      <text x={stage.sx} y={stage.sy + 4 * stage.k} textAnchor="middle" fontSize={17 * stage.k} fontWeight="700" fill="#5b4a63">
+      <rect x={stage.sx - 130 * stage.k} y={stage.sy - 26 * stage.k} width={260 * stage.k} height={40 * stage.k} fill={R.accent} stroke="#5b4a63" strokeWidth="4" />
+      <text x={stage.sx} y={stage.sy + 4 * stage.k} textAnchor="middle" fontSize={17 * stage.k} fontWeight="700" fill="#fff">
         정답 단상
       </text>
     </g>

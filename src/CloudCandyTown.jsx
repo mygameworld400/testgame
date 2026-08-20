@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
-import { CHAIRS, ROOM, ROOMS, RoomStage, SCREEN, depth, proj } from "./rooms.jsx";
+import { CHAIRS, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, depth, proj } from "./rooms.jsx";
 import { blip, crack, crunch, splash } from "./sfx.js";
 import { MusicSheet, QuizSheet } from "./sheets.jsx";
 import { findSfx, trackList, trackUrl } from "./content.js";
@@ -504,6 +504,7 @@ function Town({ me, setMe, onKick }) {
   const [track, setTrack] = useState(null);   // 지금 듣는 곡
   const [sit, setSit] = useState(null);      // 앉아 있는 의자 번호
   const [broken, setBroken] = useState([]);  // 뿌셔진 왁뿌볼
+  const [quizMode, setQuizMode] = useState("solo");   // 퀴즈상가 개인전 / 팀전
   const [vol, setVol] = useState(() => {
     const v = Number(localStorage.getItem("ccVol"));
     return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 0.7;
@@ -1015,7 +1016,13 @@ function Town({ me, setMe, onKick }) {
             className="ccRoomWrap"
             style={{ width: SCREEN.w, height: SCREEN.h, transform: `translate(-50%,-50%) scale(${roomZoom})` }}
           >
-            <RoomStage room={R} waterPhase={wave} seats={seats} broken={broken} />
+            <RoomStage
+              room={R}
+              waterPhase={wave}
+              seats={seats}
+              broken={broken}
+              skin={scene === "candy" ? QUIZ_SKIN[quizMode] : null}
+            />
             <div className="ccRoomLayer">
               {roomPeers.map((q) => {
                 const pr = proj(q.x, q.y);
@@ -1048,6 +1055,23 @@ function Town({ me, setMe, onKick }) {
               />
             </div>
           </div>
+          {scene === "candy" && (
+            <div className="ccModes">
+              <button
+                className={"ccMode ccModeSolo" + (quizMode === "solo" ? " ccModeOn" : "")}
+                onClick={() => { setQuizMode("solo"); blip(720); }}
+              >
+                개인전
+              </button>
+              <button
+                className={"ccMode ccModeTeam" + (quizMode === "team" ? " ccModeOn" : "")}
+                onClick={() => { setQuizMode("team"); blip(520); }}
+              >
+                팀전
+              </button>
+            </div>
+          )}
+
           {zoneId && (
             <button className="ccZoneHint" onClick={() => activateZone(zoneId)}>
               SPACE — {zoneId === "chair" ? (sit == null ? "앉기" : "일어나기") : R.zones.find((z) => z.id === zoneId)?.label}
@@ -1286,7 +1310,12 @@ function Town({ me, setMe, onKick }) {
             />
           )}
           {sheet === "quiz" && (
-            <QuizSheet hostCode={me.hostCode} isHost={me.role === "host"} onClose={() => setSheet(null)} />
+            <QuizSheet
+              hostCode={me.hostCode}
+              isHost={me.role === "host"}
+              mode={quizMode}
+              onClose={() => setSheet(null)}
+            />
           )}
         </div>
       )}
@@ -1488,6 +1517,15 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccSheetEmpty{margin:0 0 8px;font-size:14px;font-weight:700;color:${C.ink}}
 .ccSheetNote{margin:0 0 18px;font-size:11.5px;line-height:1.6;font-weight:700;color:${C.inkSoft}}
 
+/* 퀴즈상가 모드 버튼 — 고른 쪽은 눌린 것처럼 들어갑니다 */
+.ccModes{position:absolute;left:16px;top:64px;display:flex;flex-direction:column;gap:8px;z-index:12}
+.ccMode{border:4px solid ${C.line};font-family:inherit;font-weight:800;font-size:13px;padding:10px 16px;
+  cursor:pointer;color:#fff;box-shadow:5px 5px 0 rgba(91,74,99,.35);transition:none}
+.ccModeSolo{background:#4aa3e0}
+.ccModeTeam{background:#e05b5b}
+.ccMode.ccModeOn{transform:translate(4px,4px);box-shadow:0 0 0 rgba(0,0,0,0);filter:saturate(1.3)}
+.ccMode:not(.ccModeOn){opacity:.72}
+
 /* 시트(퀴즈·플레이리스트) */
 .ccSheetHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .ccX{border:3px solid ${C.line};background:#fff;font-family:inherit;font-weight:700;cursor:pointer;
@@ -1501,6 +1539,13 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccMini:active{transform:translate(2px,2px);box-shadow:0 0 0}
 .ccDanger{background:#ffe0e0}
 .ccMiniBtn{font-size:12px;padding:9px 14px}
+.ccPacks{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.ccPack{display:flex;align-items:center;justify-content:space-between;border:3px solid ${C.line};
+  background:#fff;font-family:inherit;font-weight:800;font-size:13px;color:${C.ink};padding:13px 15px;
+  cursor:pointer;box-shadow:3px 3px 0 rgba(91,74,99,.2)}
+.ccPack:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(91,74,99,.2)}
+.ccPackN{font-size:11px;color:${C.inkSoft}}
+.ccPackBar{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px}
 .ccQuizImg{position:relative;border:4px solid ${C.line};background:#f4eef6;margin-bottom:10px}
 .ccQuizImg img{display:block;width:100%;max-height:38vh;object-fit:contain}
 .ccMark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:96px;font-weight:900}

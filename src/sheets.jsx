@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { SFX_PREFIX, isSfx, quizAdd, quizCheck, quizDel, quizList, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { SFX_PREFIX, isSfx, quizAdd, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -16,7 +16,10 @@ const msgOf = (r) => ERR[r?.error] || ERR.server_error;
 
 /* ============================ 퀴즈 ============================ */
 
-export function QuizSheet({ hostCode, isHost, onClose }) {
+export function QuizSheet({ hostCode, isHost, onClose, mode = "solo" }) {
+  const [packs, setPacks] = useState(null);
+  const [pack, setPack] = useState(null);        // 고른 주제 (없으면 패키지 목록)
+  const [newPack, setNewPack] = useState("과자");
   const [list, setList] = useState(null);
   const [i, setI] = useState(0);
   const [guess, setGuess] = useState("");
@@ -29,19 +32,22 @@ export function QuizSheet({ hostCode, isHost, onClose }) {
   const file = useRef(null);
 
   const load = useCallback(async () => {
-    const r = await quizList();
+    const [r, p] = await Promise.all([quizList(), quizPacks()]);
     if (Array.isArray(r)) {
       setList(r);
-      setI((v) => Math.min(v, Math.max(0, r.length - 1)));
+      setI(0);
     } else {
       setList([]);
       setErr(msgOf(r));
     }
+    setPacks(Array.isArray(p) ? p : []);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const q = list && list[i];
+  /* 고른 주제의 문제만 풉니다 */
+  const inPack = (list || []).filter((x) => !pack || (x.pack || "과자") === pack);
+  const q = inPack[i];
 
   const submit = async (e) => {
     e?.preventDefault();
@@ -55,7 +61,7 @@ export function QuizSheet({ hostCode, isHost, onClose }) {
       setTimeout(() => {
         setResult(null);
         setGuess("");
-        setI((v) => (list.length ? (v + 1) % list.length : 0));
+        setI((v) => (inPack.length ? (v + 1) % inPack.length : 0));
       }, 900);
     } else {
       setTimeout(() => setResult(null), 700);
@@ -76,7 +82,7 @@ export function QuizSheet({ hostCode, isHost, onClose }) {
   const add = async () => {
     if (!preview || !answer.trim()) { setErr(ERR.empty); return; }
     setBusy(true);
-    const r = await quizAdd(hostCode, preview, answer.trim());
+    const r = await quizAdd(hostCode, preview, answer.trim(), newPack.trim() || "과자");
     setBusy(false);
     if (!r?.ok) { setErr(msgOf(r)); return; }
     setPreview(null);
@@ -112,11 +118,34 @@ export function QuizSheet({ hostCode, isHost, onClose }) {
 
       {list === null && <p className="ccSheetEmpty">불러오는 중…</p>}
 
-      {list && list.length === 0 && !adding && (
-        <p className="ccSheetEmpty">
-          아직 문제가 없어요.
-          {isHost ? " 아래에서 문제를 만들어보세요." : " 호스트가 문제를 올리면 풀 수 있어요."}
-        </p>
+      {/* 주제(패키지) 고르기 */}
+      {list && !adding && !pack && (
+        <>
+          <p className="ccSheetNote">
+            {mode === "team" ? "팀전" : "개인전"} · 풀고 싶은 퀴즈 패키지를 골라주세요
+          </p>
+          {(packs || []).length === 0 && (
+            <p className="ccSheetEmpty">
+              아직 문제가 없어요.
+              {isHost ? " 위에서 문제를 만들어보세요." : " 호스트가 올리면 풀 수 있어요."}
+            </p>
+          )}
+          <div className="ccPacks">
+            {(packs || []).map((p) => (
+              <button key={p.pack} className="ccPack" onClick={() => { setPack(p.pack); setI(0); }}>
+                <span className="ccPackName">{p.pack} 퀴즈</span>
+                <span className="ccPackN">{p.n}문제</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {pack && !adding && (
+        <div className="ccPackBar">
+          <button className="ccMini" onClick={() => { setPack(null); setGuess(""); }}>← 패키지</button>
+          <b>{pack} 퀴즈</b>
+        </div>
       )}
 
       {q && !adding && (
@@ -126,9 +155,9 @@ export function QuizSheet({ hostCode, isHost, onClose }) {
             {result && <div className={"ccMark " + (result === "o" ? "ccMarkO" : "ccMarkX")}>{result === "o" ? "○" : "✕"}</div>}
           </div>
           <div className="ccQuizNav">
-            <button className="ccMini" onClick={() => { setI((v) => (v - 1 + list.length) % list.length); setGuess(""); }}>◀</button>
-            <span>{i + 1} / {list.length}</span>
-            <button className="ccMini" onClick={() => { setI((v) => (v + 1) % list.length); setGuess(""); }}>▶</button>
+            <button className="ccMini" onClick={() => { setI((v) => (v - 1 + inPack.length) % inPack.length); setGuess(""); }}>◀</button>
+            <span>{i + 1} / {inPack.length}</span>
+            <button className="ccMini" onClick={() => { setI((v) => (v + 1) % inPack.length); setGuess(""); }}>▶</button>
           </div>
           <form onSubmit={submit} className="ccRow">
             <input
@@ -154,6 +183,13 @@ export function QuizSheet({ hostCode, isHost, onClose }) {
             maxLength={30}
             placeholder="정답"
             onChange={(e) => setAnswer(e.target.value)}
+          />
+          <input
+            className="ccInput"
+            value={newPack}
+            maxLength={20}
+            placeholder="주제 (예: 과자)"
+            onChange={(e) => setNewPack(e.target.value)}
           />
           <div className="ccRow">
             <button className="ccBtn ccMiniBtn" onClick={add} disabled={busy}>{busy ? "올리는 중…" : "문제 추가"}</button>
