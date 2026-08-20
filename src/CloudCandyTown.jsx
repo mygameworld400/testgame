@@ -1578,7 +1578,10 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 @media (hover:none) and (pointer:coarse){
   .ccTouch{display:block}
   .ccHelp{display:none}
-  .ccChatBar{left:150px;transform:none;width:min(300px,44vw);bottom:16px}
+  /* 채팅바·피드·기록을 같은 자리에 세로로 쌓습니다 (조이스틱 오른쪽) */
+  .ccChatBar{left:150px;transform:none;width:min(300px,44vw);bottom:calc(16px + var(--kb, 0px))}
+  .ccFeed{left:150px;transform:none;width:min(300px,44vw);bottom:calc(62px + var(--kb, 0px))}
+  .ccHistory{left:150px;transform:none;width:min(360px,52vw);max-height:46vh;bottom:calc(62px + var(--kb, 0px))}
   .ccHud{max-width:44vw}
   .ccHud .ccChip{font-size:11px;padding:5px 9px}
 }
