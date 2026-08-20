@@ -479,6 +479,11 @@ function Town({ me, setMe, onKick }) {
   const [chatLog, setChatLog] = useState([]);
   const [track, setTrack] = useState(null);   // 지금 듣는 곡
   const [sit, setSit] = useState(null);      // 앉아 있는 의자 번호
+  const [vol, setVol] = useState(() => {
+    const v = Number(localStorage.getItem("ccVol"));
+    return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 0.7;
+  });
+  const [muted, setMuted] = useState(false);
   const [myMsg, setMyMsg] = useState(null);
   const [roundInput, setRoundInput] = useState(String((me.round ?? 1) + 1));
   const [resetting, setResetting] = useState(false);
@@ -808,6 +813,16 @@ function Town({ me, setMe, onKick }) {
     clearTimeout(myMsgTimer.current);
     myMsgTimer.current = setTimeout(() => setMyMsg(null), CHAT_MS);
   }, [chatText]);
+
+  /* 음량 — 슬라이더를 움직이면 바로 반영하고 기기에 기억해둡니다 */
+  useEffect(() => {
+    if (audio.current) audio.current.volume = muted ? 0 : vol;
+    try {
+      localStorage.setItem("ccVol", String(vol));
+    } catch {
+      /* 무시 */
+    }
+  }, [vol, muted, track]);
 
   /* 올려둔 물소리가 있으면 가져옵니다 */
   useEffect(() => {
@@ -1146,10 +1161,26 @@ function Town({ me, setMe, onKick }) {
         <div className="ccPlayBar">
           <span className="ccPlayDisc">◉</span>
           <span className="ccPlayTitle">{track.title}</span>
-          <button className="ccMini" onClick={() => { const a = audio.current; if (!a) return; if (a.paused) a.play(); else a.pause(); }}>
+          <button
+            className="ccPlayBtn"
+            title="재생 / 일시정지"
+            onClick={() => { const a = audio.current; if (!a) return; if (a.paused) a.play(); else a.pause(); }}
+          >
             ⏯
           </button>
-          <button className="ccMini" onClick={() => setTrack(null)}>✕</button>
+          <button className="ccPlayBtn" title="음소거" onClick={() => setMuted((v) => !v)}>
+            {muted || vol === 0 ? "🔇" : vol < 0.4 ? "🔈" : "🔊"}
+          </button>
+          <input
+            className="ccVol"
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={muted ? 0 : vol}
+            onChange={(e) => { setMuted(false); setVol(Number(e.target.value)); }}
+          />
+          <button className="ccPlayBtn" title="끄기" onClick={() => setTrack(null)}>✕</button>
         </div>
       )}
       {track && <audio ref={audio} src={track.url} autoPlay loop onError={() => setToast("곡을 재생하지 못했어요")} />}
@@ -1341,6 +1372,13 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
   max-width:min(360px,70vw);z-index:20}
 .ccPlayTitle{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ccPlayDisc{animation:ccSpin 2.4s linear infinite;font-size:15px}
+.ccPlayBtn{border:none;background:none;font-family:inherit;font-size:14px;cursor:pointer;padding:2px 3px;line-height:1}
+.ccVol{-webkit-appearance:none;appearance:none;width:76px;height:12px;background:#efe7f2;
+  border:3px solid ${C.line};padding:0;cursor:pointer}
+.ccVol::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;background:#ff8fb6;
+  border:3px solid ${C.line};cursor:pointer}
+.ccVol::-moz-range-thumb{width:12px;height:12px;background:#ff8fb6;border:3px solid ${C.line};
+  border-radius:0;cursor:pointer}
 @keyframes ccSpin{to{transform:rotate(360deg)}}
 
 /* 방 내부 */
