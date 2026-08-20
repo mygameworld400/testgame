@@ -513,6 +513,9 @@ function Town({ me, setMe, onKick }) {
   const [broken, setBroken] = useState([]);  // 뿌셔진 왁뿌볼
   const [pressed, setPressed] = useState([]); // 눌린 키보드 키
   const [quizMode, setQuizMode] = useState("solo");   // 퀴즈상가 개인전 / 팀전
+  const [touch, setTouch] = useState(
+    () => typeof navigator !== "undefined" && (navigator.maxTouchPoints > 0 || "ontouchstart" in window)
+  );
   const [games, setGames] = useState([]);            // 팀전 목록
   const [myGid, setMyGid] = useState(null);          // 내가 들어간 팀전
   const [teamPack, setTeamPack] = useState(null);    // 팀전으로 시작한 주제
@@ -639,6 +642,15 @@ function Town({ me, setMe, onKick }) {
     if (b.sheet) { setSheet(b.sheet); return; }   /* 방이 없는 건물은 바로 창을 엽니다 */
     enterRoom(id);
   }, [enterRoom]);
+
+  /* 터치가 한 번이라도 들어오면 조작 UI 를 켭니다.
+     기기에 따라 CSS 판정(pointer:coarse)이 어긋나 조이스틱이 안 보이는 경우가 있어요. */
+  useEffect(() => {
+    if (touch) return undefined;
+    const onTouch = () => setTouch(true);
+    window.addEventListener("touchstart", onTouch, { once: true, passive: true });
+    return () => window.removeEventListener("touchstart", onTouch);
+  }, [touch]);
 
   /* 첫 입력 때 오디오를 깨웁니다 (사파리 대응) */
   useEffect(() => {
@@ -1195,7 +1207,7 @@ function Town({ me, setMe, onKick }) {
     : 1;
 
   return (
-    <div className="ccRoot">
+    <div className={"ccRoot" + (touch ? " ccIsTouch" : "")}>
       <style>{CSS}</style>
       {scene ? (
         <div className="ccRoomBg" style={{ background: R.wallDark }}>
@@ -1965,6 +1977,13 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccRotateIcon{font-size:56px;animation:ccRot 1.6s steps(4,end) infinite}
 @keyframes ccRot{0%,45%{transform:rotate(0)}55%,100%{transform:rotate(-90deg)}}
 .ccRotateText{font-size:16px;font-weight:900;color:${C.ink}}
+
+/* 터치가 감지되면 미디어쿼리와 무관하게 조작 UI 를 띄웁니다 */
+.ccIsTouch .ccTouch{display:block}
+.ccIsTouch .ccHelp{display:none}
+.ccIsTouch .ccChatBar{left:158px;width:min(300px,42vw)}
+.ccIsTouch .ccFeed{left:158px;width:min(300px,42vw)}
+.ccIsTouch .ccHistory{left:158px;width:min(340px,50vw);max-height:44vh}
 
 @media (hover:none) and (pointer:coarse){
   .ccTouch{display:block}
