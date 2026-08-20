@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "node scripts/check-order.mjs src/CloudCandyTown.jsx src/sheets.jsx src/rooms.jsx && oxlint src && vite build"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

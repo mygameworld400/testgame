@@ -230,7 +230,6 @@ const HAS_POINTER = typeof window !== "undefined" && "onpointerdown" in window;
 
 /* 왼쪽 아래 아무 데나 눌러도 그 자리에 조이스틱이 생깁니다 */
 function Stick({ onMove }) {
-  const home = useRef({ x: 0, y: 0 });
   const origin = useRef(null);
   const active = useRef(false);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
@@ -282,12 +281,11 @@ function Stick({ onMove }) {
         onTouchCancel: end,
       };
 
-  const pos = base || home.current;
   return (
     <div className="ccStickZone" {...handlers}>
       <div
         className={"ccStick" + (base ? " ccStickOn" : "")}
-        style={base ? { left: pos.x, top: pos.y, bottom: "auto", transform: "translate(-50%,-50%)" } : undefined}
+        style={base ? { left: base.x, top: base.y, bottom: "auto", transform: "translate(-50%,-50%)" } : undefined}
       >
         <div className="ccStickKnob" style={{ transform: `translate(${knob.x}px, ${knob.y}px)` }} />
       </div>
@@ -515,6 +513,8 @@ function Town({ me, setMe, onKick }) {
   const [myMsg, setMyMsg] = useState(null);
   const [roundInput, setRoundInput] = useState(String((me.round ?? 1) + 1));
   const [resetting, setResetting] = useState(false);
+
+  const track = queue[qi] || null;    // 지금 듣는 곡
 
   const posRef = useRef(pos);
   const facingRef = useRef(1);
@@ -999,7 +999,6 @@ function Town({ me, setMe, onKick }) {
 
   const ordered = useMemo(() => [...BUILDINGS].sort((a, b) => a.y - b.y), []);
   const roundNo = room?.round ?? me.round;
-  const track = queue[qi] || null;
   const R = scene ? ROOMS[scene] : null;
   const here = scene || "";
   const roomPeers = peerView.filter((p) => (p.r || "") === here);
