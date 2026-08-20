@@ -103,6 +103,12 @@ export const ROOMS = {
     play: PLAY,
     blocks: [],
     crunch: { x: 500, y: 270, r: 150 },
+    /* 왁뿌볼 — 밟으면 뿌셔집니다 */
+    balls: [
+      { i: 0, x: 220, y: 120 }, { i: 1, x: 780, y: 130 }, { i: 2, x: 160, y: 330 },
+      { i: 3, x: 840, y: 340 }, { i: 4, x: 330, y: 450 }, { i: 5, x: 670, y: 460 },
+      { i: 6, x: 500, y: 90 },  { i: 7, x: 500, y: 470 },
+    ],
     zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
   },
 
@@ -127,7 +133,7 @@ export const ROOMS = {
 
 /* ---------- 방 배경(벽/바닥/가구) ---------- */
 
-export function RoomStage({ room, children, waterPhase, seats = [] }) {
+export function RoomStage({ room, children, waterPhase, seats = [], broken = [] }) {
   const R = room;
   const fl = proj(0, 0);
   const fr = proj(ROOM.w, 0);
@@ -152,7 +158,7 @@ export function RoomStage({ room, children, waterPhase, seats = [] }) {
       {R.id === "cake" && <BarProps seats={seats} />}
       {R.id === "candy" && <QuizProps R={R} />}
       {R.id === "post" && <PoolProps R={R} phase={waterPhase} />}
-      {R.id === "flower" && <SandProps R={R} />}
+      {R.id === "flower" && <SandProps R={R} broken={broken} />}
       {R.id === "carousel" && <SoonProps R={R} />}
 
       {/* 문 */}
@@ -305,7 +311,7 @@ function PoolProps({ R, phase }) {
 }
 
 /* ASMR — 커다란 모래밭 */
-function SandProps({ R }) {
+function SandProps({ R, broken = [] }) {
   const c = proj(500, 270);
   const k = depth(270);
   const bits = [];
@@ -328,6 +334,41 @@ function SandProps({ R }) {
       <ellipse cx={c.sx} cy={c.sy} rx={R.crunch.r * k} ry={R.crunch.r * 0.52 * k} fill="#e8c98d" stroke="#5b4a63" strokeWidth="5" />
       <ellipse cx={c.sx} cy={c.sy - 8 * k} rx={R.crunch.r * 0.86 * k} ry={R.crunch.r * 0.44 * k} fill="#f7e3b8" />
       {bits}
+      {(R.balls || []).map((b) => {
+        const p = proj(b.x, b.y);
+        const k = p.k;
+        const gone = broken.includes(b.i);
+        if (gone) {
+          /* 뿌셔진 자리 — 조각만 남습니다 */
+          return (
+            <g key={"ball" + b.i} opacity="0.85">
+              {[-1, 0, 1].map((o) => (
+                <rect
+                  key={o}
+                  x={p.sx + o * 13 * k - 4}
+                  y={p.sy - 3 + Math.abs(o) * 3}
+                  width={9 * k}
+                  height={6 * k}
+                  fill="#e07fa8"
+                />
+              ))}
+            </g>
+          );
+        }
+        return (
+          <g key={"ball" + b.i}>
+            <ellipse cx={p.sx} cy={p.sy + 3 * k} rx={17 * k} ry={6 * k} fill="#5b4a63" opacity="0.18" />
+            <circle cx={p.sx} cy={p.sy - 14 * k} r={17 * k} fill="#ff9ec4" stroke="#5b4a63" strokeWidth="3" />
+            <circle cx={p.sx - 6 * k} cy={p.sy - 20 * k} r={5 * k} fill="#ffffff" opacity="0.9" />
+            <path
+              d={`M${p.sx - 9 * k},${p.sy - 10 * k} l${6 * k},${-5 * k} l${5 * k},${4 * k}`}
+              stroke="#e07fa8"
+              strokeWidth="3"
+              fill="none"
+            />
+          </g>
+        );
+      })}
     </g>
   );
 }

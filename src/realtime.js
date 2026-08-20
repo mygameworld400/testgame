@@ -10,7 +10,7 @@ const SEND_MS = 125;
 const STALE_MS = 8000;
 export const CHAT_MS = 3000;
 
-export function joinChannel({ round, me, getPose, onPeers, onChat }) {
+export function joinChannel({ round, me, getPose, onPeers, onChat, onFx }) {
   if (!supabase) return { stop: () => {}, chat: () => false };
 
   const peers = new Map();
@@ -33,6 +33,12 @@ export function joinChannel({ round, me, getPose, onPeers, onChat }) {
     peers.set(payload.id, { ...prev, msg: payload.text, msgAt: Date.now(), at: Date.now() });
     onChat?.(payload);
     push();
+  });
+
+  /* 공이 깨지는 것처럼 같이 봐야 하는 순간들 */
+  ch.on("broadcast", { event: "fx" }, ({ payload }) => {
+    if (!payload || payload.id === me.id) return;
+    onFx?.(payload);
   });
 
   ch.on("broadcast", { event: "bye" }, ({ payload }) => {
@@ -101,6 +107,9 @@ export function joinChannel({ round, me, getPose, onPeers, onChat }) {
         payload: { id: me.id, name: me.name, slot: me.slot, text: t, r: room || "" },
       });
       return true;
+    },
+    fx(data) {
+      ch.send({ type: "broadcast", event: "fx", payload: { id: me.id, ...data } });
     },
     stop() {
       clearInterval(sendTimer);

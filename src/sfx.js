@@ -113,3 +113,51 @@ function synthSplash() {
   }
 }
 
+
+/* 왁뿌볼 밟는 "빠각" — 딱 터지는 순간 + 잘게 부서지는 잔소리 */
+export function crack() {
+  const ac = audio();
+  if (!ac) return;
+  const t0 = ac.currentTime;
+
+  /* (1) 껍질이 터지는 순간 — 아주 짧고 센 잡음 */
+  const dur = 0.12;
+  const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * dur), ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / d.length;
+    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 5);
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const bp = ac.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 1.1;
+  bp.frequency.setValueAtTime(1800, t0);
+  bp.frequency.exponentialRampToValueAtTime(900, t0 + dur);
+  const g = ac.createGain();
+  g.gain.value = 0.55;
+  src.connect(bp).connect(g).connect(ac.destination);
+  src.start(t0);
+
+  /* (2) 조각들이 흩어지며 나는 잔소리 — 짧은 딱딱 소리 여러 개 */
+  const bits = 5 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < bits; i++) {
+    const at = t0 + 0.03 + Math.random() * 0.22;
+    const len = 0.03;
+    const b2 = ac.createBuffer(1, Math.floor(ac.sampleRate * len), ac.sampleRate);
+    const d2 = b2.getChannelData(0);
+    for (let k = 0; k < d2.length; k++) {
+      d2[k] = (Math.random() * 2 - 1) * Math.pow(1 - k / d2.length, 3);
+    }
+    const s2 = ac.createBufferSource();
+    s2.buffer = b2;
+    const hp = ac.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 2400 + Math.random() * 2600;
+    const g2 = ac.createGain();
+    g2.gain.value = 0.14 + Math.random() * 0.12;
+    s2.connect(hp).connect(g2).connect(ac.destination);
+    s2.start(at);
+  }
+}

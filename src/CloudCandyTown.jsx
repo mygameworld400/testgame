@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CHAIRS, ROOM, ROOMS, RoomStage, SCREEN, depth, proj } from "./rooms.jsx";
-import { blip, crunch, splash } from "./sfx.js";
+import { blip, crack, crunch, splash } from "./sfx.js";
 import { MusicSheet, QuizSheet } from "./sheets.jsx";
 import { findSfx, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
@@ -503,6 +503,7 @@ function Town({ me, setMe, onKick }) {
   const [logOpen, setLogOpen] = useState(false);
   const [track, setTrack] = useState(null);   // 지금 듣는 곡
   const [sit, setSit] = useState(null);      // 앉아 있는 의자 번호
+  const [broken, setBroken] = useState([]);  // 뿌셔진 왁뿌볼
   const [vol, setVol] = useState(() => {
     const v = Number(localStorage.getItem("ccVol"));
     return Number.isFinite(v) && v >= 0 && v <= 1 ? v : 0.7;
@@ -532,6 +533,7 @@ function Town({ me, setMe, onKick }) {
   const sitRef = useRef(null);
   const peersRef = useRef([]);
   const smooth = useRef(new Map());
+  const brokenRef = useRef([]);
   const splashUrl = useRef(null);
   const chairRef = useRef(null);
   const audio = useRef(null);
@@ -543,6 +545,7 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { viewRef.current = { ...view, z: zoom }; }, [view, zoom]);
   useEffect(() => { starsRef.current = stars; }, [stars]);
   useEffect(() => { peersRef.current = peers; }, [peers]);
+  useEffect(() => { brokenRef.current = broken; }, [broken]);
 
   const collected = stars.filter(Boolean).length;
   const online = me.role === "solo" ? 1 : peers.length + 1;
@@ -779,6 +782,17 @@ function Town({ me, setMe, onKick }) {
           }
         }
 
+        /* 왁뿌볼 밟기 */
+        if (room.balls) {
+          for (const b of room.balls) {
+            if (brokenRef.current.includes(b.i)) continue;
+            if (Math.hypot(p.x - b.x, (p.y - b.y) * 1.5) < 34) {
+              popBall(b.i, true);
+              break;
+            }
+          }
+        }
+
         /* 수영 */
         if (room.water) {
           const w = room.water;
@@ -838,7 +852,7 @@ function Town({ me, setMe, onKick }) {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [popBall]);
 
   /* 같이 접속한 사람 */
   useEffect(() => {
@@ -856,6 +870,9 @@ function Town({ me, setMe, onKick }) {
       }),
       onPeers: setPeers,
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
+      onFx: (e) => {
+        if (e?.t === "ball") popBall(e.i, false);
+      },
       onChat: (msg) => {
         const at = Date.now();
         setHistory((h) => [...h.slice(-199), { ...msg, at }]);
@@ -885,6 +902,19 @@ function Town({ me, setMe, onKick }) {
     clearTimeout(myMsgTimer.current);
     myMsgTimer.current = setTimeout(() => setMyMsg(null), CHAT_MS);
   }, [chatText, me]);
+
+  /* 왁뿌볼 — 밟으면 뿌셔지고 12초 뒤 다시 생깁니다 */
+  const popBall = useCallback((i, mine) => {
+    if (brokenRef.current.includes(i)) return;
+    brokenRef.current = [...brokenRef.current, i];
+    setBroken(brokenRef.current);
+    crack();
+    if (mine) chanRef.current?.fx({ t: "ball", i, r: "flower" });
+    setTimeout(() => {
+      brokenRef.current = brokenRef.current.filter((n) => n !== i);
+      setBroken(brokenRef.current);
+    }, 12000);
+  }, []);
 
   /* 기록을 열거나 새 말이 오면 맨 아래로 내려줍니다 */
   useEffect(() => {
@@ -984,7 +1014,7 @@ function Town({ me, setMe, onKick }) {
             className="ccRoomWrap"
             style={{ width: SCREEN.w, height: SCREEN.h, transform: `translate(-50%,-50%) scale(${roomZoom})` }}
           >
-            <RoomStage room={R} waterPhase={wave} seats={seats} />
+            <RoomStage room={R} waterPhase={wave} seats={seats} broken={broken} />
             <div className="ccRoomLayer">
               {roomPeers.map((q) => {
                 const pr = proj(q.x, q.y);
