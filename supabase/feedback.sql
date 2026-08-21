@@ -216,3 +216,104 @@ $$;
 grant execute
   on function public.cc_status()
   to anon, authenticated;
+
+
+-- 🎬 영화관 — 아무나 틀 수 있고, 트는 순간 끝날 때까지 다 같이 봅니다.
+-- 지금 트는 중이면 서버가 새 재생을 막습니다 (클라이언트를 고쳐도 못 바꿔요).
+
+create table if not exists public.cc_movie (
+  id int primary key default 1,
+  path text,
+  title text,
+  secs int not null default 0,
+  by_name text,
+  started_at timestamptz,
+  constraint cc_movie_one_row check (id = 1)
+);
+
+insert into public.cc_movie (id) values (1) on conflict (id) do nothing;
+
+alter table public.cc_movie enable row level security;
+
+create or replace function public.cc_movie_now()
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  m public.cc_movie;
+  v_left numeric;
+begin
+  select * into m from public.cc_movie where id = 1;
+  if m.started_at is null or m.path is null then
+    return json_build_object('ok', true, 'playing', false, 'now', now());
+  end if;
+  v_left := m.secs - extract(epoch from (now() - m.started_at));
+  if v_left <= 0 then
+    return json_build_object('ok', true, 'playing', false, 'now', now());
+  end if;
+  return json_build_object(
+    'ok', true,
+    'playing', true,
+    'path', m.path,
+    'title', m.title,
+    'secs', m.secs,
+    'by', m.by_name,
+    'at', extract(epoch from (now() - m.started_at)),
+    'now', now()
+  );
+end;
+$$;
+
+create or replace function public.cc_movie_play(p_path text, p_title text, p_secs int, p_by text)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  m public.cc_movie;
+  v_left numeric;
+begin
+  if coalesce(btrim(p_path), '') = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  select * into m from public.cc_movie where id = 1 for update;
+  if m.started_at is not null then
+    v_left := m.secs - extract(epoch from (now() - m.started_at));
+    if v_left > 0 then
+      return json_build_object('ok', false, 'error', 'busy',
+                               'title', m.title, 'left', ceil(v_left));
+    end if;
+  end if;
+  update public.cc_movie
+     set path = p_path,
+         title = left(coalesce(p_title, ''), 40),
+         secs = greatest(1, least(7200, coalesce(p_secs, 0))),
+         by_name = left(coalesce(p_by, ''), 12),
+         started_at = now()
+   where id = 1;
+  return json_build_object('ok', true);
+end;
+$$;
+
+create or replace function public.cc_movie_stop(p_host_code text)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  v_code text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  update public.cc_movie
+     set started_at = null, path = null, title = null, secs = 0
+   where id = 1;
+  return json_build_object('ok', true);
+end;
+$$;
+
+grant execute
+  on function public.cc_movie_now()
+  to anon, authenticated;
+
+grant execute
+  on function public.cc_movie_play(text, text, int, text)
+  to anon, authenticated;
+
+grant execute
+  on function public.cc_movie_stop(text)
+  to anon, authenticated;

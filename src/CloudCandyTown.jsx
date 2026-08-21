@@ -4,7 +4,7 @@ import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CAFE_CHAIRS, CAFE_TABLES, CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, SMALL_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
 import { ArcadeSheet, DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, IDEA_BOX, MenuSheet, MovieSheet, MusicSheet, QuizSheet, SkinSheet, StarViewSheet, TeamLobby, WISH_BOX, WishSheet } from "./sheets.jsx";
-import { findSfx, quizPacks, skinList, trackList, trackUrl } from "./content.js";
+import { findSfx, movieNow, quizPacks, skinList, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, DEFAULT_LOOK, charForSlot, cursorUrls, grassTile, lookSprite, pathTile } from "./sprites.js";
 import { Pix } from "./pix.jsx";
 
@@ -903,6 +903,8 @@ function Town({ me, setMe, onKick }) {
   const [staffWalk, setStaffWalk] = useState(false);
   const [skins, setSkins] = useState([]);          // 호스트가 올린 캐릭터 이미지
   const [live, setLive] = useState(true);          // 실시간 연결 상태
+  const [movie, setMovie] = useState(null);        // 지금 상영 중인 것
+  const [muted2, setMuted2] = useState(true);      // 영화 소리 (자동재생 때문에 처음엔 꺼둠)
 
   const [starPop, setStarPop] = useState(false);   // 별 개수가 바뀌면 통 튑니다
   /* 꾸미기 — 고른 모습과 사둔 것들 */
@@ -980,6 +982,7 @@ function Town({ me, setMe, onKick }) {
   const staffFace = useRef(1);
   const staffWalkRef = useRef(false);
   const skinsAt = useRef(0);
+  const vidRef = useRef(null);
   const lookRef = useRef(look);
   const myMsgTimer = useRef(null);
 
@@ -1045,6 +1048,29 @@ function Town({ me, setMe, onKick }) {
   const collected = stars.filter(Boolean).length + roomTaken + hostStars + bonus;
   const balance = Math.max(0, collected - spent);
   const online = me.role === "solo" ? 1 : peers.length + 1;
+
+  /* 지금 뭘 트는지 — 영화관에 있을 때만 확인합니다 */
+  const loadMovie = useCallback(async () => {
+    if (!hasServer) return;
+    const r = await movieNow();
+    if (!r?.ok) return;
+    setMovie(r.playing ? { ...r, got: Date.now() } : null);
+  }, []);
+
+  useEffect(() => {
+    if (scene !== "movie") return undefined;
+    loadMovie();
+    const iv = setInterval(loadMovie, 4000);
+    return () => clearInterval(iv);
+  }, [scene, loadMovie]);
+
+  /* 남이 틀면 바로 알아채게 */
+  useEffect(() => {
+    if (!movie) return undefined;
+    const left = Math.max(0, movie.secs - movie.at) * 1000 + 800;
+    const t = setTimeout(loadMovie, left);
+    return () => clearTimeout(t);
+  }, [movie, loadMovie]);
 
   /* 올라온 캐릭터 이미지 가져오기 */
   const loadSkins = useCallback(async () => {
@@ -1862,6 +1888,7 @@ function Town({ me, setMe, onKick }) {
           if (sceneRef.current === "flower") popBall(e.i, false);
           return;
         }
+        if (e.t === "movie") { loadMovie(); return; }
         if (e.t === "key") {
           if (sceneRef.current === "flower") pressKey(e.i, false);
           return;
@@ -2078,6 +2105,35 @@ function Town({ me, setMe, onKick }) {
               skin={scene === "candy" ? QUIZ_SKIN[quizMode] : null}
             />
             <div className="ccRoomLayer">
+              {scene === "movie" && movie && (
+                <div className="ccScreenWrap">
+                  <video
+                    ref={vidRef}
+                    className="ccScreenVid"
+                    src={trackUrl(movie.path)}
+                    autoPlay
+                    playsInline
+                    muted={muted2}
+                    onLoadedMetadata={(e) => {
+                      /* 늦게 들어와도 같은 지점부터 */
+                      const at = movie.at + (Date.now() - movie.got) / 1000;
+                      if (at > 0 && at < movie.secs) e.currentTarget.currentTime = at;
+                    }}
+                    onTimeUpdate={(e) => {
+                      const want = movie.at + (Date.now() - movie.got) / 1000;
+                      if (want < movie.secs && Math.abs(e.currentTarget.currentTime - want) > 1.6) {
+                        e.currentTarget.currentTime = want;
+                      }
+                    }}
+                  />
+                  <div className="ccScreenBar">
+                    <span className="ccScreenTitle">{movie.title}</span>
+                    <button className="ccScreenSnd" onClick={() => setMuted2((v) => !v)}>
+                      {muted2 ? "🔇 소리 켜기" : "🔊"}
+                    </button>
+                  </div>
+                </div>
+              )}
               {(R.stars || []).map((st, i) => {
                 if ((roomStars[R.id] || [])[i]) return null;
                 const pr = proj(st.x, st.y);
@@ -2673,7 +2729,17 @@ function Town({ me, setMe, onKick }) {
             />
           )}
           {sheet === "arcade" && <ArcadeSheet onClose={() => setSheet(null)} />}
-          {sheet === "showtime" && <MovieSheet onClose={() => setSheet(null)} />}
+          {sheet === "showtime" && (
+            <MovieSheet
+              me={me}
+              hostCode={me.hostCode}
+              isHost={me.role === "host"}
+              off={!hasServer || me.role === "solo"}
+              now={movie}
+              onPlay={() => { loadMovie(); chanRef.current?.fx({ t: "movie" }); }}
+              onClose={() => setSheet(null)}
+            />
+          )}
           {sheet === "skins" && (
             <SkinSheet
               hostCode={me.hostCode}
@@ -2996,6 +3062,28 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccStarWord{position:absolute;left:0;right:0;bottom:12%;text-align:center;color:#dfe6ff;
   font-size:15px;font-weight:800;line-height:2}
 .ccStarWord b{color:#ffd45e;font-size:13px}
+
+/* 🎬 스크린 위 영상 */
+.ccScreenWrap{position:absolute;left:168px;top:38px;width:664px;height:228px;pointer-events:auto;
+  background:#000;overflow:hidden}
+.ccScreenVid{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+.ccScreenBar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:8px;
+  padding:6px 9px;background:rgba(14,12,24,.72)}
+.ccScreenTitle{flex:1;font-size:13px;font-weight:800;color:#ffe9a8;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.ccScreenSnd{flex:none;border:3px solid #ffd45e;background:#2f2b45;color:#ffd45e;font-family:inherit;
+  font-size:11px;font-weight:800;padding:4px 8px;cursor:pointer}
+.ccNowPlay{display:flex;flex-direction:column;gap:3px;align-items:center;border:3px solid ${C.line};
+  background:#fff6dc;padding:10px;margin-bottom:10px;font-size:12px;font-weight:700}
+.ccNowPlay b{color:#c05a86;font-size:11px}
+.ccNowTitle{font-size:14px;font-weight:900;color:${C.ink}}
+.ccNowBy{font-size:10.5px;color:${C.inkSoft}}
+.ccNowStop{margin-top:5px}
+.ccMoviePlay{flex:none;background:#ffd45e;font-weight:800}
+.ccVidAdd{display:flex;flex-direction:column;gap:6px;border-top:3px solid #efe7f2;margin-top:10px;padding-top:10px}
+.ccVidPick{width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccVidName{width:100%;padding:9px 10px;font-size:12.5px;text-align:left}
+.ccVidUp{width:100%;font-size:12.5px;padding:10px;background:#ffd45e;color:${C.ink}}
 
 /* 🎬 상영표 */
 .ccMovie{width:min(380px,94vw);padding:18px}

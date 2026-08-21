@@ -239,6 +239,77 @@ export const fbList = (hostCode, round) =>
   call("cc_fb_list", { p_host_code: hostCode, p_round: round ?? null });
 export const fbDel = (hostCode, id) => call("cc_fb_del", { p_host_code: hostCode, p_id: id });
 
+/* ---------- 🎬 영화관 ----------
+   영상은 음악과 같은 보관함(music 버킷)에 넣고, 목록에는 'vid:제목' 으로
+   구분해 담습니다. 따로 테이블을 만들지 않아도 되고 음악 목록에는 안 보여요. */
+
+export const VID_PREFIX = "vid:";
+export const isVid = (t) => (t?.title || "").startsWith(VID_PREFIX);
+export const vidName = (t) => (t?.title || "").slice(VID_PREFIX.length);
+
+/* 영상 길이(초)를 브라우저에서 미리 재둡니다 — 언제 끝나는지 서버에 알려주려고 */
+export function videoSeconds(file) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(Math.max(1, Math.round(v.duration || 0)));
+    };
+    v.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(0);
+    };
+    v.src = url;
+  });
+}
+
+export async function uploadVideo(hostCode, file, title) {
+  if (!supabase) return { ok: false, error: "no_server" };
+  if (file.size > 60 * 1024 * 1024) return { ok: false, error: "too_big" };
+
+  const secs = await videoSeconds(file);
+  if (!secs) return { ok: false, error: "bad_video" };
+
+  const ext = (file.name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const path = `vid-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const up = await supabase.storage.from("music").upload(path, file, {
+    contentType: file.type || "video/mp4",
+    upsert: false,
+  });
+  if (up.error) {
+    const msg = up.error.message || "";
+    return { ok: false, error: /bucket/i.test(msg) ? "no_bucket" : "upload_failed", message: msg };
+  }
+
+  const name = (title || file.name.replace(/\.[^.]+$/, "")).slice(0, 30);
+  const reg = await trackAdd(hostCode, VID_PREFIX + name + "|" + secs, path, null);
+  if (!reg?.ok) {
+    try {
+      await supabase.storage.from("music").remove([path]);
+    } catch {
+      /* 무시 */
+    }
+    return reg;
+  }
+  return { ok: true, path, secs };
+}
+
+/* 'vid:제목|초' 에서 제목과 길이를 꺼냅니다 */
+export function vidInfo(t) {
+  const raw = vidName(t);
+  const i = raw.lastIndexOf("|");
+  if (i < 0) return { name: raw, secs: 0 };
+  return { name: raw.slice(0, i), secs: Number(raw.slice(i + 1)) || 0 };
+}
+
+export const movieNow = () => call("cc_movie_now");
+export const moviePlay = (path, title, secs, by) =>
+  call("cc_movie_play", { p_path: path, p_title: title, p_secs: secs, p_by: by });
+export const movieStop = (hostCode) => call("cc_movie_stop", { p_host_code: hostCode });
+
 /* ---------- 🪧 윗동네 팻말 아이디어 ---------- */
 
 export const ideaAdd = (round, name, body) =>

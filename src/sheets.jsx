@@ -4,7 +4,7 @@ import { MENU } from "./rooms.jsx";
 import { Pix } from "./pix.jsx";
 import { FACES, HATS, OUTFITS, lookSprite } from "./sprites.js";
 
-import { DAY, SFX_PREFIX, fbAdd, fbDel, fbList, ideaAdd, ideaDel, ideaList, prepSkin, skinAdd, skinDel, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { DAY, SFX_PREFIX, fbAdd, fbDel, fbList, ideaAdd, ideaDel, ideaList, isVid, moviePlay, movieStop, prepSkin, skinAdd, skinDel, uploadVideo, vidInfo, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -1938,33 +1938,150 @@ export function StarViewSheet({ onClose }) {
   );
 }
 
-/* ---------- 🎬 상영표 ---------- */
+/* ---------- 🎬 상영표 ----------
+   아무나 틀 수 있지만, 트는 순간 끝날 때까지 아무도 못 바꿉니다.
+   막는 건 서버(cc_movie_play)라서 화면을 고쳐도 소용없어요. */
 
-const MOVIES = [
-  { t: "구름 위의 하루", when: "13:00", tag: "잔잔" },
-  { t: "왁뿌볼 대소동", when: "15:30", tag: "코미디" },
-  { t: "미끄럼틀 레이스", when: "17:00", tag: "액션" },
-  { t: "별이 내리는 밤", when: "20:00", tag: "별" },
-];
+export function MovieSheet({ me, hostCode, isHost, off = false, now, onPlay, onClose }) {
+  const [list, setList] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [title, setTitle] = useState("");
+  const [pickName, setPickName] = useState("");
+  const vidFile = useRef(null);
+  const chosen = useRef(null);
 
-export function MovieSheet({ onClose }) {
+  const load = useCallback(async () => {
+    if (off) { setList([]); return; }
+    const r = await trackList();
+    if (Array.isArray(r)) { setList(r.filter(isVid)); setErr(""); }
+    else { setList([]); setErr(msgOf(r)); }
+  }, [off]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const play = async (t) => {
+    const info = vidInfo(t);
+    setBusy(true);
+    const r = await moviePlay(t.path, info.name, info.secs, me?.name || "손님");
+    setBusy(false);
+    if (!r?.ok) {
+      if (r?.error === "busy") {
+        setErr(`지금 "${r.title}" 상영 중이에요. ${Math.ceil(r.left / 60)}분쯤 남았어요.`);
+      } else {
+        setErr(msgOf(r));
+      }
+      buzz();
+      return;
+    }
+    setErr("");
+    ding();
+    onPlay?.();
+  };
+
+  const stop = async () => {
+    const r = await movieStop(hostCode);
+    if (r?.ok) { setErr(""); onPlay?.(); }
+    else setErr(msgOf(r));
+  };
+
+  const pickFile = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    chosen.current = f;
+    setPickName(f.name);
+    if (!title.trim()) setTitle(f.name.replace(/\.[^.]+$/, "").slice(0, 30));
+  };
+
+  const send = async () => {
+    if (!chosen.current) { setErr("영상 파일을 골라주세요."); return; }
+    setBusy(true);
+    const r = await uploadVideo(hostCode, chosen.current, title.trim());
+    setBusy(false);
+    if (!r?.ok) {
+      setErr(
+        r?.error === "too_big" ? "60MB 이하로 줄여서 올려주세요."
+          : r?.error === "bad_video" ? "영상을 읽지 못했어요. mp4 로 올려보세요."
+            : msgOf(r)
+      );
+      buzz();
+      return;
+    }
+    chosen.current = null;
+    setPickName("");
+    setTitle("");
+    setErr("");
+    ding();
+    load();
+  };
+
   return (
     <div className="ccPanel ccModal ccMovie" onClick={(e) => e.stopPropagation()}>
       <div className="ccSheetHead">
-        <h2 className="ccSheetTitle">🎬 오늘의 상영표</h2>
+        <h2 className="ccSheetTitle">🎬 상영표</h2>
         <button className="ccX" onClick={onClose}>✕</button>
       </div>
+
+      {now?.playing && (
+        <div className="ccNowPlay">
+          <b>지금 상영 중</b>
+          <span className="ccNowTitle">{now.title}</span>
+          <span className="ccNowBy">{now.by} 님이 틀었어요</span>
+          {isHost && (
+            <button className="ccMini ccNowStop" onClick={stop}>강제로 끄기</button>
+          )}
+        </div>
+      )}
+
       <div className="ccMovieList">
-        {MOVIES.map((m) => (
-          <div key={m.t} className="ccMovieRow">
-            <span className="ccMovieWhen">{m.when}</span>
-            <span className="ccMovieName">{m.t}</span>
-            <span className="ccMovieTag">{m.tag}</span>
-          </div>
-        ))}
+        {list === null && <p className="ccSheetNote">불러오는 중…</p>}
+        {list?.length === 0 && <p className="ccSheetNote">아직 올라온 영상이 없어요.</p>}
+        {list?.map((t) => {
+          const info = vidInfo(t);
+          const mm = String(Math.floor(info.secs / 60)).padStart(2, "0");
+          const ss = String(info.secs % 60).padStart(2, "0");
+          return (
+            <div key={t.id} className="ccMovieRow">
+              <span className="ccMovieWhen">{mm}:{ss}</span>
+              <span className="ccMovieName">{info.name}</span>
+              <button
+                className="ccMini ccMoviePlay"
+                disabled={busy || off || now?.playing}
+                onClick={() => play(t)}
+              >
+                {now?.playing ? "상영 중" : "틀기"}
+              </button>
+            </div>
+          );
+        })}
       </div>
+
+      {err && <div className="ccErr">{err}</div>}
+
+      {isHost && !off && (
+        <div className="ccVidAdd">
+          <button className="ccMini ccVidPick" onClick={() => vidFile.current?.click()}>
+            {pickName || "영상 파일 고르기"}
+          </button>
+          <input ref={vidFile} type="file" accept="video/*" hidden onChange={pickFile} />
+          <input
+            className="ccInput ccVidName"
+            value={title}
+            maxLength={30}
+            placeholder="제목"
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <button className="ccBtn ccVidUp" onClick={send} disabled={busy}>
+            {busy ? "올리는 중…" : "올리기"}
+          </button>
+        </div>
+      )}
+
       <p className="ccSheetNote">
-        아직 필름이 안 왔어요. 곧 진짜 영상을 틀 수 있게 만들 예정입니다.
+        {now?.playing
+          ? "상영이 끝날 때까지는 아무도 바꿀 수 없어요. 같이 봐요!"
+          : "아무나 틀 수 있어요. 한 번 틀면 끝날 때까지 다 같이 봅니다."}
       </p>
     </div>
   );
