@@ -102,7 +102,8 @@ const QUESTS = [
   { id: "fortune", icon: "🥠", name: "포춘쿠키 뽑아보기", desc: "마을 왼쪽 작은 쿠키 건물에서 하루 한 번." },
   { id: "swim", icon: "🏊", name: "수영장에서 수영하기", desc: "물 안으로 그냥 걸어 들어가면 헤엄쳐요." },
   { id: "gacha", icon: "🍜", name: "떵개방에서 메뉴 추천 받기", desc: "가운데에서 하루 한 번 오늘의 메뉴를 뽑아요." },
-  { id: "buy", icon: "☕", name: "카페 가서 음료 구매해보기", desc: "구름다리 건너 아랫섬 구름카페. 모은 별로 살 수 있어요." },
+  { id: "slide", icon: "💨", name: "미끄럼틀 타기", desc: "마을 오른쪽 끝 발판에 서면 슝 하고 반대편 섬으로 미끄러져요." },
+  { id: "buy", icon: "☕", name: "카페 가서 음료 구매해보기", desc: "구름다리나 미끄럼틀로 아랫섬 구름카페까지. 모은 별로 살 수 있어요." },
 ];
 
 /* 글꼴 — 설정에서 고르면 이 기기에 저장됩니다 */
@@ -1339,6 +1340,8 @@ function Town({ me, setMe, onKick }) {
         if (!inTop && !inBot) rideLock.current = false;
         else if (!rideLock.current) {
           rideLock.current = true;
+          /* 체크를 먼저 — 토스트는 "슝" 쪽이 남게 */
+          doQuest("slide");
           startRide(inBot);
         }
       }
