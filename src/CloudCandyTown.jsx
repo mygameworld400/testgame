@@ -94,20 +94,40 @@ const BUILDINGS = [
 const QUESTS = [
   { id: "walk", icon: "🚶", name: "마을 걸어보기", desc: "방향키나 WASD 로 움직여요. 폰이면 왼쪽 아래 조이스틱." },
   { id: "star", icon: "⭐", name: "별 줍기", desc: "바닥에 떠 있는 별 위로 걸어가면 주워져요." },
-  { id: "enter", icon: "🚪", name: "건물 들어가기", desc: "건물 앞에 서면 말풍선이 떠요. SPACE 를 누르세요." },
-  { id: "chat", icon: "💬", name: "한마디 남기기", desc: "C 를 누르고 아무 말이나 쳐보세요. 머리 위에 떠요." },
-  { id: "music", icon: "🎧", name: "LP바에서 음악 틀기", desc: "LP바 오른쪽 LP 플레이어 앞에서 SPACE." },
-  { id: "quiz", icon: "❓", name: "퀴즈 한 문제 풀기", desc: "퀴즈상가 단상에 올라서면 문제가 나와요." },
-  { id: "swim", icon: "🏊", name: "수영장에서 헤엄치기", desc: "수영장 물 안으로 그냥 걸어 들어가면 돼요." },
-  { id: "sand", icon: "🏖️", name: "모래 밟아보기", desc: "ASMR 타운 가운데 모래밭 위를 걸으면 사각사각." },
-  { id: "ball", icon: "🫧", name: "왁뿌볼 뿌수기", desc: "ASMR 타운 왼쪽 무더기를 밟으면 뿌셔져요." },
-  { id: "key", icon: "⌨️", name: "키보드 밟아보기", desc: "ASMR 타운 오른쪽 바닥 키보드를 밟으면 타건음이 나요." },
-  { id: "fortune", icon: "🥠", name: "포춘쿠키 뽑기", desc: "왼쪽 작은 쿠키 건물에서 하루 한 번." },
-  { id: "bridge", icon: "🌉", name: "구름다리 건너기", desc: "마을 아래쪽 다리를 건너면 두 번째 섬이 나와요." },
-  { id: "sit", icon: "🪑", name: "의자에 앉아보기", desc: "구름카페나 LP바 의자 앞에서 SPACE." },
-  { id: "buy", icon: "☕", name: "별로 음료 사기", desc: "구름카페 카운터에서 메뉴판을 열어요. 별이 필요해요." },
-  { id: "gacha", icon: "🍜", name: "떵개방 메뉴 가챠", desc: "떵개방 가운데에서 하루 한 번 오늘의 메뉴." },
+  { id: "chat", icon: "💬", name: "채팅하기", desc: "C 를 누르고 아무 말이나 쳐보세요. 머리 위에 떠요." },
+  { id: "music", icon: "🎧", name: "LP바에서 음악 듣기", desc: "LP바에 들어가 오른쪽 LP 플레이어 앞에서 SPACE." },
+  { id: "sit", icon: "🪑", name: "LP바 테이블에 앉아서 감상하기", desc: "가운데 바를 둘러싼 의자 앞에서 SPACE 를 누르면 앉아요." },
+  { id: "quiz", icon: "❓", name: "퀴즈상가에서 퀴즈 풀기", desc: "화면 앞 단상에 올라서면 문제가 시작돼요." },
+  { id: "asmr", icon: "🎙️", name: "ASMR 타운 즐기기", desc: "모래밭을 걷고, 왁뿌볼을 밟고, 바닥 키보드도 밟아보세요." },
+  { id: "fortune", icon: "🥠", name: "포춘쿠키 뽑아보기", desc: "마을 왼쪽 작은 쿠키 건물에서 하루 한 번." },
+  { id: "swim", icon: "🏊", name: "수영장에서 수영하기", desc: "물 안으로 그냥 걸어 들어가면 헤엄쳐요." },
+  { id: "gacha", icon: "🍜", name: "떵개방에서 메뉴 추천 받기", desc: "가운데에서 하루 한 번 오늘의 메뉴를 뽑아요." },
+  { id: "buy", icon: "☕", name: "카페 가서 음료 구매해보기", desc: "구름다리 건너 아랫섬 구름카페. 모은 별로 살 수 있어요." },
 ];
+
+/* 글꼴 — 설정에서 고르면 이 기기에 저장됩니다 */
+const FONTS = [
+  { id: "pixel", name: "둥근모 (기본)", css: '"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui,sans-serif' },
+  { id: "jua", name: "주아 Jua", css: '"Jua","DungGeunMo","Malgun Gothic",system-ui,sans-serif' },
+  { id: "coding", name: "나눔고딕코딩", css: '"Nanum Gothic Coding","DungGeunMo","Malgun Gothic",monospace' },
+  { id: "single", name: "싱글데이 Single Day", css: '"Single Day","DungGeunMo","Malgun Gothic",cursive' },
+];
+
+function applyFont(id) {
+  const f = FONTS.find((x) => x.id === id) || FONTS[0];
+  document.documentElement.style.setProperty("--ccFont", f.css);
+  document.body.classList.toggle("ccSmoothFont", f.id !== "pixel");
+}
+
+const savedFont = (() => {
+  try {
+    const v = localStorage.getItem("ccFont");
+    return FONTS.some((f) => f.id === v) ? v : "pixel";
+  } catch {
+    return "pixel";
+  }
+})();
+applyFont(savedFont);
 
 const STAR_SPOTS = [
   [300, 700], [560, 640], [780, 930], [1000, 600], [1180, 700],
@@ -653,6 +673,15 @@ function Town({ me, setMe, onKick }) {
     return !(typeof navigator !== "undefined" && (navigator.maxTouchPoints > 0 || "ontouchstart" in window));
   });
   const [justDone, setJustDone] = useState(null);   // 방금 체크된 항목 (반짝임)
+  const [welcome, setWelcome] = useState(() => {
+    try {
+      return localStorage.getItem("ccWelcome") !== "seen";
+    } catch {
+      return true;
+    }
+  });
+  const [setOpen, setSetOpen] = useState(false);   // 설정 패널
+  const [font, setFont] = useState(savedFont);
 
   const track = queue[qi] || null;    // 지금 듣는 곡
 
@@ -690,6 +719,7 @@ function Town({ me, setMe, onKick }) {
   const histBox = useRef(null);
   const questRef = useRef(quests);
   const walkRef = useRef(0);      // 마을에서 걸은 거리
+  const welcomeRef = useRef(true);
   const myMsgTimer = useRef(null);
 
   useEffect(() => { openRef.current = !!sheet; sheetRef.current = sheet; }, [sheet]);
@@ -698,6 +728,15 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { peersRef.current = peers; }, [peers]);
   useEffect(() => { brokenRef.current = broken; }, [broken]);
   useEffect(() => { pressedRef.current = pressed; }, [pressed]);
+  useEffect(() => { welcomeRef.current = welcome; }, [welcome]);
+  useEffect(() => {
+    applyFont(font);
+    try {
+      localStorage.setItem("ccFont", font);
+    } catch {
+      /* 무시 */
+    }
+  }, [font]);
   useEffect(() => { roomStarsRef.current = roomStars; }, [roomStars]);
   useEffect(() => { gamesRef.current = games; }, [games]);
   useEffect(() => {
@@ -710,6 +749,18 @@ function Town({ me, setMe, onKick }) {
   const collected = stars.filter(Boolean).length + roomTaken;
   const balance = Math.max(0, collected - spent);
   const online = me.role === "solo" ? 1 : peers.length + 1;
+
+  /* 환영 팝업 닫기 */
+  const closeWelcome = useCallback(() => {
+    setWelcome(false);
+    welcomeRef.current = false;
+    blip(880);
+    try {
+      localStorage.setItem("ccWelcome", "seen");
+    } catch {
+      /* 무시 */
+    }
+  }, []);
 
   /* 가이드 한 줄 체크 */
   const doQuest = useCallback((id) => {
@@ -733,8 +784,11 @@ function Town({ me, setMe, onKick }) {
     walkRef.current = 0;
     setQuests([]);
     setJustDone(null);
+    setWelcome(true);
+    welcomeRef.current = true;
     try {
       localStorage.removeItem("ccQuests");
+      localStorage.removeItem("ccWelcome");
     } catch {
       /* 무시 */
     }
@@ -751,8 +805,7 @@ function Town({ me, setMe, onKick }) {
     setScene(id);
     setSheet(null);
     setToast(`${ROOMS[id].emoji} ${ROOMS[id].name} — ${ROOMS[id].hint}`);
-    doQuest("enter");
-  }, [doQuest]);
+  }, []);
 
   /* 마을로 */
   const exitRoom = useCallback(() => {
@@ -795,7 +848,7 @@ function Town({ me, setMe, onKick }) {
       posRef.current = { x: c.x, y: c.y };
       setPos({ x: c.x, y: c.y });
       blip(760);
-      doQuest("sit");
+      if (sceneRef.current === "cake") doQuest("sit");
       return;
     }
     setSheet(id);
@@ -863,6 +916,10 @@ function Town({ me, setMe, onKick }) {
     const down = (e) => {
       const k = e.key.toLowerCase();
       if (e.target instanceof HTMLInputElement) return;
+      if (welcomeRef.current) {
+        if (k === " " || k === "enter" || k === "escape") { e.preventDefault(); closeWelcome(); }
+        return;
+      }
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
       if (k === " ") {
         if (sheetRef.current) { setSheet(null); return; }
@@ -891,7 +948,7 @@ function Town({ me, setMe, onKick }) {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, [openBuilding, activateZone]);
+  }, [openBuilding, activateZone, closeWelcome]);
 
   /* 키보드 — 밟으면 쑥 들어갔다가 1.5초 뒤에 올라옵니다 */
   const pressKey = useCallback((i, mine) => {
@@ -899,7 +956,7 @@ function Town({ me, setMe, onKick }) {
     pressedRef.current = [...pressedRef.current, i];
     setPressed(pressedRef.current);
     keyclick(sfxUrl.current.key);
-    if (mine) { chanRef.current?.fx({ t: "key", i }); doQuest("key"); }
+    if (mine) { chanRef.current?.fx({ t: "key", i }); doQuest("asmr"); }
     setTimeout(() => {
       pressedRef.current = pressedRef.current.filter((n) => n !== i);
       setPressed(pressedRef.current);
@@ -921,7 +978,7 @@ function Town({ me, setMe, onKick }) {
     brokenRef.current = [...brokenRef.current, i];
     setBroken(brokenRef.current);
     crack(sfxUrl.current.ball);
-    if (mine) { chanRef.current?.fx({ t: "ball", i, r: "flower" }); doQuest("ball"); }
+    if (mine) { chanRef.current?.fx({ t: "ball", i, r: "flower" }); doQuest("asmr"); }
     setTimeout(() => {
       brokenRef.current = brokenRef.current.filter((n) => n !== i);
       setBroken(brokenRef.current);
@@ -1114,7 +1171,7 @@ function Town({ me, setMe, onKick }) {
           if (d < room.crunch.r && now - sfxAt.current > 380) {
             sfxAt.current = now;
             crunch(sfxUrl.current.sand);
-            doQuest("sand");
+            doQuest("asmr");
           }
         }
 
@@ -1204,9 +1261,8 @@ function Town({ me, setMe, onKick }) {
         doQuest("star");
       }
 
-      /* 가이드 — 조금 걸어보기 · 구름다리 건너 아랫섬 도착 */
+      /* 가이드 — 조금 걸어보면 체크 */
       if (walkRef.current > 700) doQuest("walk");
-      if (p.y > 1340) doQuest("bridge");
 
       const v = viewRef.current;
       const z = v.z || 1;
@@ -1751,6 +1807,28 @@ function Town({ me, setMe, onKick }) {
         </>
       )}
 
+      <button className="ccChip ccSetBtn" onClick={() => { setSetOpen((v) => !v); blip(700); }}>
+        ⚙ 설정
+      </button>
+      {setOpen && (
+        <div className="ccPanel ccSetPanel">
+          <div className="ccSetTitle">글꼴</div>
+          <div className="ccSetFonts">
+            {FONTS.map((f) => (
+              <button
+                key={f.id}
+                className={"ccSetFont" + (font === f.id ? " ccSetOn" : "")}
+                style={{ fontFamily: f.css }}
+                onClick={() => { setFont(f.id); blip(760); }}
+              >
+                {f.name}
+              </button>
+            ))}
+          </div>
+          <p className="ccSetNote">고른 글꼴은 이 기기에 저장돼요.</p>
+        </div>
+      )}
+
       <div className={"ccQuest" + (guideOpen ? "" : " ccQuestMin")}>
         <button
           className="ccQuestHead"
@@ -1919,6 +1997,28 @@ function Town({ me, setMe, onKick }) {
         </div>
       )}
 
+      {welcome && (
+        <div className="ccWelWrap" onClick={closeWelcome}>
+          <div className="ccWelCard" onClick={(e) => e.stopPropagation()}>
+            <span className="ccWelPin ccWelPinA" />
+            <span className="ccWelPin ccWelPinB" />
+            <span className="ccWelPin ccWelPinC" />
+            <span className="ccWelPin ccWelPinD" />
+            <div className="ccWelChars">
+              {CHARACTERS.slice(1, 5).map((c) => (
+                <Pix key={c.id} map={c.map} palette={c.palette} scale={3} cacheKey={"w-" + c.id} className="ccWelChar" />
+              ))}
+            </div>
+            <div className="ccWelTag">BETA</div>
+            <h2 className="ccWelTitle">베타테스트에<br />오신 걸 환영합니다</h2>
+            <p className="ccWelText">
+              오른쪽 <b className="ccWelHi">투두리스트</b>를 따라<br />게임을 즐겨보세요!
+            </p>
+            <button className="ccBtn ccWelBtn" onClick={closeWelcome}>놀러 가기</button>
+          </div>
+        </div>
+      )}
+
       {/* 재생바 — 방을 옮겨도 계속 나옵니다 */}
       {track && (
         <div className="ccPlayBar">
@@ -2019,8 +2119,10 @@ function Town({ me, setMe, onKick }) {
 const CSS = `
 *{box-sizing:border-box}
 html,body,#root{height:100%;margin:0}
-body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui,sans-serif;
+body{font-family:var(--ccFont,"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui,sans-serif);
   -webkit-font-smoothing:none;letter-spacing:.02em}
+/* 픽셀 글꼴이 아니면 계단현상을 끕니다 */
+body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:0}
 .ccRoot{position:fixed;inset:0;overflow:hidden;user-select:none;touch-action:none;color:${C.ink}}
 .ccPix{display:block;image-rendering:pixelated;image-rendering:crisp-edges;-webkit-user-drag:none}
 
@@ -2138,6 +2240,45 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
   background:#fff;font-family:inherit;font-size:10.5px;font-weight:700;color:${C.inkSoft};
   padding:6px;cursor:pointer}
 .ccQuestReset:active{transform:translate(2px,2px)}
+
+/* 설정 */
+.ccSetBtn{cursor:pointer;align-self:flex-end;background:#fff}
+.ccSetPanel{width:100%;padding:12px}
+.ccSetTitle{font-size:12px;font-weight:900;margin-bottom:8px;text-align:left}
+.ccSetFonts{display:flex;flex-direction:column;gap:5px}
+.ccSetFont{border:3px solid ${C.line};background:#fff;color:${C.ink};font-size:13px;font-weight:700;
+  padding:9px 10px;cursor:pointer;text-align:left;box-shadow:2px 2px 0 rgba(91,74,99,.18)}
+.ccSetFont:active{transform:translate(2px,2px);box-shadow:none}
+.ccSetOn{background:#ffe9a8;box-shadow:inset 0 0 0 3px #ffd45e,2px 2px 0 rgba(91,74,99,.18)}
+.ccSetNote{margin:9px 0 0;font-size:10px;font-weight:700;color:${C.inkSoft};text-align:left;line-height:1.55}
+
+/* 처음 온 사람 환영 팝업 — 픽셀 액자 */
+.ccWelWrap{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
+  padding:28px;background:rgba(91,74,99,.45);animation:ccWelIn .18s steps(2,end)}
+@keyframes ccWelIn{from{opacity:0}to{opacity:1}}
+.ccWelCard{position:relative;width:min(330px,88vw);padding:24px 22px 20px;text-align:center;
+  background:#fff;color:${C.ink};border:5px solid ${C.line};
+  box-shadow:0 0 0 5px #fff,0 0 0 10px ${C.line},10px 10px 0 rgba(91,74,99,.3);
+  animation:ccWelPop .22s steps(3,end)}
+@keyframes ccWelPop{from{transform:translateY(12px) scale(.94)}to{transform:none}}
+.ccWelPin{position:absolute;width:16px;height:16px;background:#ff8fb6;border:4px solid ${C.line};z-index:1;
+  animation:ccWelPin 1.4s steps(2,end) infinite}
+.ccWelPinA{left:-21px;top:-21px}
+.ccWelPinB{right:-21px;top:-21px;background:#ffd45e;animation-delay:.35s}
+.ccWelPinC{left:-21px;bottom:-21px;background:#8fe3c9;animation-delay:.7s}
+.ccWelPinD{right:-21px;bottom:-21px;background:#b6a6f0;animation-delay:1.05s}
+@keyframes ccWelPin{0%,100%{transform:scale(1)}50%{transform:scale(1.22)}}
+.ccWelChars{display:flex;justify-content:center;gap:6px;margin-bottom:10px}
+.ccWelChar{animation:ccWalk .5s steps(2,end) infinite}
+.ccWelChar:nth-child(2){animation-delay:.12s}
+.ccWelChar:nth-child(3){animation-delay:.24s}
+.ccWelChar:nth-child(4){animation-delay:.36s}
+.ccWelTag{display:inline-block;background:#ffd45e;border:3px solid ${C.line};padding:2px 11px;
+  font-size:11px;font-weight:900;letter-spacing:.14em;box-shadow:3px 3px 0 rgba(91,74,99,.25)}
+.ccWelTitle{margin:11px 0 9px;font-size:19px;font-weight:900;line-height:1.55}
+.ccWelText{margin:0;font-size:12.5px;font-weight:700;line-height:1.8;color:${C.inkSoft}}
+.ccWelHi{color:#c05a86}
+.ccWelBtn{width:100%;margin-top:17px}
 .ccHostTitle{font-weight:900;font-size:15px}
 .ccHostCount{font-size:12px;font-weight:700;color:${C.inkSoft};margin-top:3px}
 .ccHostList{list-style:none;margin:9px 0;padding:0;max-height:150px;overflow:auto;font-size:12px;font-weight:700;line-height:1.85}
