@@ -146,6 +146,38 @@ function applyCursor(on) {
   document.body.classList.toggle("ccPixCursor", !!on);
 }
 
+/* ---------- 이어하기 ----------
+   별과 꾸민 모습을 이 브라우저에 남깁니다. 0/1 문자열로 접어서 담아
+   한 사람당 200바이트 남짓밖에 안 돼요. 서버에는 아무것도 안 보냅니다. */
+/* 완주 보상 — 항목이 늘어나면 새로 다 깼을 때 한 번 더 줍니다.
+   at 은 '몇 개짜리 목록을 깨고 받았는지'. 목록이 커지면 다시 받을 수 있어요. */
+const BONUS_KEY = "ccBonus";
+const savedBonus = (() => {
+  try {
+    const raw = localStorage.getItem(BONUS_KEY);
+    if (!raw) return { total: 0, at: 0 };
+    if (raw === "1") return { total: CLEAR_BONUS, at: 0 };   // 예전 방식
+    const v = JSON.parse(raw);
+    return { total: Number(v?.total) || 0, at: Number(v?.at) || 0 };
+  } catch {
+    return { total: 0, at: 0 };
+  }
+})();
+
+const SAVE_KEY = "ccSave";
+const bits = (list) => list.map((b) => (b ? "1" : "0")).join("");
+const unbits = (str, n) => Array.from({ length: n }, (_, i) => str?.[i] === "1");
+
+const loadSave = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem(SAVE_KEY));
+    return v && typeof v === "object" ? v : null;
+  } catch {
+    return null;
+  }
+};
+const SAVED = loadSave();
+
 const savedCursor = (() => {
   try {
     return localStorage.getItem("ccCursor") !== "off";
@@ -758,7 +790,7 @@ function Town({ me, setMe, onKick }) {
   const [view, setView] = useState({ w: 1000, h: 700 });
   const [zoom, setZoom] = useState(1);
   const [nearId, setNearId] = useState(null);
-  const [stars, setStars] = useState(() => STAR_SPOTS.map(() => false));
+  const [stars, setStars] = useState(() => unbits(SAVED?.stars, STAR_SPOTS.length));
   const [toast, setToast] = useState("");
   const [room, setRoom] = useState(null);
   const [peers, setPeers] = useState([]);
@@ -776,8 +808,15 @@ function Town({ me, setMe, onKick }) {
   const [qi, setQi] = useState(0);           // 그중 몇 번째
   const [plName, setPlName] = useState("");
   const [sit, setSit] = useState(null);      // 앉아 있는 의자 번호
-  const [spent, setSpent] = useState(0);     // 메뉴 사면서 쓴 별
-  const [roomStars, setRoomStars] = useState({});   // 방마다 주운 별
+  const [spent, setSpent] = useState(() => Math.max(0, Number(SAVED?.spent) || 0));
+  const [roomStars, setRoomStars] = useState(() => {
+    const out = {};
+    Object.entries(SAVED?.rooms || {}).forEach(([id, str]) => {
+      const n = (ROOMS[id]?.stars || []).length;
+      if (n) out[id] = unbits(str, n);
+    });
+    return out;
+  });
   const [holding, setHolding] = useState(null);   // 들고 있는 메뉴
   const [broken, setBroken] = useState([]);  // 뿌셔진 왁뿌볼
   const [pressed, setPressed] = useState([]); // 눌린 키보드 키
@@ -814,13 +853,7 @@ function Town({ me, setMe, onKick }) {
     return !(typeof navigator !== "undefined" && (navigator.maxTouchPoints > 0 || "ontouchstart" in window));
   });
   const [justDone, setJustDone] = useState(null);   // 방금 체크된 항목 (반짝임)
-  const [bonus, setBonus] = useState(() => {
-    try {
-      return localStorage.getItem("ccBonus") === "1" ? CLEAR_BONUS : 0;
-    } catch {
-      return 0;
-    }
-  });
+  const [bonus, setBonus] = useState(savedBonus.total);
   const [welcome, setWelcome] = useState(() => {
     try {
       return localStorage.getItem("ccWelcome") !== "seen";
@@ -857,6 +890,7 @@ function Town({ me, setMe, onKick }) {
   });
   const [font, setFont] = useState(savedFont);
   const [pixCursor, setPixCursor] = useState(savedCursor);
+  const [wipeAsk, setWipeAsk] = useState(false);
 
   const track = queue[qi] || null;    // 지금 듣는 곡
 
@@ -894,6 +928,8 @@ function Town({ me, setMe, onKick }) {
   const histBox = useRef(null);
   const questRef = useRef(quests);
   const walkRef = useRef(0);      // 마을에서 걸은 거리
+  const bonusRef = useRef(savedBonus.total);
+  const bonusAt = useRef(savedBonus.at);   // 몇 개짜리 목록을 깨고 받았는지
   const welcomeRef = useRef(true);
   const rideRef = useRef(null);     // { at, ms, up }
   const rideLock = useRef(false);   // 도착하자마자 다시 타지 않도록
@@ -1126,12 +1162,19 @@ function Town({ me, setMe, onKick }) {
     blip(880);
     setTimeout(() => blip(1170), 110);
 
-    if (questRef.current.length >= QUESTS.length) {
-      /* 다 깼습니다 — 별 100개 */
-      setBonus(CLEAR_BONUS);
-      setToast(`🎉 다 해내셨어요! 별 ${CLEAR_BONUS}개를 받았습니다`);
+    if (questRef.current.length >= QUESTS.length && bonusAt.current < QUESTS.length) {
+      /* 다 깼습니다 — 별 100개. 항목이 늘어나면 다시 다 깰 때 또 받아요 */
+      const again = bonusAt.current > 0;
+      bonusAt.current = QUESTS.length;
+      bonusRef.current += CLEAR_BONUS;
+      setBonus(bonusRef.current);
+      setToast(
+        again
+          ? `🎉 새로 생긴 것까지 다 깼어요! 별 ${CLEAR_BONUS}개 더 받았습니다`
+          : `🎉 다 해내셨어요! 별 ${CLEAR_BONUS}개를 받았습니다`
+      );
       try {
-        localStorage.setItem("ccBonus", "1");
+        localStorage.setItem(BONUS_KEY, JSON.stringify({ total: bonusRef.current, at: bonusAt.current }));
       } catch {
         /* 무시 */
       }
@@ -1147,12 +1190,14 @@ function Town({ me, setMe, onKick }) {
     setQuests([]);
     setJustDone(null);
     setBonus(0);
+    bonusRef.current = 0;
+    bonusAt.current = 0;
     setWelcome(true);
     welcomeRef.current = true;
     try {
       localStorage.removeItem("ccQuests");
       localStorage.removeItem("ccWelcome");
-      localStorage.removeItem("ccBonus");
+      localStorage.removeItem(BONUS_KEY);
     } catch {
       /* 무시 */
     }
@@ -1892,6 +1937,19 @@ function Town({ me, setMe, onKick }) {
     return () => clearTimeout(t);
   }, [toast]);
 
+  /* 별을 줍거나 쓸 때마다 이 브라우저에 적어둡니다 */
+  useEffect(() => {
+    const rooms = {};
+    Object.entries(roomStars).forEach(([id, list]) => {
+      if (list?.some(Boolean)) rooms[id] = bits(list);
+    });
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, stars: bits(stars), rooms, spent }));
+    } catch {
+      /* 무시 */
+    }
+  }, [stars, roomStars, spent]);
+
   useEffect(() => {
     if (!collected) return undefined;
     setStarPop(true);
@@ -2300,7 +2358,30 @@ function Town({ me, setMe, onKick }) {
           >
             🎨 캐릭터 이미지 {me.role === "host" ? "관리" : "보기"}
           </button>
-          <p className="ccSetNote">고른 글꼴은 이 기기에 저장돼요.</p>
+          <button
+            className="ccSetFont ccSetWipe"
+            onClick={() => {
+              if (wipeAsk) {
+                ["ccSave", "ccQuests", "ccBonus", "ccLook", "ccOwned", "ccWelcome"].forEach((k) => {
+                  try {
+                    localStorage.removeItem(k);
+                  } catch {
+                    /* 무시 */
+                  }
+                });
+                window.location.reload();
+                return;
+              }
+              setWipeAsk(true);
+              blip(520);
+              setTimeout(() => setWipeAsk(false), 4000);
+            }}
+          >
+            {wipeAsk ? "정말 지울까요? (한 번 더)" : "이 브라우저 기록 지우기"}
+          </button>
+          <p className="ccSetNote">
+            별·꾸민 모습·투두는 이 브라우저에만 저장돼요. 서버로는 안 갑니다.
+          </p>
         </div>
       )}
 
@@ -2359,7 +2440,9 @@ function Town({ me, setMe, onKick }) {
             </ul>
             <p className="ccQuestFoot">
               {nextQuest
-                ? "위에서부터 하나씩 해보세요. 하면 저절로 체크돼요."
+                ? questDone > 0 && bonus > 0
+                  ? `새로 생긴 것까지 다 깨면 별 ${CLEAR_BONUS}개를 또 드려요.`
+                  : `위에서부터 하나씩 해보세요. 다 깨면 별 ${CLEAR_BONUS}개!`
                 : "다 해보셨어요! 이제 마음대로 놀아도 됩니다 🎉"}
             </p>
             {questDone > 0 && (
@@ -3192,6 +3275,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 
 /* 🎨 캐릭터 이미지 관리 */
 .ccSetSkinBtn{margin-top:8px;width:100%;text-align:center}
+.ccSetWipe{margin-top:6px;width:100%;text-align:center;font-size:11.5px;color:${C.inkSoft}}
 .ccSkins{width:min(400px,94vw);padding:18px;max-height:88vh;overflow:auto}
 .ccSkinAdd{display:flex;gap:10px;align-items:stretch;margin-bottom:10px}
 .ccSkinPick{flex:none;width:92px;height:92px;border:3px solid ${C.line};background:#f7f2fa;
