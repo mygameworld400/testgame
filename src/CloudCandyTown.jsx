@@ -369,7 +369,8 @@ function Stick({ onMove }) {
   const [base, setBase] = useState(null);   // 지금 잡고 있는 위치
 
   const begin = (x, y) => {
-    if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
+    const el = document.activeElement;
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.blur();
     active.current = true;
     origin.current = { x, y };
     setBase({ x, y });
@@ -1246,7 +1247,8 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => {
     const down = (e) => {
       const k = e.key.toLowerCase();
-      if (e.target instanceof HTMLInputElement) return;
+      const t = e.target;
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t?.isContentEditable) return;
       if (welcomeRef.current) {
         if (k === " " || k === "enter" || k === "escape") { e.preventDefault(); closeWelcome(); }
         return;
