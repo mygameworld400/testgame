@@ -2067,7 +2067,8 @@ export function MovieSheet({ me, hostCode, isHost, off = false, now, onPlay, onC
       setErr(
         r?.error === "no_file" ? "영상 파일을 골라주세요."
           : r?.error === "bad_url" ? "http 로 시작하는 주소를 넣어주세요."
-            : r?.error === "too_big" ? "60MB 이하로 줄여주세요. (npm run video 로 줄일 수 있어요)"
+            : r?.error === "bucket_limit" ? "보관함 용량 제한에 막혔어요. supabase/feedback.sql 을 다시 실행해주세요."
+              : r?.error === "too_big" ? "60MB 이하로 줄여주세요. (npm run video 로 줄일 수 있어요)"
               : r?.error === "bad_video" ? "영상을 읽지 못했어요. mp4 직접 링크인지 확인해주세요."
                 : msgOf(r)
       );

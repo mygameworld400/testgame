@@ -290,6 +290,10 @@ export async function uploadVideo(hostCode, file, title) {
   });
   if (up.error) {
     const msg = up.error.message || "";
+    /* 보관함 자체에 걸린 용량 제한에 막히면 따로 알려줍니다 */
+    if (/exceeded the maximum allowed size|payload too large|413/i.test(msg)) {
+      return { ok: false, error: "bucket_limit", message: msg };
+    }
     return { ok: false, error: /bucket/i.test(msg) ? "no_bucket" : "upload_failed", message: msg };
   }
 

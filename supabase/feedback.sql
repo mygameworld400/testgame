@@ -388,3 +388,11 @@ grant execute
 grant execute
   on function public.cc_score_top(text)
   to anon, authenticated;
+
+
+-- 📦 보관함 용량 늘리기 — 영상을 넣으려면 20MB 로는 모자랍니다
+
+update storage.buckets
+   set file_size_limit = 62914560,
+       public = true
+ where id = 'music';

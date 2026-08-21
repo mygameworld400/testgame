@@ -339,8 +339,8 @@ end; $$;
 
 /* ---------- 음악 파일 보관함(Storage) ---------- */
 insert into storage.buckets (id, name, public, file_size_limit)
-values ('music', 'music', true, 20971520)          -- 20MB 제한
-on conflict (id) do update set public = true, file_size_limit = 20971520;
+values ('music', 'music', true, 62914560)          -- 60MB (영상도 넣으려고 늘렸습니다)
+on conflict (id) do update set public = true, file_size_limit = 62914560;
 
 drop policy if exists "music 듣기" on storage.objects;
 create policy "music 듣기" on storage.objects
