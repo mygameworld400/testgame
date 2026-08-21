@@ -7,13 +7,17 @@ import { supabase } from "./room.js";
    =========================================================== */
 
 const SEND_MS = 125;
-const STALE_MS = 8000;
+const STALE_MS = 15000;   // 잠깐 끊겨도 바로 지우지 않게 넉넉히
 export const CHAT_MS = 3000;
 
-export function joinChannel({ round, me, getPose, onPeers, onChat, onFx }) {
+export function joinChannel({ round, me, getPose, onPeers, onChat, onFx, onLive }) {
   if (!supabase) return { stop: () => {}, chat: () => false };
 
   const peers = new Map();
+  let dead = false;          // stop() 이 불렸는지
+  let live = false;          // 지금 붙어 있는지
+  let retry = 0;             // 다시 붙기 시도 횟수
+  let retryTimer = null;
   const ch = supabase.channel(`cc-round-${round}`, {
     config: { broadcast: { self: false } },
   });
@@ -48,8 +52,44 @@ export function joinChannel({ round, me, getPose, onPeers, onChat, onFx }) {
   let sendTimer = null;
   let pruneTimer = null;
 
-  ch.subscribe((status) => {
-    if (status !== "SUBSCRIBED") return;
+  const setLive = (v) => {
+    if (live === v) return;
+    live = v;
+    onLive?.(v);
+  };
+
+  /* 끊기면 다시 붙습니다. 안 그러면 접속자가 나 혼자로 보이고
+     아무도 안 나타나요 (새로고침해야 돌아오던 문제) */
+  const rejoin = () => {
+    if (dead || live) return;
+    clearTimeout(retryTimer);
+    const wait = Math.min(8000, 600 * Math.pow(1.6, retry));
+    retry += 1;
+    retryTimer = setTimeout(() => {
+      if (dead || live) return;
+      try {
+        ch.subscribe(onStatus);
+      } catch {
+        rejoin();
+      }
+    }, wait);
+  };
+
+  function onStatus(status) {
+    if (dead) return;
+    if (status !== "SUBSCRIBED") {
+      /* CHANNEL_ERROR · TIMED_OUT · CLOSED */
+      setLive(false);
+      peers.clear();
+      push();
+      rejoin();
+      return;
+    }
+    retry = 0;
+    setLive(true);
+    /* 다시 붙었을 때 타이머가 겹치지 않게 */
+    clearInterval(sendTimer);
+    clearInterval(pruneTimer);
     /* 값이 그대로면 보내지 않습니다. 가만히 있을 때는 3초에 한 번만
        살아 있다는 신호를 보내요 — 실시간 메시지 사용량을 크게 줄여줍니다. */
     let lastSig = "";
@@ -86,7 +126,20 @@ export function joinChannel({ round, me, getPose, onPeers, onChat, onFx }) {
       });
       if (changed) push();
     }, 500);
-  });
+  }
+
+  ch.subscribe(onStatus);
+
+  /* 탭을 다시 보거나 인터넷이 돌아오면 바로 확인합니다 */
+  const wake = () => {
+    if (dead || live) return;
+    retry = 0;
+    rejoin();
+  };
+  const onVis = () => { if (!document.hidden) wake(); };
+  document.addEventListener("visibilitychange", onVis);
+  window.addEventListener("online", wake);
+  window.addEventListener("focus", wake);
 
   const bye = () => {
     try {
@@ -95,7 +148,9 @@ export function joinChannel({ round, me, getPose, onPeers, onChat, onFx }) {
       /* 무시 */
     }
   };
-  window.addEventListener("pagehide", bye);
+  /* pagehide 는 탭을 잠깐 감출 때도 불려서, 진짜 떠날 때만 인사합니다 */
+  const onPageHide = (e) => { if (!e.persisted) bye(); };
+  window.addEventListener("pagehide", onPageHide);
 
   return {
     chat(text, room) {
@@ -111,10 +166,16 @@ export function joinChannel({ round, me, getPose, onPeers, onChat, onFx }) {
     fx(data) {
       ch.send({ type: "broadcast", event: "fx", payload: { id: me.id, ...data } });
     },
+    live: () => live,
     stop() {
+      dead = true;
       clearInterval(sendTimer);
       clearInterval(pruneTimer);
-      window.removeEventListener("pagehide", bye);
+      clearTimeout(retryTimer);
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("online", wake);
+      window.removeEventListener("focus", wake);
       bye();
       supabase.removeChannel(ch);
     },

@@ -167,7 +167,7 @@ applyFont(savedFont);
 
 const STAR_SPOTS = [
   [300, 1480], [560, 1420], [780, 1710], [1000, 1380], [1180, 1480],
-  [1440, 1580], [980, 1110], [430, 1130], [1430, 1160], [700, 1760],
+  [1440, 1580], [980, 1110], [430, 1130], [1430, 1160], [700, 1620],
   /* 아랫섬 */
   [400, 2400], [1260, 2300], [980, 2200], [520, 2620], [1340, 2520],
   /* 윗동네 */
@@ -834,6 +834,7 @@ function Town({ me, setMe, onKick }) {
   const [staffPos, setStaffPos] = useState(null);  // 직원이 걸어다니는 자리
   const [staffWalk, setStaffWalk] = useState(false);
   const [skins, setSkins] = useState([]);          // 호스트가 올린 캐릭터 이미지
+  const [live, setLive] = useState(true);          // 실시간 연결 상태
 
   const [starPop, setStarPop] = useState(false);   // 별 개수가 바뀌면 통 튑니다
   /* 꾸미기 — 고른 모습과 사둔 것들 */
@@ -1070,6 +1071,9 @@ function Town({ me, setMe, onKick }) {
   /* 한 테이블에 둘이 앉으면 저희끼리 스몰토크 */
   const startPairTalk = useCallback((myChair, mateChair) => {
     if (talking.current) return;
+    /* 직원은 자리로 돌려보내고 둘이 이야기합니다 */
+    const home = ROOMS.cafe?.staff;
+    if (home) staffTo.current = { ...home };
     /* 두 사람 화면이 같은 대사를 고르도록 의자 번호로만 정합니다 */
     const lo = Math.min(myChair, mateChair);
     const t = SMALL_TALK[(myChair + mateChair * 3 + lo) % SMALL_TALK.length];
@@ -1242,9 +1246,14 @@ function Town({ me, setMe, onKick }) {
       return c && mine && c.t === mine.t && c.i !== sit;
     });
     const key = mate ? mate.st : null;
-    if (key === pairRef.current) return;
+    if (key == null) {
+      pairRef.current = null;
+      return;
+    }
+    if (pairRef.current === key) return;   // 이 사람과는 이미 했어요
+    if (talking.current) return;           // 직원이 말하는 중 — 끝나면 다시 옵니다
     pairRef.current = key;
-    if (key != null) startPairTalk(sit, key);
+    startPairTalk(sit, key);
   }, [scene, sit, peerView, startPairTalk]);
 
   const openBuilding = useCallback((id) => {
@@ -1717,6 +1726,7 @@ function Town({ me, setMe, onKick }) {
         lk: lookRef.current,
       }),
       onPeers: setPeers,
+      onLive: setLive,
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
       onFx: (e) => {
         if (!e) return;
@@ -2127,6 +2137,11 @@ function Town({ me, setMe, onKick }) {
         {me.role !== "solo" && (
           <div className="ccChip" title={roomPeers.map((p) => p.name).join(", ")}>
             {scene ? `이 방 ${roomPeers.length + 1}명` : `접속 ${online}명`}
+          </div>
+        )}
+        {me.role !== "solo" && !live && (
+          <div className="ccChip ccOffline" title="연결이 끊겨서 다른 사람이 안 보여요">
+            ⚠ 연결 끊김 · 다시 붙는 중…
           </div>
         )}
       </div>
@@ -2746,6 +2761,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccChipStar{flex:none}
 .ccStarNum{font-size:15px;font-weight:900;line-height:1}
 .ccStarSub{font-size:10.5px;font-weight:700;color:${C.inkSoft}}
+.ccOffline{background:#ffe2e2;color:#b8474b;animation:ccBlink 1.2s steps(2,end) infinite}
 .ccStarPop{animation:ccStarPop .42s steps(3,end)}
 @keyframes ccStarPop{0%{transform:scale(1)}40%{transform:scale(1.16)}100%{transform:scale(1)}}
 
