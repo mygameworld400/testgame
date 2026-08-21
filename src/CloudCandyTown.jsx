@@ -3,9 +3,10 @@ import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHost
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
-import { FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
+import { DressSheet, FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
 import { findSfx, quizPacks, trackList, trackUrl } from "./content.js";
-import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
+import { BUILDING_SPRITES, CHARACTERS, DECO, DEFAULT_LOOK, charForSlot, grassTile, lookSprite, pathTile } from "./sprites.js";
+import { Pix } from "./pix.jsx";
 
 /* ===========================================================
    메롱 — 구름 위에 떠 있는 픽셀 마을
@@ -80,6 +81,12 @@ const BUILDINGS = [
       "따끈한 거 한 잔 하고 가세요. 구름 라떼가 잘 나가요.",
       "창가 자리 비었어요. 아래로 마을이 다 내려다보여요.",
       "여긴 아무것도 안 해도 되는 곳이에요. 편하게 앉으세요.",
+    ] },
+  { id: "dress", name: "구름옷가게", emoji: "👗", tag: "꾸미기", x: 1080, y: 1650, scale: 9,
+    lines: [
+      "오늘은 뭘 입어볼까요? 거울 앞에 서보세요.",
+      "리본은 아무한테나 잘 어울려요. 진짜예요.",
+      "여기 옷은 전부 구름실로 짰어요. 가볍죠?",
     ] },
   { id: "carousel", name: "떵개방", emoji: "🍜", tag: "먹방", x: 1160, y: 880, scale: 10,
     lines: [
@@ -267,19 +274,6 @@ function blockBox(b) {
 
 /* ============================ 픽셀 그리기 ============================ */
 
-function Pix({ map, palette, scale, cacheKey, className, style, alt = "" }) {
-  const url = useMemo(() => spriteURL(map, palette, cacheKey), [map, palette, cacheKey]);
-  return (
-    <img
-      src={url}
-      alt={alt}
-      draggable={false}
-      className={"ccPix " + (className || "")}
-      style={{ width: map[0].length * scale, height: map.length * scale, ...style }}
-    />
-  );
-}
-
 /* ============================ 건물 ============================ */
 
 function Building({ b, near }) {
@@ -299,8 +293,8 @@ function Building({ b, near }) {
 
 /* ============================ 캐릭터 ============================ */
 
-function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false, hold = null, slide = false }) {
-  const ch = charForSlot(slot);
+function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false, hold = null, slide = false, look = null }) {
+  const ch = look ? lookSprite(look) : charForSlot(slot);
   return (
     <div
       className={"ccAvatar" + (swim ? " ccSwim" : "") + (slide ? " ccSliding" : "")}
@@ -322,7 +316,7 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = f
         map={ch.map}
         palette={ch.palette}
         scale={PX}
-        cacheKey={"c-" + ch.id}
+        cacheKey={ch.key || "c-" + ch.id}
         className={(moving ? "ccWalk " : "") + (facing < 0 ? "ccFlip" : "")}
       />
       {swim && <div className="ccTube ccTubeFront" />}
@@ -684,7 +678,7 @@ function Town({ me, setMe, onKick }) {
   const [chatText, setChatText] = useState("");
   const [scene, setScene] = useState(null);      // null = 마을, 아니면 건물 id
   const [zoneId, setZoneId] = useState(null);    // 방 안에서 가까이 있는 설치물
-  const [sheet, setSheet] = useState(null);      // 'lp' | 'quiz'
+  const [sheet, setSheet] = useState(null);      // 'lp' | 'quiz' | 'dress' …
   const [wave, setWave] = useState(0);
   const [chatLog, setChatLog] = useState([]);
   const [history, setHistory] = useState([]);   // 이번 회차 대화 기록
@@ -742,6 +736,24 @@ function Town({ me, setMe, onKick }) {
   const [riding, setRiding] = useState(false);     // 미끄럼틀 타는 중
   const [talk, setTalk] = useState(null);          // 앉았을 때 오가는 말 { who, text }
   const [starPop, setStarPop] = useState(false);   // 별 개수가 바뀌면 통 튑니다
+  /* 꾸미기 — 고른 모습과 사둔 것들 */
+  const [look, setLook] = useState(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("ccLook"));
+      if (v && typeof v === "object") return { ...DEFAULT_LOOK, ...v };
+    } catch {
+      /* 무시 */
+    }
+    return { ...DEFAULT_LOOK, f: me.slot || 1, h: me.role === "host" ? "crown" : "none" };
+  });
+  const [owned, setOwned] = useState(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("ccOwned"));
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  });
   const [font, setFont] = useState(savedFont);
 
   const track = queue[qi] || null;    // 지금 듣는 곡
@@ -784,6 +796,7 @@ function Town({ me, setMe, onKick }) {
   const rideRef = useRef(null);     // { at, ms, up }
   const rideLock = useRef(false);   // 도착하자마자 다시 타지 않도록
   const talkTimers = useRef([]);
+  const lookRef = useRef(look);
   const myMsgTimer = useRef(null);
 
   useEffect(() => { openRef.current = !!sheet; sheetRef.current = sheet; }, [sheet]);
@@ -793,6 +806,7 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { brokenRef.current = broken; }, [broken]);
   useEffect(() => { pressedRef.current = pressed; }, [pressed]);
   useEffect(() => { welcomeRef.current = welcome; }, [welcome]);
+  useEffect(() => { lookRef.current = look; }, [look]);
   useEffect(() => () => talkTimers.current.forEach(clearTimeout), []);
   useEffect(() => {
     applyFont(font);
@@ -814,6 +828,32 @@ function Town({ me, setMe, onKick }) {
   const collected = stars.filter(Boolean).length + roomTaken;
   const balance = Math.max(0, collected - spent);
   const online = me.role === "solo" ? 1 : peers.length + 1;
+
+  /* 꾸미기 — 안 산 건 별을 내고 삽니다 */
+  const applyLook = useCallback((next, cost, key) => {
+    if (cost > 0) {
+      if (balance < cost) return;
+      setSpent((v) => v + cost);
+      setOwned((v) => {
+        const list = v.includes(key) ? v : [...v, key];
+        try {
+          localStorage.setItem("ccOwned", JSON.stringify(list));
+        } catch {
+          /* 무시 */
+        }
+        return list;
+      });
+      setToast(`별 ${cost}개로 샀어요`);
+    }
+    setLook(next);
+    lookRef.current = next;
+    try {
+      localStorage.setItem("ccLook", JSON.stringify(next));
+    } catch {
+      /* 무시 */
+    }
+    blip(880);
+  }, [balance]);
 
   /* 앉으면 오가는 이야기 — 두 마디씩 주고받고 끝납니다 */
   const clearSeatTalk = useCallback(() => {
@@ -1418,6 +1458,7 @@ function Town({ me, setMe, onKick }) {
         st: sitRef.current == null ? -1 : sitRef.current,
         w: waitRef.current,
         hd: holdRef.current,
+        lk: lookRef.current,
       }),
       onPeers: setPeers,
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
@@ -1530,6 +1571,8 @@ function Town({ me, setMe, onKick }) {
       setRoom(s?.ok ? s : null);
       if (s?.ok && me.round && s.round !== me.round) {
         onKick(`${s.round}번 테스트가 시작됐어요. 다시 입장해주세요.`);
+      } else if (s?.ok && s.closed && me.role !== "host") {
+        onKick("베타테스트가 끝났어요. 다음에 다시 와주세요.");
       }
     };
     tick();
@@ -1674,6 +1717,7 @@ function Town({ me, setMe, onKick }) {
                     swim={inWater(R, q.x, q.y)}
                     waiting={!!q.w}
                     hold={q.hd >= 0 ? MENU[q.hd]?.emoji : null}
+                    look={q.lk}
                   />
                 );
               })}
@@ -1690,6 +1734,7 @@ function Town({ me, setMe, onKick }) {
                 swim={inWater(R, pos.x, pos.y)}
                 waiting={!!waitRef.current && !!myGid}
                 hold={holding?.emoji || null}
+                look={look}
               />
             </div>
           </div>
@@ -1781,6 +1826,7 @@ function Town({ me, setMe, onKick }) {
             msg={p.msg}
             waiting={!!p.w}
             hold={p.hd >= 0 ? MENU[p.hd]?.emoji : null}
+            look={p.lk}
           />
             ))}
 
@@ -1796,6 +1842,7 @@ function Town({ me, setMe, onKick }) {
           waiting={!!waitRef.current && !!myGid}
           hold={holding?.emoji || null}
           slide={riding}
+          look={look}
         />
           </div>
         </>
@@ -1808,7 +1855,7 @@ function Town({ me, setMe, onKick }) {
             ← {R.emoji} {R.name} 나가기
           </button>
         )}
-        <div className="ccChip">{me.role === "host" ? "왕관" : charForSlot(me.slot).label} · {me.name}</div>
+        <div className="ccChip">{lookSprite(look).label} · {me.name}</div>
         <div
           className={"ccChip ccStarChip" + (starPop ? " ccStarPop" : "")}
           title={spent > 0 ? `모은 별 ${collected}개 · 쓴 별 ${spent}개` : "주운 별"}
@@ -2107,6 +2154,15 @@ function Town({ me, setMe, onKick }) {
               balance={balance}
               holding={holding}
               onBuy={buyMenu}
+              onClose={() => setSheet(null)}
+            />
+          )}
+          {sheet === "dress" && (
+            <DressSheet
+              look={look}
+              owned={owned}
+              balance={balance}
+              onApply={applyLook}
               onClose={() => setSheet(null)}
             />
           )}
@@ -2735,6 +2791,32 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
 .ccModalWrap{position:absolute;inset:0;background:rgba(91,74,99,.45);display:flex;align-items:center;
   justify-content:center;padding:20px}
 .ccModal{width:min(400px,92vw);padding:22px;text-align:center}
+
+/* 👗 꾸미기 */
+.ccDress{width:min(380px,94vw);padding:18px;max-height:88vh;overflow:auto}
+.ccDressMirror{display:flex;align-items:flex-end;justify-content:center;height:132px;margin:4px 0 8px;
+  background:repeating-linear-gradient(180deg,#f3ecff 0 8px,#ede4ff 8px 16px);
+  border:4px solid ${C.line};box-shadow:inset 0 0 0 4px #fbf6ff}
+.ccDressStars{font-size:12px;font-weight:800;color:${C.inkSoft};margin-bottom:10px}
+.ccDressTabs{display:flex;gap:6px;justify-content:center;margin-bottom:10px}
+.ccMiniOn{background:#ffd45e;font-weight:800}
+.ccDressGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:4px}
+.ccDressCell{position:relative;border:3px solid ${C.line};background:#fff;color:${C.ink};
+  font-family:inherit;font-size:12px;font-weight:700;padding:11px 4px 15px;cursor:pointer;
+  box-shadow:2px 2px 0 rgba(91,74,99,.2);display:flex;flex-direction:column;align-items:center;gap:5px}
+.ccDressCell:active{transform:translate(2px,2px);box-shadow:none}
+.ccDressOn{background:#fff6dc;box-shadow:inset 0 0 0 3px #ffd45e,2px 2px 0 rgba(91,74,99,.2)}
+.ccDressLocked{color:${C.inkSoft}}
+.ccDressLabel{line-height:1.2}
+.ccDressChip{width:26px;height:14px;border:3px solid ${C.line}}
+.ccDressPrice{position:absolute;left:0;right:0;bottom:-1px;font-size:10px;font-weight:800;
+  background:#ffe9a8;border-top:3px solid ${C.line};padding:1px 0}
+.ccDressHave{position:absolute;left:0;right:0;bottom:-1px;font-size:9.5px;font-weight:700;
+  color:${C.inkSoft};background:#f4eff6;border-top:3px solid ${C.line};padding:1px 0}
+.ccDressAsking{box-shadow:inset 0 0 0 3px #ff8fb6,2px 2px 0 rgba(91,74,99,.2)}
+.ccDressAsk{display:flex;flex-direction:column;gap:8px;align-items:center;margin-top:10px;
+  border:3px solid ${C.line};background:#fff6dc;padding:10px;font-size:12px;font-weight:700}
+.ccDressAskBtns{display:flex;gap:8px}
 .ccModalEmoji{font-size:42px;line-height:1}
 .ccModalTag{display:inline-block;margin-top:10px;border:2px solid ${C.line};padding:2px 10px;font-size:11px;font-weight:700;background:#ffe9a8}
 .ccModalName{margin:9px 0 8px;font-size:19px;font-weight:900}

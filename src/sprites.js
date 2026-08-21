@@ -66,7 +66,6 @@ export const CHARACTERS = [
   },
 ];
 
-/* 슬롯 번호 → 캐릭터. 0 은 호스트, 1~5 는 게스트 */
 /* 슬롯 → 캐릭터. 0 은 호스트(왕관)이고, 게스트는 캐릭터를 돌려 씁니다.
    인원 제한이 없어서 슬롯이 캐릭터 수보다 커질 수 있거든요. */
 export const charForSlot = (slot) => {
@@ -75,6 +74,54 @@ export const charForSlot = (slot) => {
   const guests = CHARACTERS.length - 1;
   return CHARACTERS[1 + ((n - 1) % guests)];
 };
+
+/* ---------- 꾸미기 ----------
+   머리는 캐릭터 그림의 맨 위 두 줄을 갈아 끼우는 방식입니다.
+   (캐릭터마다 다른 게 원래 그 두 줄이거든요) */
+
+export const FACES = CHARACTERS.slice(1).map((c, i) => ({ i: i + 1, id: c.id, label: c.label }));
+
+export const HATS = [
+  { id: "none", label: "그대로", price: 0, top: null },
+  { id: "ribbon", label: "리본", price: 2, top: ["..oo......oo..", ".oyyo....oyyo."], y: "#ff8fb6" },
+  { id: "flower", label: "꽃", price: 2, top: ["...oyo........", "..oyyyo......."], y: "#ff9ec4" },
+  { id: "star", label: "별", price: 3, top: ["......oo......", "....ooyyoo...."], y: "#ffd45e" },
+  { id: "horn", label: "뿔", price: 3, top: ["...o......o...", "..oyo....oyo.."], y: "#b6a6f0" },
+  { id: "cap", label: "모자", price: 4, top: ["..oooooooooo..", "..oyyyyyyyyo.."], y: "#4aa8e6" },
+  { id: "crown", label: "왕관", price: 6, top: ["...oyoyoyoyo..", "...oyyyyyyyo.."], y: "#ffd45e" },
+];
+
+export const OUTFITS = [
+  { id: "none", label: "그대로", price: 0, c: null },
+  { id: "pink", label: "분홍", price: 1, c: "#ff8fb6" },
+  { id: "mint", label: "민트", price: 1, c: "#4ec9a6" },
+  { id: "sky", label: "하늘", price: 1, c: "#4aa8e6" },
+  { id: "lemon", label: "레몬", price: 1, c: "#f0c93f" },
+  { id: "grape", label: "포도", price: 2, c: "#8b74e0" },
+  { id: "coral", label: "산호", price: 2, c: "#f0764e" },
+  { id: "cloud", label: "구름", price: 3, c: "#dfe9ff" },
+  { id: "ink", label: "먹색", price: 3, c: "#5b4a63" },
+];
+
+export const DEFAULT_LOOK = { f: 1, h: "none", o: "none" };
+
+/* 꾸민 모습 하나를 그림으로 만들어 줍니다 */
+export function lookSprite(look) {
+  const lk = look || DEFAULT_LOOK;
+  const base = charForSlot(lk.f || 1);
+  const hat = HATS.find((h) => h.id === lk.h) || HATS[0];
+  const out = OUTFITS.find((o) => o.id === lk.o) || OUTFITS[0];
+  const palette = { ...base.palette };
+  if (hat.y) palette.y = hat.y;
+  if (out.c) palette.c = out.c;
+  return {
+    id: base.id,
+    label: base.label,
+    map: [...(hat.top || base.map.slice(0, 2)), ...base.map.slice(2)],
+    palette,
+    key: `lk-${base.id}-${hat.id}-${out.id}`,
+  };
+}
 
 /* ---------- 건물 (24 x 22) ----------
    o 외곽선 · r 지붕 · R 지붕그늘 · b 몸통 · w 유리 · W 크림/흰색
@@ -302,6 +349,38 @@ export const BUILDING_SPRITES = {
     palette: {
       o: "#8a5a3c", r: "#ffb9a8", W: "#fff4ec", b: "#fff8f0", w: "#cdeeff",
       d: "#ffd9c0", p: "#ffffff", g: "#8fd8a8", a: "#e08a5c",
+    },
+  },
+
+  /* 👗 구름옷가게 — 리본 간판 + 줄무늬 차양 + 진열창 두 개 */
+  dress: {
+    map: [
+      ".........oooooo.........",
+      "........oaa..aao........",
+      "........oaaooaao........",
+      "........o.aaaa.o........",
+      "........oa.aa.ao........",
+      ".........oooooo.........",
+      "..oooooooooooooooooooo..",
+      "..WWrrWWrrWWrrWWrrWWrr..",
+      "..WWrrWWrrWWrrWWrrWWrr..",
+      "..oooooooooooooooooooo..",
+      "..obbbbbbbbbbbbbbbbbbo..",
+      "..oooooooboooobooooooo..",
+      "..oowwwwoboddobowwwwoo..",
+      "..oowaawoboddobowaawoo..",
+      "..oowaawoboddobowaawoo..",
+      "..ooaaaaoboddoboaaaaoo..",
+      "..ooaaaaoboddoboaaaaoo..",
+      "..oowwwwoboddobowwwwoo..",
+      "..oooooooboddobooooooo..",
+      "..obbbbbbboddobbbbbbbo..",
+      "..obbbbbbboddobbbbbbbo..",
+      "..oooooooooooooooooooo..",
+    ],
+    palette: {
+      o: "#7a5a8c", r: "#b6a6f0", W: "#fff0ff", b: "#fdf4ff", w: "#e9dcff",
+      d: "#d9c4f2", a: "#ff8fb6", g: "#8fd8a8", k: "#7a5a8c",
     },
   },
 };

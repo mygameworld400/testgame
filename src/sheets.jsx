@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { blip, buzz, ding } from "./sfx.js";
 import { MENU } from "./rooms.jsx";
+import { Pix } from "./pix.jsx";
+import { FACES, HATS, OUTFITS, lookSprite } from "./sprites.js";
 
 import { DAY, SFX_PREFIX, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
@@ -1081,6 +1083,130 @@ export function MenuSheet({ balance, holding, onBuy, onClose }) {
 
       {msg && <p className="ccSheetNote">{msg}</p>}
       <p className="ccSheetNote">별은 마을을 돌아다니며 주울 수 있어요.</p>
+    </div>
+  );
+}
+
+/* ---------- 👗 꾸미기 ----------
+   얼굴은 공짜, 머리와 옷 색은 별로 삽니다. 한 번 사면 계속 갖고 있어요. */
+
+const DRESS_TABS = [
+  { id: "face", label: "얼굴" },
+  { id: "hat", label: "머리" },
+  { id: "outfit", label: "옷 색" },
+];
+
+export function DressSheet({ look, owned, balance, onApply, onClose }) {
+  const [tab, setTab] = useState("face");
+  const [err, setErr] = useState("");
+  const [pending, setPending] = useState(null);   // 살지 물어보는 중
+  const me = lookSprite(look);
+
+  const nextLook = (kind, item) =>
+    kind === "f" ? { ...look, f: item.i } : kind === "h" ? { ...look, h: item.id } : { ...look, o: item.id };
+
+  const pick = (kind, item) => {
+    const key = kind + ":" + item.id;
+    const have = item.price === 0 || owned.includes(key);
+    if (have) {
+      setErr("");
+      setPending(null);
+      onApply(nextLook(kind, item), 0, key);
+      return;
+    }
+    if (balance < item.price) {
+      buzz();
+      setPending(null);
+      setErr(`별이 ${item.price - balance}개 모자라요.`);
+      return;
+    }
+    /* 실수로 별을 쓰지 않게 한 번 물어봅니다 */
+    setErr("");
+    setPending({ kind, item, key });
+    blip(700);
+  };
+
+  const confirm = () => {
+    if (!pending) return;
+    onApply(nextLook(pending.kind, pending.item), pending.item.price, pending.key);
+    setPending(null);
+  };
+
+  const cell = (kind, item, on, label, sub) => {
+    const key = kind + ":" + item.id;
+    const have = item.price === 0 || owned.includes(key);
+    return (
+      <button
+        key={item.id}
+        className={
+          "ccDressCell" +
+          (on ? " ccDressOn" : "") +
+          (have ? "" : " ccDressLocked") +
+          (pending?.key === key ? " ccDressAsking" : "")
+        }
+        onClick={() => pick(kind, item)}
+      >
+        <span className="ccDressLabel">{label}</span>
+        {sub}
+        {!have && <span className="ccDressPrice">⭐{item.price}</span>}
+        {have && item.price > 0 && <span className="ccDressHave">가짐</span>}
+      </button>
+    );
+  };
+
+  return (
+    <div className="ccPanel ccModal ccDress" onClick={(e) => e.stopPropagation()}>
+      <div className="ccSheetHead">
+        <h2 className="ccSheetTitle">👗 꾸미기</h2>
+        <button className="ccX" onClick={onClose}>✕</button>
+      </div>
+
+      <div className="ccDressMirror">
+        <Pix map={me.map} palette={me.palette} scale={7} cacheKey={me.key} />
+      </div>
+      <div className="ccDressStars">남은 별 ⭐ {balance}</div>
+
+      <div className="ccDressTabs">
+        {DRESS_TABS.map((x) => (
+          <button
+            key={x.id}
+            className={"ccMini" + (tab === x.id ? " ccMiniOn" : "")}
+            onClick={() => { setTab(x.id); blip(700); }}
+          >
+            {x.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="ccDressGrid">
+        {tab === "face" &&
+          FACES.map((f) => cell("f", { ...f, price: 0 }, (look.f || 1) === f.i, f.label, null))}
+        {tab === "hat" && HATS.map((h) => cell("h", h, look.h === h.id, h.label, null))}
+        {tab === "outfit" &&
+          OUTFITS.map((o) =>
+            cell(
+              "o",
+              o,
+              look.o === o.id,
+              o.label,
+              <span className="ccDressChip" style={{ background: o.c || "#ffffff" }} />
+            )
+          )}
+      </div>
+
+      {pending && (
+        <div className="ccDressAsk">
+          <span>
+            <b>{pending.item.label}</b> — ⭐{pending.item.price} 주고 살까요?
+          </span>
+          <span className="ccDressAskBtns">
+            <button className="ccMini ccMiniOn" onClick={confirm}>사기</button>
+            <button className="ccMini" onClick={() => setPending(null)}>그만</button>
+          </span>
+        </div>
+      )}
+      {err && <div className="ccErr">{err}</div>}
+      <p className="ccSheetNote">고른 모습은 이 기기에 저장되고, 같이 있는 사람들에게도 그대로 보여요.</p>
     </div>
   );
 }

@@ -186,6 +186,27 @@ export const ROOMS = {
     ],
   },
 
+  /* 👗 구름옷가게 — 전신거울 앞에서 꾸밉니다 */
+  dress: {
+    id: "dress",
+    name: "구름옷가게",
+    emoji: "👗",
+    floor: "#efe6ff",
+    floorLine: "#efe6ff",
+    wall: "#faf5ff",
+    wallDark: "#cdb9ee",
+    side: "#f5eeff",
+    accent: "#8b74e0",
+    hint: "가운데 전신거울 앞에 서면 꾸밀 수 있어요",
+    play: PLAY,
+    blocks: [box(500, 120, 220, 150)],
+    stars: [{ x: 150, y: 430 }, { x: 860, y: 430 }, { x: 500, y: 470 }],
+    zones: [
+      { id: "dress", x: 500, y: 300, r: 130, label: "꾸미기" },
+      { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
+    ],
+  },
+
   /* 🍜 떵개방 — 준비중 */
   carousel: {
     id: "carousel",
@@ -244,6 +265,7 @@ export function RoomStage({ room, children, waterPhase, seats = [], broken = [],
       {R.id === "flower" && <SandProps R={R} broken={broken} pressed={pressed} />}
       {R.id === "carousel" && <GachaProps R={R} />}
       {R.id === "cafe" && <CafeProps R={R} seats={seats} />}
+      {R.id === "dress" && <DressProps />}
 
       {/* 문 */}
       <Door />
@@ -636,6 +658,48 @@ function CafeProps({ R, seats = [] }) {
           </g>
         );
       })}
+    </g>
+  );
+}
+
+/* 옷가게 — 전신거울 + 양옆 옷걸이 */
+function DressProps() {
+  const m = proj(500, 120);
+  const k = m.k;
+  const rack = (x) => {
+    const p = proj(x, 320);
+    const s = p.k;
+    return (
+      <g key={x}>
+        <rect x={p.sx - 52 * s} y={p.sy - 140 * s} width={104 * s} height={12 * s}
+          fill="#8b74e0" stroke="#5b4a63" strokeWidth="4" />
+        <rect x={p.sx - 6 * s} y={p.sy - 132 * s} width={12 * s} height={132 * s}
+          fill="#cdb9ee" stroke="#5b4a63" strokeWidth="4" />
+        {["#ff8fb6", "#ffd45e", "#8fe3c9", "#4aa8e6"].map((c, i) => (
+          <g key={i}>
+            <rect x={p.sx + (-40 + i * 26) * s} y={p.sy - 132 * s} width={4 * s} height={14 * s} fill="#5b4a63" />
+            <rect x={p.sx + (-48 + i * 26) * s} y={p.sy - 120 * s} width={20 * s} height={58 * s}
+              fill={c} stroke="#5b4a63" strokeWidth="4" />
+          </g>
+        ))}
+      </g>
+    );
+  };
+  return (
+    <g>
+      {rack(180)}
+      {rack(820)}
+      {/* 전신거울 */}
+      <rect x={m.sx - 130 * k} y={m.sy - 300 * k} width={260 * k} height={310 * k}
+        fill="#8b74e0" stroke="#5b4a63" strokeWidth="7" />
+      <rect x={m.sx - 108 * k} y={m.sy - 280 * k} width={216 * k} height={272 * k} fill="#e9dcff" />
+      <rect x={m.sx - 108 * k} y={m.sy - 280 * k} width={62 * k} height={272 * k} fill="#fbf6ff" opacity="0.9" />
+      <rect x={m.sx - 108 * k} y={m.sy - 280 * k} width={216 * k} height={16 * k} fill="#c9b8ff" />
+      <rect x={m.sx - 46 * k} y={m.sy + 8 * k} width={92 * k} height={22 * k}
+        fill="#8b74e0" stroke="#5b4a63" strokeWidth="5" />
+      {/* 발판 */}
+      <ellipse cx={proj(500, 300).sx} cy={proj(500, 300).sy} rx={120 * proj(500, 300).k} ry={44 * proj(500, 300).k}
+        fill="#e2d3ff" stroke="#8b74e0" strokeWidth="5" />
     </g>
   );
 }
