@@ -4,7 +4,7 @@ import { MENU } from "./rooms.jsx";
 import { Pix } from "./pix.jsx";
 import { FACES, HATS, OUTFITS, lookSprite } from "./sprites.js";
 
-import { DAY, SFX_PREFIX, fbAdd, fbDel, fbList, prepSkin, skinAdd, skinDel, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { DAY, SFX_PREFIX, fbAdd, fbDel, fbList, ideaAdd, ideaDel, ideaList, prepSkin, skinAdd, skinDel, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -1384,7 +1384,15 @@ export function SkinSheet({ hostCode, isHost, skins = [], onChanged, onClose }) 
 /* ---------- 📮 우체통 ----------
    "생겼으면 하는 캐릭터를 적어주세요!" — 적은 것은 회차별로 남습니다. */
 
-export function WishSheet({ round, name, hostCode, isHost, off = false, onSent, onClose }) {
+/* 우체통과 팻말이 같은 창을 씁니다 — 제목·문구·저장할 곳만 바꿔서 */
+export const WISH_BOX = { title: "📮 우체통", ask: "생겼으면 하는 캐릭터를\n적어주세요!",
+  ph: "예: 구름 강아지, 병아리 모자 쓴 애…", note: "적어주신 건 테스트 회차별로 남아요. 호스트가 보고 만들어봅니다.",
+  api: { add: wishAdd, list: wishList, del: wishDel } };
+export const IDEA_BOX = { title: "🪧 윗동네", ask: "여기 뭐 만들지..?",
+  ph: "예: 노래방, 도서관, 별 낚시터…", note: "이 섬은 아직 비어 있어요. 적어주신 걸 보고 채워봅니다.",
+  api: { add: ideaAdd, list: ideaList, del: ideaDel } };
+
+export function WishSheet({ box = WISH_BOX, round, name, hostCode, isHost, off = false, onSent, onClose }) {
   const [body, setBody] = useState("");
   const [list, setList] = useState(null);
   const [all, setAll] = useState(false);      // 호스트: 지난 회차까지 몰아 보기
@@ -1394,10 +1402,10 @@ export function WishSheet({ round, name, hostCode, isHost, off = false, onSent, 
 
   const load = useCallback(async () => {
     if (off) { setList([]); return; }
-    const r = await wishList(all ? null : round);
+    const r = await box.api.list(all ? null : round);
     if (Array.isArray(r)) { setList(r); setErr(""); }
     else { setList([]); setErr(msgOf(r)); }
-  }, [all, round, off]);
+  }, [all, round, off, box]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1405,7 +1413,7 @@ export function WishSheet({ round, name, hostCode, isHost, off = false, onSent, 
     const t = body.trim();
     if (!t) { setErr("한 줄만 적어주세요."); return; }
     setBusy(true);
-    const r = await wishAdd(round, name, t);
+    const r = await box.api.add(round, name, t);
     setBusy(false);
     if (!r?.ok) { setErr(r?.error === "too_many" ? "이번 회차 우체통이 꽉 찼어요." : msgOf(r)); buzz(); return; }
     setErr("");
@@ -1418,7 +1426,7 @@ export function WishSheet({ round, name, hostCode, isHost, off = false, onSent, 
   };
 
   const del = async (id) => {
-    const r = await wishDel(hostCode, id);
+    const r = await box.api.del(hostCode, id);
     if (r?.ok) load();
     else setErr(msgOf(r));
   };
@@ -1426,18 +1434,18 @@ export function WishSheet({ round, name, hostCode, isHost, off = false, onSent, 
   return (
     <div className="ccPanel ccModal ccWish" onClick={(e) => e.stopPropagation()}>
       <div className="ccSheetHead">
-        <h2 className="ccSheetTitle">📮 우체통</h2>
+        <h2 className="ccSheetTitle">{box.title}</h2>
         <button className="ccX" onClick={onClose}>✕</button>
       </div>
 
-      <p className="ccWishAsk">생겼으면 하는 캐릭터를<br />적어주세요!</p>
+      <p className="ccWishAsk">{box.ask}</p>
 
       <div className="ccWishRow">
         <input
           className="ccInput ccWishInput"
           value={body}
           maxLength={120}
-          placeholder={off ? "혼자 둘러보기에서는 못 넣어요" : "예: 구름 강아지, 병아리 모자 쓴 애…"}
+          placeholder={off ? "혼자 둘러보기에서는 못 넣어요" : box.ph}
           disabled={off}
           onChange={(e) => setBody(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") send(); }}
@@ -1452,7 +1460,7 @@ export function WishSheet({ round, name, hostCode, isHost, off = false, onSent, 
 
       {off ? (
         <p className="ccSheetNote ccWishOff">
-          서버 없이 둘러보는 중이라 우체통은 비어 있어요.
+          서버 없이 둘러보는 중이라 비어 있어요.
           <br />
           테스트에 입장해서 넣으면 회차별로 남습니다.
         </p>
@@ -1460,7 +1468,7 @@ export function WishSheet({ round, name, hostCode, isHost, off = false, onSent, 
         <>
           <div className="ccWishHead">
             <span>
-              {all ? "지금까지 들어온 것" : round != null ? `${round}번 테스트 우체통` : "우체통"}
+              {all ? "지금까지 들어온 것" : round != null ? `${round}번 테스트` : "들어온 것"}
               {list && <b className="ccWishN"> {list.length}</b>}
             </span>
             {isHost && (
@@ -1485,7 +1493,7 @@ export function WishSheet({ round, name, hostCode, isHost, off = false, onSent, 
             ))}
           </div>
 
-          <p className="ccSheetNote">적어주신 건 테스트 회차별로 남아요. 호스트가 보고 만들어봅니다.</p>
+          <p className="ccSheetNote">{box.note}</p>
         </>
       )}
     </div>

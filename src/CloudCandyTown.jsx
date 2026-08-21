@@ -3,7 +3,7 @@ import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHost
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CAFE_CHAIRS, CAFE_TABLES, CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, SMALL_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
-import { DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, SkinSheet, TeamLobby, WishSheet } from "./sheets.jsx";
+import { DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, IDEA_BOX, MenuSheet, MusicSheet, QuizSheet, SkinSheet, TeamLobby, WISH_BOX, WishSheet } from "./sheets.jsx";
 import { findSfx, quizPacks, skinList, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, DEFAULT_LOOK, charForSlot, cursorUrls, grassTile, lookSprite, pathTile } from "./sprites.js";
 import { Pix } from "./pix.jsx";
@@ -13,15 +13,17 @@ import { Pix } from "./pix.jsx";
    방향키(또는 WASD)로 걷고, 건물 앞에서 Space, Enter 로 채팅해요.
    =========================================================== */
 
-const WORLD = { w: 1700, h: 2040 };
+const WORLD = { w: 1700, h: 2820 };
 
-/* 걸어다닐 수 있는 구역들 — 윗섬 · 아랫섬.
-   이 사각형들 밖으로는 못 나갑니다. 두 섬은 오른쪽 미끄럼틀로만 오갑니다. */
+/* 걸어다닐 수 있는 구역들 — 윗동네 · 가운데섬 · 아랫섬.
+   이 사각형들 밖으로는 못 나갑니다. 섬끼리는 미끄럼틀로만 오갑니다.
+   (오른쪽 분홍 미끄럼틀 = 가운데↔아래, 왼쪽 민트 미끄럼틀 = 위↔가운데) */
 const AREAS = [
-  { x0: 190, y0: 300, x1: 1520, y1: 900 },      // 윗섬
-  { x0: 250, y0: 1320, x1: 1450, y1: 1860 },    // 아랫섬
+  { x0: 400, y0: 320, x1: 1310, y1: 760 },       // 윗동네 (구름정원)
+  { x0: 190, y0: 1080, x1: 1520, y1: 1680 },     // 가운데섬
+  { x0: 250, y0: 2100, x1: 1450, y1: 2640 },     // 아랫섬
 ];
-const PLAY = { x0: 190, y0: 300, x1: 1520, y1: 1860 };
+const PLAY = { x0: 190, y0: 320, x1: 1520, y1: 2640 };
 const inArea = (x, y) => AREAS.some((a) => x >= a.x0 && x <= a.x1 && y >= a.y0 && y <= a.y1);
 
 const C = {
@@ -46,49 +48,54 @@ const C = {
 const PX = 4; // 캐릭터 확대 배율
 
 const BUILDINGS = [
-  { id: "cake", name: "LP바", emoji: "🎧", tag: "음악", x: 430, y: 500, scale: 10,
+  { id: "cake", name: "LP바", emoji: "🎧", tag: "음악", x: 430, y: 1280, scale: 10,
     lines: [
       "오늘 밤 첫 곡 나갑니다. 헤드폰 하나 골라서 아무 자리나 앉으세요.",
       "신청곡 받아요. 구름 위에서 듣기 좋은 걸로 부탁드려요.",
       "여기선 아무 말 안 해도 돼요. 다들 각자 음악만 듣다 가거든요.",
     ] },
-  { id: "candy", name: "퀴즈상가", emoji: "❓", tag: "퀴즈", x: 830, y: 430, scale: 10,
+  { id: "candy", name: "퀴즈상가", emoji: "❓", tag: "퀴즈", x: 830, y: 1210, scale: 10,
     lines: [
       "1번 문제! 구름사탕 마을에 건물이 몇 개 있게요? …너무 쉬웠나요?",
       "정답 맞히면 사탕 하나, 틀리면 사탕 두 개 드려요. 손해 볼 일 없어요.",
       "오답 노트를 여기 다 붙여놨어요. 아무도 안 가져가더라고요.",
     ] },
-  { id: "post", name: "수영장", emoji: "🏊", tag: "수영", x: 1270, y: 510, scale: 10,
+  { id: "post", name: "수영장", emoji: "🏊", tag: "수영", x: 1270, y: 1290, scale: 10,
     lines: [
       "물 온도 딱 좋아요! 튜브는 안에 넉넉히 있으니 그냥 들어오세요.",
       "구름물이라 짜지 않고 눈도 안 매워요. 마음껏 첨벙거리세요.",
       "발이 안 닿는 곳은 없으니 걱정 마세요. 여긴 전부 얕아요.",
     ] },
-  { id: "flower", name: "ASMR 타운", emoji: "🎙️", tag: "ASMR", x: 590, y: 860, scale: 9,
+  { id: "flower", name: "ASMR 타운", emoji: "🎙️", tag: "ASMR", x: 590, y: 1640, scale: 9,
     lines: [
       "쉿… 지금 빗소리 녹음 중이에요. 발소리만 살살 부탁드려요.",
       "여기 유리온실은 소리가 정말 잘 울려요. 한번 속삭여 보세요.",
       "가장 인기 있는 건 사탕 껍질 부스럭 소리래요. 이해는 안 되지만요.",
     ] },
-  { id: "fortune", name: "포춘쿠키", emoji: "🥠", tag: "운세", x: 250, y: 770, scale: 5.5, sheet: "fortune",
+  { id: "sign", name: "여기 뭐 만들지..?", emoji: "🪧", tag: "윗동네", x: 855, y: 540, scale: 5, sheet: "idea",
+    lines: [
+      "여기 뭘 만들면 좋을까요?",
+      "적어주신 걸 보고 채워볼게요.",
+    ] },
+  { id: "fortune", name: "포춘쿠키", emoji: "🥠", tag: "운세", x: 250, y: 1550, scale: 5.5, sheet: "fortune",
     lines: [
       "오늘의 한마디, 하나 열어보고 가세요.",
       "쿠키를 반으로 쪼개면 안에 쪽지가 들어 있어요.",
       "믿거나 말거나지만, 기분은 좋아질 거예요.",
     ] },
-  { id: "cafe", name: "구름카페", emoji: "☕", tag: "카페", x: 640, y: 1660, scale: 9, sprite: "cafe",
+  { id: "cafe", name: "구름카페", emoji: "☕", tag: "카페", x: 640, y: 2440, scale: 9, sprite: "cafe",
     lines: [
       "따끈한 거 한 잔 하고 가세요. 구름 라떼가 잘 나가요.",
       "창가 자리 비었어요. 아래로 마을이 다 내려다보여요.",
       "여긴 아무것도 안 해도 되는 곳이에요. 편하게 앉으세요.",
     ] },
-  { id: "dress", name: "구름옷가게", emoji: "👗", tag: "꾸미기", x: 1080, y: 1650, scale: 9,
+  { id: "dress", name: "구름옷가게", emoji: "👗", tag: "꾸미기", x: 1080, y: 2430, scale: 9,
     lines: [
       "오늘은 뭘 입어볼까요? 거울 앞에 서보세요.",
       "리본은 아무한테나 잘 어울려요. 진짜예요.",
       "여기 옷은 전부 구름실로 짰어요. 가볍죠?",
     ] },
-  { id: "carousel", name: "떵개방", emoji: "🍜", tag: "먹방", x: 1160, y: 880, scale: 10,
+  { id: "carousel", name: "떵개방", emoji: "🍜", tag: "먹방", x: 1160, y: 1660, scale: 10,
     lines: [
       "지금 라이브 켜져 있어요! 뒤에서 손 흔들면 화면에 나와요.",
       "오늘 메뉴는 구름국수예요. 후루룩 소리가 제일 중요하대요.",
@@ -113,6 +120,7 @@ const QUESTS = [
   { id: "dress", icon: "👗", name: "구름옷가게에서 꾸미기", desc: "카페 옆 옷가게 전신거울 앞에서 얼굴·머리·옷 색을 바꿔보세요." },
   { id: "wish", icon: "💌", name: "우체통에 캐릭터 적어넣기", desc: "옷가게 오른쪽 우체통에 생겼으면 하는 캐릭터를 적어주세요." },
   { id: "feedback", icon: "📮", name: "피드백 남기기", desc: "오른쪽 아래 📮 를 눌러 아무 말이나 남겨주세요. 익명이에요." },
+  { id: "idea", icon: "🪧", name: "윗동네 팻말에 적기", desc: "왼쪽 민트 미끄럼틀로 윗동네에 올라가, 가운데 팻말에 뭘 만들지 적어주세요." },
 ];
 
 /* 투두를 다 깨면 주는 별 */
@@ -158,10 +166,12 @@ const savedFont = (() => {
 applyFont(savedFont);
 
 const STAR_SPOTS = [
-  [300, 700], [560, 640], [780, 930], [1000, 600], [1180, 700],
-  [1440, 800], [980, 330], [430, 350], [1430, 380], [700, 980],
+  [300, 1480], [560, 1420], [780, 1710], [1000, 1380], [1180, 1480],
+  [1440, 1580], [980, 1110], [430, 1130], [1430, 1160], [700, 1760],
   /* 아랫섬 */
-  [400, 1620], [1260, 1520], [980, 1420], [520, 1840], [1340, 1740],
+  [400, 2400], [1260, 2300], [980, 2200], [520, 2620], [1340, 2520],
+  /* 윗동네 */
+  [560, 420], [1120, 400], [860, 700], [470, 690], [1230, 660], [700, 340],
 ];
 
 const CLOUDS = [
@@ -170,83 +180,121 @@ const CLOUDS = [
 ];
 
 const TREES = [
-  [250, 620, "#ff9ec4"], [430, 930, "#8fe3c9"], [990, 500, "#ffd45e"],
-  [1470, 640, "#b6a6f0"], [880, 720, "#ff9ec4"], [1330, 960, "#8fe3c9"],
-  [520, 420, "#ffd45e"], [1060, 990, "#b6a6f0"],
+  [250, 1400, "#ff9ec4"], [430, 1710, "#8fe3c9"], [990, 1280, "#ffd45e"],
+  [1470, 1420, "#b6a6f0"], [880, 1500, "#ff9ec4"], [1330, 1740, "#8fe3c9"],
+  [520, 1200, "#ffd45e"], [1060, 1770, "#b6a6f0"],
   /* 아랫섬 */
-  [330, 1430, "#ff9ec4"], [1300, 1420, "#8fe3c9"], [380, 1780, "#ffd45e"],
-  [1240, 1800, "#b6a6f0"], [880, 1840, "#ff9ec4"], [1180, 1620, "#ffd45e"],
+  [330, 2210, "#ff9ec4"], [1300, 2200, "#8fe3c9"], [380, 2560, "#ffd45e"],
+  [1240, 2580, "#b6a6f0"], [880, 2620, "#ff9ec4"], [1180, 2400, "#ffd45e"],
+  /* 윗동네 */
+  [500, 520, "#8fe3c9"], [1220, 500, "#ff9ec4"], [640, 730, "#ffd45e"],
+  [1080, 720, "#b6a6f0"], [960, 380, "#8fe3c9"],
 ];
 
 /* 섬 — 계단식 사각형으로 쌓아 픽셀 느낌을 냅니다 */
 const ISLAND = [
-  { x: 180, y: 200, w: 1340, h: 24 },
-  { x: 140, y: 224, w: 1420, h: 24 },
-  { x: 116, y: 248, w: 1468, h: 640 },
-  { x: 140, y: 888, w: 1420, h: 24 },
-  { x: 180, y: 912, w: 1340, h: 24 },
+  { x: 180, y: 980, w: 1340, h: 24 },
+  { x: 140, y: 1004, w: 1420, h: 24 },
+  { x: 116, y: 1028, w: 1468, h: 640 },
+  { x: 140, y: 1668, w: 1420, h: 24 },
+  { x: 180, y: 1692, w: 1340, h: 24 },
 ];
 const SOIL = [
-  { x: 220, y: 936, w: 1260, h: 40 },
-  { x: 300, y: 976, w: 1100, h: 36 },
-  { x: 430, y: 1012, w: 840, h: 28 },
-  { x: 620, y: 1040, w: 460, h: 24 },
+  { x: 220, y: 1716, w: 1260, h: 40 },
+  { x: 300, y: 1756, w: 1100, h: 36 },
+  { x: 430, y: 1792, w: 840, h: 28 },
+  { x: 620, y: 1820, w: 460, h: 24 },
 ];
 const PATHS = [
-  { x: 380, y: 552, w: 940, h: 64 },
-  { x: 800, y: 452, w: 64, h: 116 },
-  { x: 400, y: 500, w: 64, h: 64 },
-  { x: 1240, y: 528, w: 64, h: 40 },
-  { x: 560, y: 616, w: 64, h: 216 },
-  { x: 1128, y: 616, w: 64, h: 240 },
-  { x: 560, y: 816, w: 632, h: 48 },
+  { x: 380, y: 1332, w: 940, h: 64 },
+  { x: 800, y: 1232, w: 64, h: 116 },
+  { x: 400, y: 1280, w: 64, h: 64 },
+  { x: 1240, y: 1308, w: 64, h: 40 },
+  { x: 560, y: 1396, w: 64, h: 216 },
+  { x: 1128, y: 1396, w: 64, h: 240 },
+  { x: 560, y: 1596, w: 632, h: 48 },
 ];
 /* 아랫섬 */
 const ISLAND2 = [
-  { x: 300, y: 1300, w: 1100, h: 22 },
-  { x: 250, y: 1322, w: 1200, h: 22 },
-  { x: 214, y: 1344, w: 1272, h: 520 },
-  { x: 250, y: 1864, w: 1200, h: 22 },
-  { x: 300, y: 1886, w: 1100, h: 22 },
+  { x: 300, y: 2080, w: 1100, h: 22 },
+  { x: 250, y: 2102, w: 1200, h: 22 },
+  { x: 214, y: 2124, w: 1272, h: 520 },
+  { x: 250, y: 2644, w: 1200, h: 22 },
+  { x: 300, y: 2666, w: 1100, h: 22 },
 ];
 const SOIL2 = [
-  { x: 340, y: 1908, w: 1020, h: 38 },
-  { x: 430, y: 1946, w: 840, h: 34 },
-  { x: 560, y: 1980, w: 580, h: 28 },
-  { x: 720, y: 2008, w: 260, h: 22 },
+  { x: 340, y: 2688, w: 1020, h: 38 },
+  { x: 430, y: 2726, w: 840, h: 34 },
+  { x: 560, y: 2760, w: 580, h: 28 },
+  { x: 720, y: 2788, w: 260, h: 22 },
 ];
 const PATHS2 = [
-  { x: 420, y: 1500, w: 720, h: 60 },
-  { x: 600, y: 1560, w: 64, h: 120 },
-  { x: 1040, y: 1560, w: 64, h: 200 },
+  { x: 420, y: 2280, w: 720, h: 60 },
+  { x: 600, y: 2340, w: 64, h: 120 },
+  { x: 1040, y: 2340, w: 64, h: 200 },
+];
+
+/* 윗동네 — 가운데섬 위에 뜬 작은 섬 */
+const ISLAND3 = [
+  { x: 470, y: 236, w: 780, h: 20 },
+  { x: 428, y: 256, w: 864, h: 20 },
+  { x: 396, y: 276, w: 928, h: 484 },
+  { x: 428, y: 760, w: 864, h: 20 },
+  { x: 470, y: 780, w: 780, h: 20 },
+];
+const SOIL3 = [
+  { x: 510, y: 800, w: 700, h: 34 },
+  { x: 590, y: 834, w: 540, h: 30 },
+  { x: 690, y: 864, w: 340, h: 24 },
+  { x: 790, y: 888, w: 140, h: 20 },
+];
+const PATHS3 = [
+  { x: 470, y: 600, w: 720, h: 56 },
+  { x: 830, y: 360, w: 56, h: 244 },
 ];
 
 const POND = [
-  { x: 1360, y: 780, w: 168, h: 24 },
-  { x: 1336, y: 804, w: 216, h: 64 },
-  { x: 1360, y: 868, w: 168, h: 20 },
+  { x: 1360, y: 1560, w: 168, h: 24 },
+  { x: 1336, y: 1584, w: 216, h: 64 },
+  { x: 1360, y: 1648, w: 168, h: 20 },
 ];
 
 /* 곡선 미끄럼틀 — 마을 오른쪽 바깥으로 크게 휘어 윗섬과 아랫섬을 잇습니다.
    양쪽 입구에 서면 슝 하고 반대편으로 미끄러져요. */
-const SLIDE = {
-  ax: 1452, ay: 700,    // 윗섬 입구
-  c1x: 1700, c1y: 940,
-  c2x: 1668, c2y: 1258,
-  bx: 1388, by: 1382,   // 아랫섬 입구
-};
-const SLIDE_TOP = { x: SLIDE.ax, y: SLIDE.ay };
-const SLIDE_BOT = { x: SLIDE.bx, y: SLIDE.by };
+const SLIDES = [
+  {
+    id: "down",                       // 가운데섬 ↔ 아랫섬 (오른쪽, 분홍)
+    skin: { edge: "#5b4a63", deep: "#ffb9d6", mid: "#ffd9ea", shine: "#fff4fa", leg: "#d9c4f2" },
+    ax: 1452, ay: 1480,   // 위 입구 (가운데섬)
+    c1x: 1700, c1y: 1720,
+    c2x: 1668, c2y: 2038,
+    bx: 1388, by: 2162,   // 아래 입구 (아랫섬)
+  },
+  {
+    id: "up",                         // 윗동네 ↔ 가운데섬 (왼쪽, 민트)
+    skin: { edge: "#5b4a63", deep: "#8fe3c9", mid: "#c6f2df", shine: "#f0fff9", leg: "#a9e4ff" },
+    ax: 476, ay: 726,     // 위 입구 (윗동네)
+    c1x: 96, c1y: 856,
+    c2x: 74, c2y: 1074,
+    bx: 262, by: 1186,    // 아래 입구 (가운데섬)
+  },
+];
 const SLIDE_R = 48;     // 입구 판정 반지름
 
 /* 3차 베지어 위의 한 점 */
-function slidePoint(t) {
+function slidePoint(sl, t) {
   const u = 1 - t;
   return {
-    x: u * u * u * SLIDE.ax + 3 * u * u * t * SLIDE.c1x + 3 * u * t * t * SLIDE.c2x + t * t * t * SLIDE.bx,
-    y: u * u * u * SLIDE.ay + 3 * u * u * t * SLIDE.c1y + 3 * u * t * t * SLIDE.c2y + t * t * t * SLIDE.by,
+    x: u * u * u * sl.ax + 3 * u * u * t * sl.c1x + 3 * u * t * t * sl.c2x + t * t * t * sl.bx,
+    y: u * u * u * sl.ay + 3 * u * u * t * sl.c1y + 3 * u * t * t * sl.c2y + t * t * t * sl.by,
   };
 }
+
+/* 미끄럼틀 입구들 — up 이면 아래에서 위로 갑니다 */
+const SLIDE_ENDS = SLIDES.flatMap((sl) => [
+  { sl, up: false, x: sl.ax, y: sl.ay },
+  { sl, up: true, x: sl.bx, y: sl.by },
+]);
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
@@ -450,6 +498,19 @@ function Ground() {
         slab(r, "p" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" })
       )}
 
+      {/* 윗동네 */}
+      {SOIL3.map((r, i) => slab(r, "s3" + i, { background: i % 2 ? C.soilDark : C.soil }))}
+      {ISLAND3.map((r, i) => slab(r, "i3" + i, { background: C.edge }))}
+      {ISLAND3.map((r, i) =>
+        slab({ x: r.x, y: r.y, w: r.w, h: Math.max(0, r.h - 8) }, "g3" + i, {
+          backgroundImage: `url(${grass})`,
+          backgroundSize: "48px 48px",
+        })
+      )}
+      {PATHS3.map((r, i) =>
+        slab(r, "p3" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" })
+      )}
+
       {/* 아랫섬 */}
       {SOIL2.map((r, i) => slab(r, "s2" + i, { background: i % 2 ? C.soilDark : C.soil }))}
       {ISLAND2.map((r, i) => slab(r, "i2" + i, { background: C.edge }))}
@@ -468,51 +529,51 @@ function Ground() {
   );
 }
 
-/* 곡선 미끄럼틀 — 마을 오른쪽에 걸쳐 있는 구름 미끄럼틀 */
-function Slide() {
+/* 곡선 미끄럼틀 — 섬과 섬을 잇는 구름 미끄럼틀 */
+function OneSlide({ sl }) {
   const N = 44;
   const pts = [];
-  for (let i = 0; i <= N; i++) pts.push(slidePoint(i / N));
+  for (let i = 0; i <= N; i++) pts.push(slidePoint(sl, i / N));
   const d = pts.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  const legs = [0.24, 0.5, 0.76].map((t) => slidePoint(t));
+  const legs = [0.24, 0.5, 0.76].map((t) => slidePoint(sl, t));
+  const k = sl.skin;
 
   const pad = (p, up) => (
     <g>
-      <rect x={p.x - 46} y={p.y - 12} width={92} height={40} fill={C.line} />
+      <rect x={p.x - 46} y={p.y - 12} width={92} height={40} fill={k.edge} />
       <rect x={p.x - 42} y={p.y - 8} width={84} height={32} fill="#ffe9a8" />
       <rect x={p.x - 42} y={p.y - 8} width={84} height={8} fill="#fff6dc" />
-      <text
-        x={p.x}
-        y={p.y + 16}
-        textAnchor="middle"
-        fontSize="17"
-        fontWeight="900"
-        fill={C.line}
-        fontFamily="inherit"
-      >
+      <text x={p.x} y={p.y + 16} textAnchor="middle" fontSize="17" fontWeight="900" fill={k.edge} fontFamily="inherit">
         {up ? "▲" : "▼"}
       </text>
     </g>
   );
 
   return (
-    <svg className="ccSlide" width={WORLD.w} height={WORLD.h} viewBox={`0 0 ${WORLD.w} ${WORLD.h}`}>
-      {/* 받침 기둥 */}
+    <g>
       {legs.map((p, i) => (
         <g key={i}>
-          <rect x={p.x - 11} y={p.y} width={22} height={104} fill={C.line} />
-          <rect x={p.x - 7} y={p.y + 4} width={14} height={96} fill="#d9c4f2" />
-          <rect x={p.x - 7} y={p.y + 4} width={5} height={96} fill="#efe4ff" />
+          <rect x={p.x - 11} y={p.y} width={22} height={104} fill={k.edge} />
+          <rect x={p.x - 7} y={p.y + 4} width={14} height={96} fill={k.leg} />
+          <rect x={p.x - 7} y={p.y + 4} width={5} height={96} fill="#ffffff" opacity="0.5" />
         </g>
       ))}
-      {/* 미끄럼틀 — 굵은 테두리 위에 속살, 그 위에 반짝이는 길 */}
-      <path d={d} fill="none" stroke={C.line} strokeWidth="62" strokeLinecap="round" strokeLinejoin="round" />
-      <path d={d} fill="none" stroke="#ffb9d6" strokeWidth="50" strokeLinecap="round" strokeLinejoin="round" />
-      <path d={d} fill="none" stroke="#ffd9ea" strokeWidth="34" strokeLinecap="round" strokeLinejoin="round" />
-      <path d={d} fill="none" stroke="#fff4fa" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
-      {/* 입구 발판 */}
-      {pad(SLIDE_TOP, false)}
-      {pad(SLIDE_BOT, true)}
+      <path d={d} fill="none" stroke={k.edge} strokeWidth="62" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={d} fill="none" stroke={k.deep} strokeWidth="50" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={d} fill="none" stroke={k.mid} strokeWidth="34" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={d} fill="none" stroke={k.shine} strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
+      {pad({ x: sl.ax, y: sl.ay }, false)}
+      {pad({ x: sl.bx, y: sl.by }, true)}
+    </g>
+  );
+}
+
+function Slide() {
+  return (
+    <svg className="ccSlide" width={WORLD.w} height={WORLD.h} viewBox={`0 0 ${WORLD.w} ${WORLD.h}`}>
+      {SLIDES.map((sl) => (
+        <OneSlide key={sl.id} sl={sl} />
+      ))}
     </svg>
   );
 }
@@ -690,7 +751,7 @@ export default function CloudCandyTown() {
 }
 
 function Town({ me, setMe, onKick }) {
-  const [pos, setPos] = useState({ x: 850, y: 660 });
+  const [pos, setPos] = useState({ x: 850, y: 1440 });
   const [facing, setFacing] = useState(1);
   const [moving, setMoving] = useState(false);
   const [cam, setCam] = useState({ x: 0, y: 0 });
@@ -1026,12 +1087,12 @@ function Town({ me, setMe, onKick }) {
   }, [runTalk]);
 
   /* 미끄럼틀 타기 — up 이면 아랫섬에서 윗섬으로 */
-  const startRide = useCallback((up) => {
+  const startRide = useCallback((sl, up) => {
     if (rideRef.current) return;
-    rideRef.current = { at: performance.now(), ms: 1150, up };
+    rideRef.current = { at: performance.now(), ms: 1150, up, sl };
     setRiding(true);
     swoosh(!up);
-    setToast(up ? "슝 — 윗마을로!" : "슝 — 아랫마을로!");
+    setToast(up ? "슝 — 위로!" : "슝 — 아래로!");
   }, []);
 
   /* 환영 팝업 닫기 */
@@ -1576,7 +1637,7 @@ function Town({ me, setMe, onKick }) {
         const k = Math.min(1, (now - rd.at) / rd.ms);
         /* 내려갈 땐 점점 빨라지고, 올라갈 땐 끝에서 살짝 느려져요 */
         const pr = rd.up ? 1 - Math.pow(1 - k, 1.6) : Math.pow(k, 1.6);
-        const at = slidePoint(rd.up ? 1 - pr : pr);
+        const at = slidePoint(rd.sl, rd.up ? 1 - pr : pr);
         posRef.current = at;
         setPos(at);
         if (k >= 1) {
@@ -1584,14 +1645,13 @@ function Town({ me, setMe, onKick }) {
           setRiding(false);
         }
       } else {
-        const inTop = Math.hypot(p.x - SLIDE_TOP.x, p.y - SLIDE_TOP.y) < SLIDE_R;
-        const inBot = Math.hypot(p.x - SLIDE_BOT.x, p.y - SLIDE_BOT.y) < SLIDE_R;
-        if (!inTop && !inBot) rideLock.current = false;
+        const end = SLIDE_ENDS.find((e) => Math.hypot(p.x - e.x, p.y - e.y) < SLIDE_R);
+        if (!end) rideLock.current = false;
         else if (!rideLock.current) {
           rideLock.current = true;
           /* 체크를 먼저 — 토스트는 "슝" 쪽이 남게 */
           doQuest("slide");
-          startRide(inBot);
+          startRide(end.sl, end.up);
         }
       }
 
@@ -2392,12 +2452,25 @@ function Town({ me, setMe, onKick }) {
           )}
           {sheet === "wish" && (
             <WishSheet
+              box={WISH_BOX}
               round={roundNo}
               name={me.name}
               hostCode={me.hostCode}
               isHost={me.role === "host"}
               off={!hasServer || me.role === "solo"}
               onSent={() => doQuest("wish")}
+              onClose={() => setSheet(null)}
+            />
+          )}
+          {sheet === "idea" && (
+            <WishSheet
+              box={IDEA_BOX}
+              round={roundNo}
+              name={me.name}
+              hostCode={me.hostCode}
+              isHost={me.role === "host"}
+              off={!hasServer || me.role === "solo"}
+              onSent={() => doQuest("idea")}
               onClose={() => setSheet(null)}
             />
           )}
@@ -3139,7 +3212,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 
 /* 📮 우체통 */
 .ccWish{width:min(400px,94vw);padding:18px;max-height:88vh;overflow:auto}
-.ccWishAsk{margin:2px 0 12px;font-size:15px;font-weight:900;line-height:1.6;color:${C.ink}}
+.ccWishAsk{margin:2px 0 12px;font-size:15px;font-weight:900;line-height:1.6;color:${C.ink};white-space:pre-line}
 .ccWishRow{display:flex;gap:6px}
 .ccWishInput{flex:1;padding:10px 11px;font-size:12.5px;text-align:left}
 .ccWishSend{flex:none;font-size:12.5px;padding:10px 16px;background:#ffd45e;color:${C.ink}}

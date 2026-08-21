@@ -420,6 +420,38 @@ export const BUILDING_SPRITES = {
     },
   },
 
+  /* 🪧 팻말 — 윗동네 한가운데 */
+  sign: {
+    map: [
+      "........oo......oo......",
+      "..oooooooooooooooooooo..",
+      "..oWWWWWWWWWWWWWWWWWWo..",
+      "..oWaaaWWaaaWWaaaaWWWo..",
+      "..oWWWWWWWWWWWWWWWWWWo..",
+      "..oWaaaaWWaaaWWaaWWWWo..",
+      "..oWWWWWWWWWWWWWWWWWWo..",
+      "..oWaaWWaaaaWWaaaaaaWo..",
+      "..oWWWWWWWWWWWWWWWWWWo..",
+      "..oooooooooooooooooooo..",
+      "..........oPPo..........",
+      "..........oPPo..........",
+      "..........oPPo..........",
+      "..........oPPo..........",
+      "..........oPPo..........",
+      "..........oPPo..........",
+      "..........oPPo..........",
+      "..........oPPo..........",
+      "..........oPPo..........",
+      "........ooPPPPoo........",
+      ".......oooooooooo.......",
+      ".......oKKKKKKKKo.......",
+    ],
+    palette: {
+      o: "#7a5a3c", W: "#fff6e0", a: "#c9a06a", P: "#b98a5e", K: "#8fd8a8",
+      b: "#fff6e0", w: "#fff6e0", d: "#b98a5e", g: "#8fd8a8", k: "#7a5a3c",
+    },
+  },
+
   /* 👗 구름옷가게 — 리본 간판 + 줄무늬 차양 + 진열창 두 개 */
   dress: {
     map: [

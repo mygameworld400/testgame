@@ -239,6 +239,13 @@ export const fbList = (hostCode, round) =>
   call("cc_fb_list", { p_host_code: hostCode, p_round: round ?? null });
 export const fbDel = (hostCode, id) => call("cc_fb_del", { p_host_code: hostCode, p_id: id });
 
+/* ---------- 🪧 윗동네 팻말 아이디어 ---------- */
+
+export const ideaAdd = (round, name, body) =>
+  call("cc_idea_add", { p_round: round ?? 0, p_name: name, p_body: body });
+export const ideaList = (round) => call("cc_idea_list", { p_round: round ?? null });
+export const ideaDel = (hostCode, id) => call("cc_idea_del", { p_host_code: hostCode, p_id: id });
+
 /* ---------- 떵개방 메뉴 가챠 ---------- */
 
 export const foodList = () => call("cc_food_list");
