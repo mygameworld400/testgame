@@ -239,6 +239,12 @@ export const fbList = (hostCode, round) =>
   call("cc_fb_list", { p_host_code: hostCode, p_round: round ?? null });
 export const fbDel = (hostCode, id) => call("cc_fb_del", { p_host_code: hostCode, p_id: id });
 
+/* ---------- 🏆 미니게임 랭킹 ---------- */
+
+export const scoreAdd = (game, name, score) =>
+  call("cc_score_add", { p_game: game, p_name: name, p_score: score });
+export const scoreTop = (game) => call("cc_score_top", { p_game: game });
+
 /* ---------- 🎬 영화관 ----------
    영상은 음악과 같은 보관함(music 버킷)에 넣고, 목록에는 'vid:제목' 으로
    구분해 담습니다. 따로 테이블을 만들지 않아도 되고 음악 목록에는 안 보여요. */

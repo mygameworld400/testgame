@@ -1411,3 +1411,75 @@ grant execute
 grant execute
   on function public.cc_movie_stop(text)
   to anon, authenticated;
+
+
+-- ===========================================================
+-- 🏆 미니게임 랭킹 (supabase/feedback.sql 과 같은 내용)
+-- ===========================================================
+create table if not exists public.cc_scores (
+  id bigserial primary key,
+  game text not null,
+  name text not null,
+  score int not null,
+  made_at timestamptz not null default now()
+);
+
+alter table public.cc_scores enable row level security;
+
+create or replace function public.cc_score_add(p_game text, p_name text, p_score int)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  v_name text;
+begin
+  if p_game not in ('fart', 'type', 'speed') then
+    return json_build_object('ok', false, 'error', 'bad_game');
+  end if;
+  if p_score is null or p_score < 0 or p_score > 999999 then
+    return json_build_object('ok', false, 'error', 'bad_score');
+  end if;
+  v_name := btrim(coalesce(p_name, ''));
+  if v_name = '' then
+    v_name := '손님';
+  end if;
+  insert into public.cc_scores (game, name, score)
+    values (p_game, left(v_name, 12), p_score);
+  return json_build_object('ok', true);
+end;
+$$;
+
+/* 낮을수록 좋은 게임(속도)은 오름차순으로 줍니다 */
+create or replace function public.cc_score_top(p_game text)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  v json;
+begin
+  if p_game = 'speed' then
+    select coalesce(json_agg(x order by x.score, x.made_at), '[]'::json) into v
+      from (
+        select name, score, made_at
+          from public.cc_scores
+         where game = p_game
+         order by score, made_at
+         limit 20
+      ) x;
+  else
+    select coalesce(json_agg(x order by x.score desc, x.made_at), '[]'::json) into v
+      from (
+        select name, score, made_at
+          from public.cc_scores
+         where game = p_game
+         order by score desc, made_at
+         limit 20
+      ) x;
+  end if;
+  return v;
+end;
+$$;
+
+grant execute
+  on function public.cc_score_add(text, text, int)
+  to anon, authenticated;
+
+grant execute
+  on function public.cc_score_top(text)
+  to anon, authenticated;

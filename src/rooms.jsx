@@ -252,7 +252,7 @@ export const ROOMS = {
     ],
     stars: [{ x: 130, y: 460 }, { x: 870, y: 460 }, { x: 500, y: 490 }],
     zones: [
-      { id: "soon", x: 500, y: 310, r: 110, label: "노래 고르기" },
+      { id: "songs", x: 500, y: 310, r: 110, label: "선곡표 보기" },
       { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
     ],
   },
@@ -317,12 +317,10 @@ export const ROOMS = {
     side: "#354063", accent: "#ffd45e",
     hint: "망원경 앞에 서면 하늘을 볼 수 있어요",
     play: PLAY, blocks: [box(500, 210, 190, 170)],
-    mats: [{ x: 250, y: 400 }, { x: 750, y: 400 }],
+    lieAnywhere: true,          // 아무 데나 누울 수 있어요
     stars: [{ x: 140, y: 470 }, { x: 860, y: 470 }, { x: 500, y: 490 }],
     zones: [
       { id: "starview", x: 500, y: 330, r: 115, label: "망원경 들여다보기" },
-      { id: "lie", x: 250, y: 400, r: 95, label: "여기 눕기" },
-      { id: "lie2", x: 750, y: 400, r: 95, label: "여기 눕기" },
       { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
     ],
   },
@@ -997,17 +995,6 @@ function UpProps({ R, phase = 0 }) {
     const tp = at(500, 210);
     return (
       <g>
-        {/* 누울 자리 */}
-        {(R.mats || []).map((m, i) => {
-          const p = at(m.x, m.y);
-          const k = p.k;
-          return (
-            <g key={i}>
-              <ellipse cx={p.sx} cy={p.sy} rx={96 * k} ry={38 * k} fill="#3f4a75" stroke="#232b47" strokeWidth="5" />
-              <ellipse cx={p.sx} cy={p.sy - 5 * k} rx={78 * k} ry={28 * k} fill="#54608c" />
-            </g>
-          );
-        })}
         <rect x={230} y={30} width={540} height={210} fill="#141a33" stroke="#3a4a7a" strokeWidth="7" />
         {Array.from({ length: 22 }, (_, i) => (
           <rect key={i} className="ccMuralStar" style={{ animationDelay: (i % 7) * 0.35 + "s" }}

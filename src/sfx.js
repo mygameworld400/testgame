@@ -267,6 +267,46 @@ export function swoosh(down = true) {
   osc.stop(t0 + dur);
 }
 
+/* 트램폴린 "또잉!" — 스프링 소리.
+   음이 확 튀었다가 흔들리며 떨어지고, 뒤에 스프링 떨림을 얹습니다. */
+export function boing(up = true) {
+  const ac = audio();
+  if (!ac) return;
+  const t0 = ac.currentTime;
+  const dur = 0.42;
+
+  const osc = ac.createOscillator();
+  const g = ac.createGain();
+  osc.type = "triangle";
+
+  /* 확 올라갔다가 주르륵 내려옵니다 */
+  const lo = up ? 240 : 200;
+  const hi = up ? 760 : 620;
+  osc.frequency.setValueAtTime(lo, t0);
+  osc.frequency.exponentialRampToValueAtTime(hi, t0 + 0.05);
+  osc.frequency.exponentialRampToValueAtTime(lo * 0.72, t0 + dur);
+
+  /* 떨림 — 이게 있어야 "또잉" 하고 들려요 */
+  const lfo = ac.createOscillator();
+  const lfoG = ac.createGain();
+  lfo.type = "sine";
+  lfo.frequency.setValueAtTime(26, t0);
+  lfo.frequency.exponentialRampToValueAtTime(9, t0 + dur);
+  lfoG.gain.setValueAtTime(90, t0);
+  lfoG.gain.exponentialRampToValueAtTime(4, t0 + dur);
+  lfo.connect(lfoG).connect(osc.frequency);
+
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.2, t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+  osc.connect(g).connect(ac.destination);
+  osc.start(t0);
+  lfo.start(t0);
+  osc.stop(t0 + dur + 0.02);
+  lfo.stop(t0 + dur + 0.02);
+}
+
 /* 키보드 "톡" — 얇은 클릭 + 아주 짧은 저음 */
 export function keyclick(url) {
   if (playFile(url, 0.8)) return;

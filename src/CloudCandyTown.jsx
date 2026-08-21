@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CAFE_CHAIRS, CAFE_TABLES, CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, SMALL_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
-import { blip, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
+import { blip, boing, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
 import { ArcadeSheet, DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, IDEA_BOX, MenuSheet, MovieSheet, MusicSheet, QuizSheet, SkinSheet, StarViewSheet, TeamLobby, WISH_BOX, WishSheet } from "./sheets.jsx";
 import { findSfx, movieNow, quizPacks, skinList, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, DEFAULT_LOOK, charForSlot, cursorUrls, grassTile, lookSprite, pathTile } from "./sprites.js";
@@ -1333,17 +1333,12 @@ function Town({ me, setMe, onKick }) {
     if (!id) return;
     if (id === "exit") { exitRoom(); return; }
     if (id === "dress") loadSkins();
-    if (id === "arcade" || id === "starview" || id === "showtime") { setSheet(id); return; }
-    if (id === "lie" || id === "lie2") {
-      /* 천문대 바닥에 눕기 — 한 번 더 누르면 일어나요 */
-      const mat = ROOMS.star.mats[id === "lie" ? 0 : 1];
+    if (id === "arcade" || id === "starview" || id === "showtime" || id === "songs") { setSheet(id); return; }
+    if (id === "lie") {
+      /* 지금 선 자리에 그대로 눕습니다. 한 번 더 누르면 일어나요 */
       const on = !lyingRef.current;
       lyingRef.current = on;
       setLying(on);
-      if (on) {
-        posRef.current = { x: mat.x, y: mat.y };
-        setPos({ x: mat.x, y: mat.y });
-      }
       blip(on ? 620 : 780);
       return;
     }
@@ -1702,6 +1697,9 @@ function Town({ me, setMe, onKick }) {
           }
         }
         if (sitRef.current != null) z = "chair";
+        /* 천문대는 아무 데나 누울 수 있어요. 다른 게 없으면 눕기 */
+        if (!z && room.lieAnywhere) z = "lie";
+        if (lyingRef.current) z = "lie";
         if (z !== zoneRef.current) { zoneRef.current = z; setZoneId(z); }
 
         /* 방방 위에 올라서면 저절로 통통 튑니다 */
@@ -1715,7 +1713,7 @@ function Town({ me, setMe, onKick }) {
           }
           if (on && now - bounceAt.current > 520) {
             bounceAt.current = now;
-            blip(520 + Math.round(Math.random() * 260));
+            boing(Math.random() > 0.5);
           }
         } else if (bounceRef.current) {
           bounceRef.current = false;
@@ -2231,7 +2229,12 @@ function Town({ me, setMe, onKick }) {
 
           {zoneId && (
             <button className="ccZoneHint" onClick={() => activateZone(zoneId)}>
-              SPACE — {zoneId === "chair" ? (sit == null ? "앉기" : "일어나기") : R.zones.find((z) => z.id === zoneId)?.label}
+              SPACE —{" "}
+              {zoneId === "chair"
+                ? sit == null ? "앉기" : "일어나기"
+                : zoneId === "lie"
+                  ? lying ? "일어나기" : "여기 눕기"
+                  : R.zones.find((z) => z.id === zoneId)?.label}
             </button>
           )}
         </div>
@@ -2728,7 +2731,28 @@ function Town({ me, setMe, onKick }) {
               onClose={() => setSheet(null)}
             />
           )}
-          {sheet === "arcade" && <ArcadeSheet onClose={() => setSheet(null)} />}
+          {sheet === "arcade" && (
+            <ArcadeSheet
+              me={me}
+              off={!hasServer || me.role === "solo"}
+              onClose={() => setSheet(null)}
+            />
+          )}
+          {sheet === "songs" && (
+            <MusicSheet
+              hostCode={me.hostCode}
+              isHost={me.role === "host"}
+              playingId={track?.id}
+              songbook
+              onPlay={(items, index, name) => {
+                setQueue(items);
+                setQi(index || 0);
+                setPlName(name || "");
+                doQuest("music");
+              }}
+              onClose={() => setSheet(null)}
+            />
+          )}
           {sheet === "showtime" && (
             <MovieSheet
               me={me}
@@ -3050,6 +3074,20 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccSpeedgo{background:#8fe3c9}
 .ccSpeedearly{background:#ffd7d7;color:#b8474b}
 .ccSpeeddone{background:#ffe9a8}
+
+/* 🏆 랭킹 */
+.ccRankBar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ccRankMine{flex:1;font-size:11.5px;font-weight:700;color:${C.inkSoft};text-align:left}
+.ccRankBtn{flex:none;background:#ffe9a8;font-weight:800}
+.ccRank{display:flex;flex-direction:column;gap:8px}
+.ccRankHead{font-size:12px;font-weight:800;color:${C.inkSoft}}
+.ccRankList{display:flex;flex-direction:column;gap:4px;max-height:46vh;overflow:auto}
+.ccRankRow{display:flex;align-items:center;gap:9px;border:3px solid ${C.line};background:#fff;
+  padding:8px 10px;font-size:12.5px;font-weight:700}
+.ccRankTop{background:#fff6dc}
+.ccRankNo{flex:none;width:26px;text-align:center;font-weight:900;color:${C.inkSoft}}
+.ccRankName{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccRankScore{flex:none;font-weight:900;color:#c05a86}
 
 /* 🔭 별 보기 */
 .ccStarView{position:absolute;inset:0;z-index:45;background:#0b1024;cursor:pointer;overflow:hidden}

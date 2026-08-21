@@ -4,7 +4,7 @@ import { MENU } from "./rooms.jsx";
 import { Pix } from "./pix.jsx";
 import { FACES, HATS, OUTFITS, lookSprite } from "./sprites.js";
 
-import { DAY, SFX_PREFIX, fbAdd, fbDel, fbList, ideaAdd, ideaDel, ideaList, isVid, moviePlay, movieStop, prepSkin, skinAdd, skinDel, uploadVideo, vidInfo, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { DAY, SFX_PREFIX, fbAdd, fbDel, fbList, ideaAdd, ideaDel, ideaList, isVid, moviePlay, movieStop, prepSkin, scoreAdd, scoreTop, skinAdd, skinDel, uploadVideo, vidInfo, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -302,7 +302,7 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo", fixedPack 
 
 /* ============================ 플레이리스트 ============================ */
 
-export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
+export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId, songbook = false }) {
   const [list, setList] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -324,7 +324,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const songs = (list || []).filter((t) => !isSfx(t));
+  const songs = (list || []).filter((t) => !isSfx(t) && !isVid(t));
   const sfx = (list || []).filter(isSfx);
 
   /* 플레이리스트별로 묶기 */
@@ -376,7 +376,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
   return (
     <div className="ccPanel ccSheet" onClick={(e) => e.stopPropagation()}>
       <div className="ccSheetHead">
-        <h2 className="ccSheetTitle">♪ 플레이리스트</h2>
+        <h2 className="ccSheetTitle">{songbook ? "🎤 선곡표" : "♪ 플레이리스트"}</h2>
         <button className="ccX" onClick={onClose}>✕</button>
       </div>
 
@@ -1647,7 +1647,7 @@ const TYPE_WORDS = [
 ];
 
 /* 💨 방구게임 — 오래 참을수록 점수, 터지면 0 */
-function FartGame({ onDone }) {
+function FartGame({ onDone, send }) {
   const [gauge, setGauge] = useState(0);
   const [state, setState] = useState("ready");   // ready · hold · done · pop
   const [score, setScore] = useState(0);
@@ -1687,6 +1687,7 @@ function FartGame({ onDone }) {
     setState("done");
     ding();
     writeBest("fart", s);
+    send?.("fart", s);
     onDone?.(s);
   };
 
@@ -1722,14 +1723,16 @@ function FartGame({ onDone }) {
 }
 
 /* ⌨️ 타자게임 — 20초 동안 몇 개 */
-function TypeGame({ onDone }) {
+function TypeGame({ onDone, send }) {
   const [word, setWord] = useState("");
   const [text, setText] = useState("");
   const [left, setLeft] = useState(20);
   const [hit, setHit] = useState(0);
   const [state, setState] = useState("ready");
+  const [seq, setSeq] = useState(0);       // 맞히면 칸을 새로 그려 조합을 비웁니다
   const typeBox = useRef(null);
   const tick = useRef(null);
+  const composing = useRef(false);
 
   const pick = () => TYPE_WORDS[Math.floor(Math.random() * TYPE_WORDS.length)];
 
@@ -1759,17 +1762,25 @@ function TypeGame({ onDone }) {
     if (state !== "done") return;
     ding();
     writeBest("type", hit);
+    send?.("type", hit);
     onDone?.(hit);
   }, [state]);
 
+  /* 한글은 조합이 끝나야 글자가 완성돼서, 조합 중에는 맞는지 보지 않습니다.
+     맞으면 입력칸을 새로 그려(seq) IME 에 남은 조각까지 비워요. */
+  const check = (v) => {
+    if (v.trim() !== word) return;
+    setHit((n) => n + 1);
+    setText("");
+    setSeq((n) => n + 1);
+    setWord(pick());
+    blip(900);
+    setTimeout(() => typeBox.current?.focus(), 0);
+  };
+
   const onType = (v) => {
     setText(v);
-    if (v.trim() === word) {
-      setHit((n) => n + 1);
-      setText("");
-      setWord(pick());
-      blip(900);
-    }
+    if (!composing.current) check(v);
   };
 
   return (
@@ -1777,11 +1788,15 @@ function TypeGame({ onDone }) {
       <p className="ccGameAsk">뜨는 낱말을 그대로 쳐주세요. 20초!</p>
       <div className="ccTypeWord">{state === "play" ? word : "준비되면 시작"}</div>
       <input
+        key={seq}
         ref={typeBox}
         className="ccInput ccTypeIn"
         value={text}
         disabled={state !== "play"}
+        autoComplete="off"
         placeholder={state === "play" ? "여기에 치세요" : ""}
+        onCompositionStart={() => { composing.current = true; }}
+        onCompositionEnd={(e) => { composing.current = false; check(e.target.value); }}
         onChange={(e) => onType(e.target.value)}
       />
       <div className="ccGameRow">
@@ -1797,7 +1812,7 @@ function TypeGame({ onDone }) {
 }
 
 /* ⚡ 속도게임 — 초록으로 바뀌면 바로 누르기, 3번 평균 */
-function SpeedGame({ onDone }) {
+function SpeedGame({ onDone, send }) {
   const [state, setState] = useState("ready");   // ready · wait · go · early · done
   const [runs, setRuns] = useState([]);
   const [last, setLast] = useState(0);
@@ -1842,6 +1857,7 @@ function SpeedGame({ onDone }) {
       setState("done");
       ding();
       writeBest("speed", avg, false);
+      send?.("speed", avg);
       onDone?.(avg);
     } else {
       arm();
@@ -1876,11 +1892,29 @@ const ARCADE = [
   { id: "speed", name: "속도게임", icon: "⚡", unit: "ms", bigger: false, Comp: SpeedGame },
 ];
 
-export function ArcadeSheet({ pick, onClose }) {
+export function ArcadeSheet({ pick, me, off = false, onClose }) {
   const [tab, setTab] = useState(pick || "fart");
   const [best, setBest] = useState(readBest);
+  const [rank, setRank] = useState(null);      // null = 안 열림
+  const [busy, setBusy] = useState(false);
   const g = ARCADE.find((x) => x.id === tab) || ARCADE[0];
   const Comp = g.Comp;
+
+  const send = useCallback(
+    async (game, score) => {
+      if (off) return;
+      await scoreAdd(game, me?.name || "손님", score);
+    },
+    [off, me]
+  );
+
+  const openRank = async () => {
+    if (off) { setRank([]); return; }
+    setBusy(true);
+    const r = await scoreTop(tab);
+    setBusy(false);
+    setRank(Array.isArray(r) ? r : []);
+  };
 
   return (
     <div className="ccPanel ccModal ccArcade" onClick={(e) => e.stopPropagation()}>
@@ -1902,11 +1936,35 @@ export function ArcadeSheet({ pick, onClose }) {
         ))}
       </div>
 
-      <Comp onDone={() => setBest(readBest())} />
+      <div className="ccRankBar">
+        <span className="ccRankMine">
+          내 최고 — {best[g.id] != null ? `${best[g.id]}${g.unit}` : "아직 없어요"}
+        </span>
+        <button className="ccMini ccRankBtn" onClick={rank === null ? openRank : () => setRank(null)}>
+          {busy ? "…" : rank === null ? "🏆 랭킹" : "게임으로"}
+        </button>
+      </div>
 
-      <p className="ccSheetNote">
-        내 최고 기록 — {best[g.id] != null ? `${best[g.id]}${g.unit}` : "아직 없어요"}
-      </p>
+      {rank === null ? (
+        <Comp onDone={() => setBest(readBest())} send={send} />
+      ) : (
+        <div className="ccRank">
+          <div className="ccRankHead">{g.icon} {g.name} — {g.bigger ? "높을수록" : "낮을수록"} 좋아요</div>
+          <div className="ccRankList">
+            {off && <p className="ccSheetNote">혼자 둘러보는 중이라 랭킹이 안 보여요.</p>}
+            {!off && rank.length === 0 && <p className="ccSheetNote">아직 아무도 없어요. 1등 하세요!</p>}
+            {rank.map((r, i) => (
+              <div key={i} className={"ccRankRow" + (i < 3 ? " ccRankTop" : "")}>
+                <span className="ccRankNo">{["🥇", "🥈", "🥉"][i] || i + 1}</span>
+                <span className="ccRankName">{r.name}</span>
+                <span className="ccRankScore">{r.score}{g.unit}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p className="ccSheetNote">랭킹은 계속 남아요. 게임이 끝나면 저절로 올라갑니다.</p>
     </div>
   );
 }
@@ -1930,7 +1988,7 @@ export function StarViewSheet({ onClose }) {
         <span className="ccShoot" />
       </div>
       <div className="ccStarWord">
-        조용하죠?
+        별멍..
         <br />
         <b>아무 데나 눌러서 나가기</b>
       </div>
