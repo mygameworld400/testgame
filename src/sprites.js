@@ -75,6 +75,74 @@ export const charForSlot = (slot) => {
   return CHARACTERS[1 + ((n - 1) % guests)];
 };
 
+/* ---------- 🖱 픽셀 커서 ----------
+   CSS cursor: url(...) 로 쓰려고 확대해서 한 번 구워둡니다.
+   브라우저가 32x32 를 넘는 커서는 무시하는 경우가 있어 그 안에 맞춥니다. */
+
+const CURSOR_ARROW = [
+  "o...........",
+  "oo..........",
+  "owo.........",
+  "owwo........",
+  "owwwo.......",
+  "owwwwo......",
+  "owwwwwo.....",
+  "owwwwwwo....",
+  "owwwwwwwo...",
+  "owwwwwwwwo..",
+  "owwwwwooooo.",
+  "owwowwo.....",
+  "owo.owwo....",
+  "oo..owwo....",
+  "o....owwo...",
+  ".....oooo...",
+];
+const CURSOR_STAR = [
+  "......oo......",
+  "......yy......",
+  ".....oyyo.....",
+  ".ooooyyyyoooo.",
+  ".oyyyyyyyyyyo.",
+  "..oyyyyyyyyo..",
+  "...oyyyyyyo...",
+  "..oyyooooyyo..",
+  ".oyyo....oyyo.",
+  "..oo......oo..",
+  "..............",
+  "..............",
+  "..............",
+  "..............",
+];
+const CURSOR_PAL = { o: "#5b4a63", w: "#ffffff", y: "#ffd45e" };
+
+/* 픽셀맵을 scale 배로 키워 data URL 로 굽습니다 */
+export function bigSprite(map, palette, scale, key) {
+  const ck = key ? key + "@" + scale : null;
+  if (ck && cache.has(ck)) return cache.get(ck);
+  const h = map.length;
+  const w = map[0].length;
+  const cv = document.createElement("canvas");
+  cv.width = w * scale;
+  cv.height = h * scale;
+  const ctx = cv.getContext("2d");
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const col = palette[map[y][x]];
+      if (!col) continue;
+      ctx.fillStyle = col;
+      ctx.fillRect(x * scale, y * scale, scale, scale);
+    }
+  }
+  const url = cv.toDataURL("image/png");
+  if (ck) cache.set(ck, url);
+  return url;
+}
+
+export const cursorUrls = () => ({
+  arrow: bigSprite(CURSOR_ARROW, CURSOR_PAL, 2, "cur-arrow"),
+  star: bigSprite(CURSOR_STAR, CURSOR_PAL, 2, "cur-star"),
+});
+
 /* ---------- 꾸미기 ----------
    머리는 캐릭터 그림의 맨 위 두 줄을 갈아 끼우는 방식입니다.
    (캐릭터마다 다른 게 원래 그 두 줄이거든요) */

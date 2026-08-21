@@ -5,7 +5,7 @@ import { CAFE_CHAIRS, CAFE_TABLES, CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomSta
 import { blip, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
 import { DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, SkinSheet, TeamLobby, WishSheet } from "./sheets.jsx";
 import { findSfx, quizPacks, skinList, trackList, trackUrl } from "./content.js";
-import { BUILDING_SPRITES, CHARACTERS, DECO, DEFAULT_LOOK, charForSlot, grassTile, lookSprite, pathTile } from "./sprites.js";
+import { BUILDING_SPRITES, CHARACTERS, DECO, DEFAULT_LOOK, charForSlot, cursorUrls, grassTile, lookSprite, pathTile } from "./sprites.js";
 import { Pix } from "./pix.jsx";
 
 /* ===========================================================
@@ -132,6 +132,20 @@ function applyFont(id) {
   document.documentElement.style.setProperty("--ccFont", f.css);
   document.body.classList.toggle("ccSmoothFont", f.id !== "pixel");
 }
+
+/* 🖱 픽셀 커서 — 끄면 원래 커서로 돌아갑니다 */
+function applyCursor(on) {
+  document.body.classList.toggle("ccPixCursor", !!on);
+}
+
+const savedCursor = (() => {
+  try {
+    return localStorage.getItem("ccCursor") !== "off";
+  } catch {
+    return true;
+  }
+})();
+applyCursor(savedCursor);
 
 const savedFont = (() => {
   try {
@@ -779,6 +793,7 @@ function Town({ me, setMe, onKick }) {
     }
   });
   const [font, setFont] = useState(savedFont);
+  const [pixCursor, setPixCursor] = useState(savedCursor);
 
   const track = queue[qi] || null;    // 지금 듣는 곡
 
@@ -870,6 +885,14 @@ function Town({ me, setMe, onKick }) {
       /* 무시 */
     }
   }, [font]);
+  useEffect(() => {
+    applyCursor(pixCursor);
+    try {
+      localStorage.setItem("ccCursor", pixCursor ? "on" : "off");
+    } catch {
+      /* 무시 */
+    }
+  }, [pixCursor]);
   useEffect(() => { roomStarsRef.current = roomStars; }, [roomStars]);
   useEffect(() => { gamesRef.current = games; }, [games]);
   useEffect(() => {
@@ -2186,6 +2209,14 @@ function Town({ me, setMe, onKick }) {
               </button>
             ))}
           </div>
+          <label className="ccCutRow ccSetCursor">
+            <input
+              type="checkbox"
+              checked={pixCursor}
+              onChange={(e) => { setPixCursor(e.target.checked); blip(720); }}
+            />
+            <span>픽셀 커서 쓰기</span>
+          </label>
           <button
             className="ccSetFont ccSetSkinBtn"
             onClick={() => { setSheet("skins"); setSetOpen(false); loadSkins(); blip(760); }}
@@ -2540,6 +2571,8 @@ function Town({ me, setMe, onKick }) {
 
 /* ============================ 스타일 ============================ */
 
+const CUR = cursorUrls();
+
 const CSS = `
 *{box-sizing:border-box}
 html,body,#root{height:100%;margin:0}
@@ -2547,6 +2580,21 @@ body{font-family:var(--ccFont,"DungGeunMo","Galmuri11","Pretendard","Malgun Goth
   -webkit-font-smoothing:none;letter-spacing:.02em}
 /* 픽셀 글꼴이 아니면 계단현상을 끕니다 */
 body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:0}
+
+/* 🖱 픽셀 커서 */
+body.ccPixCursor{cursor:url(${CUR.arrow}) 0 0,auto}
+body.ccPixCursor button,
+body.ccPixCursor label,
+body.ccPixCursor a,
+body.ccPixCursor .ccBuilding,
+body.ccPixCursor .ccFeed,
+body.ccPixCursor input[type="range"],
+body.ccPixCursor input[type="checkbox"],
+body.ccPixCursor input[type="file"]{cursor:url(${CUR.star}) 13 8,pointer}
+body.ccPixCursor input:not([type="range"]):not([type="checkbox"]):not([type="file"]),
+body.ccPixCursor textarea{cursor:text}
+body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
+.ccSetCursor{border-top:3px solid #efe7f2;margin-top:8px;padding-top:9px}
 .ccRoot{position:fixed;inset:0;overflow:hidden;user-select:none;touch-action:none;color:${C.ink}}
 .ccPix{display:block;image-rendering:pixelated;image-rendering:crisp-edges;-webkit-user-drag:none}
 
