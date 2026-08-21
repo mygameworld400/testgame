@@ -865,7 +865,9 @@ function Town({ me, setMe, onKick }) {
   }, [myGid, games]);
 
   const roomTaken = Object.values(roomStars).reduce((n, list) => n + list.filter(Boolean).length, 0);
-  const collected = stars.filter(Boolean).length + roomTaken;
+  /* 호스트는 옷가게 물건을 마음껏 시험해볼 수 있게 별을 넉넉히 들고 시작합니다 */
+  const hostStars = me.role === "host" ? 300 : 0;
+  const collected = stars.filter(Boolean).length + roomTaken + hostStars;
   const balance = Math.max(0, collected - spent);
   const online = me.role === "solo" ? 1 : peers.length + 1;
 
@@ -3010,6 +3012,19 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
 .ccSkinItemName{flex:1;font-size:12.5px;font-weight:800;text-align:left;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .ccSkinItemPrice{font-size:11.5px;font-weight:800;color:#c05a86}
+/* 배경 지우기 — 투명한 데가 보이도록 체크무늬를 깝니다 */
+.ccSkinPick{background-color:#fff;background-image:
+  linear-gradient(45deg,#e7dfea 25%,transparent 25%),linear-gradient(-45deg,#e7dfea 25%,transparent 25%),
+  linear-gradient(45deg,transparent 75%,#e7dfea 75%),linear-gradient(-45deg,transparent 75%,#e7dfea 75%);
+  background-size:14px 14px;background-position:0 0,0 7px,7px -7px,-7px 0}
+.ccSkinPreview{object-fit:contain}
+.ccCut{border:3px solid ${C.line};background:#f9f5fb;padding:9px 11px;margin-bottom:9px;text-align:left}
+.ccCutRow{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;
+  color:${C.ink};cursor:pointer;padding:2px 0}
+.ccCutLabel{font-size:11.5px;color:${C.inkSoft}}
+.ccCutRange{flex:1;min-width:90px}
+.ccCutNum{font-size:11.5px;font-weight:800;color:#c05a86;width:24px;text-align:right}
+.ccCutNote{margin:6px 0 0;font-size:10.5px;font-weight:700;line-height:1.5;color:${C.inkSoft}}
 .ccModalEmoji{font-size:42px;line-height:1}
 .ccModalTag{display:inline-block;margin-top:10px;border:2px solid ${C.line};padding:2px 10px;font-size:11px;font-weight:700;background:#ffe9a8}
 .ccModalName{margin:9px 0 8px;font-size:19px;font-weight:900}

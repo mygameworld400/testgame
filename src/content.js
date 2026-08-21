@@ -53,6 +53,104 @@ export function shrinkImage(file, max = 720, quality = 0.72) {
   });
 }
 
+/* 캐릭터용 사진 손질 — 크기를 줄이고, 원하면 배경을 지웁니다.
+
+   누끼는 네 변에서 시작해 비슷한 색을 따라 안쪽으로 번져 나가며 투명하게
+   만드는 방식입니다. 인물 안쪽에 같은 색이 있어도 가장자리와 이어져
+   있지 않으면 안 지워져요. 배경이 단색에 가까울수록 잘 됩니다.
+   경계는 한 겹만 반투명으로 남겨 톱니를 줄입니다.                        */
+export function prepSkin(file, { max = 240, cut = true, tol = 42 } = {}) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const cv = document.createElement("canvas");
+      cv.width = w;
+      cv.height = h;
+      const ctx = cv.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0, w, h);
+      if (!cut) {
+        resolve(cv.toDataURL("image/jpeg", 0.82));
+        return;
+      }
+
+      const im = ctx.getImageData(0, 0, w, h);
+      const d = im.data;
+
+      /* 네 변의 평균색을 배경색으로 봅니다 */
+      let br = 0, bg = 0, bb = 0, n = 0;
+      const edge = (x, y) => {
+        const i = (y * w + x) * 4;
+        br += d[i]; bg += d[i + 1]; bb += d[i + 2]; n++;
+      };
+      for (let x = 0; x < w; x++) { edge(x, 0); edge(x, h - 1); }
+      for (let y = 0; y < h; y++) { edge(0, y); edge(w - 1, y); }
+      br /= n; bg /= n; bb /= n;
+
+      const seen = new Uint8Array(w * h);
+      const stack = [];
+      for (let x = 0; x < w; x++) { stack.push(x, (h - 1) * w + x); }
+      for (let y = 0; y < h; y++) { stack.push(y * w, y * w + w - 1); }
+
+      const soft = tol * 1.45;
+      while (stack.length) {
+        const p = stack.pop();
+        if (seen[p]) continue;
+        seen[p] = 1;
+        const i = p * 4;
+        const dist = Math.hypot(d[i] - br, d[i + 1] - bg, d[i + 2] - bb);
+        if (dist > soft) continue;
+        if (dist > tol) {
+          /* 경계 한 겹 — 반투명으로 남기고 더 번지지 않습니다 */
+          d[i + 3] = Math.round(255 * ((dist - tol) / (soft - tol)));
+          continue;
+        }
+        d[i + 3] = 0;
+        const x = p % w;
+        const y = (p - x) / w;
+        if (x > 0) stack.push(p - 1);
+        if (x < w - 1) stack.push(p + 1);
+        if (y > 0) stack.push(p - w);
+        if (y < h - 1) stack.push(p + w);
+      }
+      ctx.putImageData(im, 0, 0);
+
+      /* 남은 그림에 딱 맞게 잘라냅니다 */
+      let x0 = w, y0 = h, x1 = -1, y1 = -1;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (d[(y * w + x) * 4 + 3] > 8) {
+            if (x < x0) x0 = x;
+            if (x > x1) x1 = x;
+            if (y < y0) y0 = y;
+            if (y > y1) y1 = y;
+          }
+        }
+      }
+      if (x1 < x0 || y1 < y0) {
+        resolve(cv.toDataURL("image/png"));   // 전부 지워졌으면 그대로
+        return;
+      }
+      const cw = x1 - x0 + 1;
+      const ch = y1 - y0 + 1;
+      const out = document.createElement("canvas");
+      out.width = cw;
+      out.height = ch;
+      out.getContext("2d").drawImage(cv, x0, y0, cw, ch, 0, 0, cw, ch);
+      resolve(out.toDataURL("image/png"));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("이미지를 읽지 못했어요"));
+    };
+    img.src = url;
+  });
+}
+
 /* ---------- 플레이리스트(이름·커버) ---------- */
 
 export const plList = () => call("cc_pl_list");

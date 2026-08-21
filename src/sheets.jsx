@@ -4,7 +4,7 @@ import { MENU } from "./rooms.jsx";
 import { Pix } from "./pix.jsx";
 import { FACES, HATS, OUTFITS, lookSprite } from "./sprites.js";
 
-import { DAY, SFX_PREFIX, skinAdd, skinDel, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { DAY, SFX_PREFIX, prepSkin, skinAdd, skinDel, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -1236,22 +1236,30 @@ export function SkinSheet({ hostCode, isHost, skins = [], onChanged, onClose }) 
   const [name, setName] = useState("");
   const [price, setPrice] = useState("3");
   const [img, setImg] = useState(null);
+  const [src, setSrc] = useState(null);      // 고른 원본 파일
+  const [cut, setCut] = useState(true);      // 배경 지우기
+  const [tol, setTol] = useState(42);        // 어디까지 배경으로 볼지
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const fileRef = useRef(null);
 
-  const pickFile = async (e) => {
+  /* 원본이나 설정이 바뀌면 다시 손질합니다 */
+  useEffect(() => {
+    if (!src) return undefined;
+    let alive = true;
+    prepSkin(src, { max: 240, cut, tol })
+      .then((data) => { if (alive) setImg(data); })
+      .catch(() => { if (alive) setErr("이미지를 읽지 못했어요."); });
+    return () => { alive = false; };
+  }, [src, cut, tol]);
+
+  const pickFile = (e) => {
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
     setErr("");
-    try {
-      const data = await shrinkImage(f, 240, 0.82);
-      setImg(data);
-      if (!name.trim()) setName(f.name.replace(/\.[^.]+$/, "").slice(0, 16));
-    } catch {
-      setErr("이미지를 읽지 못했어요.");
-    }
+    setSrc(f);
+    if (!name.trim()) setName(f.name.replace(/\.[^.]+$/, "").slice(0, 16));
   };
 
   const add = async () => {
@@ -1263,6 +1271,7 @@ export function SkinSheet({ hostCode, isHost, skins = [], onChanged, onClose }) 
     if (!r?.ok) { setErr(msgOf(r)); buzz(); return; }
     setErr("");
     setImg(null);
+    setSrc(null);
     setName("");
     ding();
     onChanged?.();
@@ -1285,7 +1294,7 @@ export function SkinSheet({ hostCode, isHost, skins = [], onChanged, onClose }) 
 
       {isHost && (
         <div className="ccSkinAdd">
-          <button className="ccSkinPick" onClick={() => fileRef.current?.click()}>
+          <button className="ccSkinPick" onClick={() => fileRef.current?.click()} title="눌러서 다른 사진">
             {img ? <img src={img} alt="" className="ccSkinPreview" draggable={false} /> : "사진 고르기"}
           </button>
           <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickFile} />
@@ -1308,6 +1317,35 @@ export function SkinSheet({ hostCode, isHost, skins = [], onChanged, onClose }) 
               <span className="ccSkinPriceNote">별을 주고 사게 됩니다</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {isHost && src && (
+        <div className="ccCut">
+          <label className="ccCutRow">
+            <input type="checkbox" checked={cut} onChange={(e) => setCut(e.target.checked)} />
+            <span>배경 지우기 (누끼)</span>
+          </label>
+          {cut && (
+            <label className="ccCutRow">
+              <span className="ccCutLabel">얼마나</span>
+              <input
+                className="ccVol ccCutRange"
+                type="range"
+                min="14"
+                max="90"
+                step="2"
+                value={tol}
+                onChange={(e) => setTol(Number(e.target.value))}
+              />
+              <span className="ccCutNum">{tol}</span>
+            </label>
+          )}
+          <p className="ccCutNote">
+            {cut
+              ? "가장자리부터 비슷한 색을 지워요. 덜 지워지면 오른쪽으로, 얼굴까지 파이면 왼쪽으로."
+              : "배경을 그대로 둡니다."}
+          </p>
         </div>
       )}
       {isHost && (
