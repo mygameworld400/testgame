@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, depth, keyCount, keyPos, proj } from "./rooms.jsx";
-import { blip, crack, crunch, keyclick, splash, unlockAudio } from "./sfx.js";
+import { blip, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
 import { FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
 import { findSfx, quizPacks, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, spriteURL } from "./sprites.js";
@@ -107,11 +107,12 @@ const QUESTS = [
 
 /* 글꼴 — 설정에서 고르면 이 기기에 저장됩니다 */
 const FONTS = [
-  { id: "pixel", name: "둥근모 (기본)", css: '"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui,sans-serif' },
+  { id: "coding", name: "나눔고딕코딩 (기본)", css: '"Nanum Gothic Coding","DungGeunMo","Malgun Gothic",monospace' },
+  { id: "pixel", name: "둥근모", css: '"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui,sans-serif' },
   { id: "jua", name: "주아 Jua", css: '"Jua","DungGeunMo","Malgun Gothic",system-ui,sans-serif' },
-  { id: "coding", name: "나눔고딕코딩", css: '"Nanum Gothic Coding","DungGeunMo","Malgun Gothic",monospace' },
   { id: "single", name: "싱글데이 Single Day", css: '"Single Day","DungGeunMo","Malgun Gothic",cursive' },
 ];
+const FONT_DEFAULT = "coding";
 
 function applyFont(id) {
   const f = FONTS.find((x) => x.id === id) || FONTS[0];
@@ -122,9 +123,9 @@ function applyFont(id) {
 const savedFont = (() => {
   try {
     const v = localStorage.getItem("ccFont");
-    return FONTS.some((f) => f.id === v) ? v : "pixel";
+    return FONTS.some((f) => f.id === v) ? v : FONT_DEFAULT;
   } catch {
-    return "pixel";
+    return FONT_DEFAULT;
   }
 })();
 applyFont(savedFont);
@@ -209,6 +210,27 @@ const POND = [
   { x: 1360, y: 868, w: 168, h: 20 },
 ];
 
+/* 곡선 미끄럼틀 — 마을 오른쪽 바깥으로 크게 휘어 윗섬과 아랫섬을 잇습니다.
+   양쪽 입구에 서면 슝 하고 반대편으로 미끄러져요. */
+const SLIDE = {
+  ax: 1452, ay: 700,    // 윗섬 입구
+  c1x: 1700, c1y: 940,
+  c2x: 1668, c2y: 1258,
+  bx: 1388, by: 1382,   // 아랫섬 입구
+};
+const SLIDE_TOP = { x: SLIDE.ax, y: SLIDE.ay };
+const SLIDE_BOT = { x: SLIDE.bx, y: SLIDE.by };
+const SLIDE_R = 48;     // 입구 판정 반지름
+
+/* 3차 베지어 위의 한 점 */
+function slidePoint(t) {
+  const u = 1 - t;
+  return {
+    x: u * u * u * SLIDE.ax + 3 * u * u * t * SLIDE.c1x + 3 * u * t * t * SLIDE.c2x + t * t * t * SLIDE.bx,
+    y: u * u * u * SLIDE.ay + 3 * u * u * t * SLIDE.c1y + 3 * u * t * t * SLIDE.c2y + t * t * t * SLIDE.by,
+  };
+}
+
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
 const JOIN_ERROR = {
@@ -287,11 +309,11 @@ function Building({ b, near }) {
 
 /* ============================ 캐릭터 ============================ */
 
-function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false, hold = null }) {
+function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false, hold = null, slide = false }) {
   const ch = charForSlot(slot);
   return (
     <div
-      className={"ccAvatar" + (swim ? " ccSwim" : "")}
+      className={"ccAvatar" + (swim ? " ccSwim" : "") + (slide ? " ccSliding" : "")}
       style={{
         left: x,
         top: y,
@@ -437,6 +459,55 @@ function Ground() {
       {POND.map((r, i) => slab(r, "w" + i, { background: i === 1 ? C.pond : C.pondDark }))}
       <div className="ccSlab" style={{ left: 1372, top: 816, width: 48, height: 12, background: "#ffffff", opacity: 0.7 }} />
     </div>
+  );
+}
+
+/* 곡선 미끄럼틀 — 마을 오른쪽에 걸쳐 있는 구름 미끄럼틀 */
+function Slide() {
+  const N = 44;
+  const pts = [];
+  for (let i = 0; i <= N; i++) pts.push(slidePoint(i / N));
+  const d = pts.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const legs = [0.24, 0.5, 0.76].map((t) => slidePoint(t));
+
+  const pad = (p, up) => (
+    <g>
+      <rect x={p.x - 46} y={p.y - 12} width={92} height={40} fill={C.line} />
+      <rect x={p.x - 42} y={p.y - 8} width={84} height={32} fill="#ffe9a8" />
+      <rect x={p.x - 42} y={p.y - 8} width={84} height={8} fill="#fff6dc" />
+      <text
+        x={p.x}
+        y={p.y + 16}
+        textAnchor="middle"
+        fontSize="17"
+        fontWeight="900"
+        fill={C.line}
+        fontFamily="inherit"
+      >
+        {up ? "▲" : "▼"}
+      </text>
+    </g>
+  );
+
+  return (
+    <svg className="ccSlide" width={WORLD.w} height={WORLD.h} viewBox={`0 0 ${WORLD.w} ${WORLD.h}`}>
+      {/* 받침 기둥 */}
+      {legs.map((p, i) => (
+        <g key={i}>
+          <rect x={p.x - 11} y={p.y} width={22} height={104} fill={C.line} />
+          <rect x={p.x - 7} y={p.y + 4} width={14} height={96} fill="#d9c4f2" />
+          <rect x={p.x - 7} y={p.y + 4} width={5} height={96} fill="#efe4ff" />
+        </g>
+      ))}
+      {/* 미끄럼틀 — 굵은 테두리 위에 속살, 그 위에 반짝이는 길 */}
+      <path d={d} fill="none" stroke={C.line} strokeWidth="62" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={d} fill="none" stroke="#ffb9d6" strokeWidth="50" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={d} fill="none" stroke="#ffd9ea" strokeWidth="34" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={d} fill="none" stroke="#fff4fa" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
+      {/* 입구 발판 */}
+      {pad(SLIDE_TOP, false)}
+      {pad(SLIDE_BOT, true)}
+    </svg>
   );
 }
 
@@ -681,6 +752,7 @@ function Town({ me, setMe, onKick }) {
     }
   });
   const [setOpen, setSetOpen] = useState(false);   // 설정 패널
+  const [riding, setRiding] = useState(false);     // 미끄럼틀 타는 중
   const [font, setFont] = useState(savedFont);
 
   const track = queue[qi] || null;    // 지금 듣는 곡
@@ -720,6 +792,8 @@ function Town({ me, setMe, onKick }) {
   const questRef = useRef(quests);
   const walkRef = useRef(0);      // 마을에서 걸은 거리
   const welcomeRef = useRef(true);
+  const rideRef = useRef(null);     // { at, ms, up }
+  const rideLock = useRef(false);   // 도착하자마자 다시 타지 않도록
   const myMsgTimer = useRef(null);
 
   useEffect(() => { openRef.current = !!sheet; sheetRef.current = sheet; }, [sheet]);
@@ -749,6 +823,15 @@ function Town({ me, setMe, onKick }) {
   const collected = stars.filter(Boolean).length + roomTaken;
   const balance = Math.max(0, collected - spent);
   const online = me.role === "solo" ? 1 : peers.length + 1;
+
+  /* 미끄럼틀 타기 — up 이면 아랫섬에서 윗섬으로 */
+  const startRide = useCallback((up) => {
+    if (rideRef.current) return;
+    rideRef.current = { at: performance.now(), ms: 1150, up };
+    setRiding(true);
+    swoosh(!up);
+    setToast(up ? "슝 — 윗마을로!" : "슝 — 아랫마을로!");
+  }, []);
 
   /* 환영 팝업 닫기 */
   const closeWelcome = useCallback(() => {
@@ -1088,7 +1171,7 @@ function Town({ me, setMe, onKick }) {
       if (k.arrowdown || k.s) dy += 1;
       const st = stick.current;
       if (st.x || st.y) { dx = st.x; dy = st.y; }
-      if (openRef.current || sitRef.current != null) { dx = 0; dy = 0; }
+      if (openRef.current || sitRef.current != null || rideRef.current) { dx = 0; dy = 0; }
 
       const bounds = room
         ? { x0: room.play.x0, x1: room.play.x1, y0: room.play.y0, y1: room.play.y1 }
@@ -1237,6 +1320,29 @@ function Town({ me, setMe, onKick }) {
       }
 
       /* --- 마을 --- */
+      /* 미끄럼틀 — 타는 동안은 길을 따라 옮겨주고, 조작은 받지 않습니다 */
+      const rd = rideRef.current;
+      if (rd) {
+        const k = Math.min(1, (now - rd.at) / rd.ms);
+        /* 내려갈 땐 점점 빨라지고, 올라갈 땐 끝에서 살짝 느려져요 */
+        const pr = rd.up ? 1 - Math.pow(1 - k, 1.6) : Math.pow(k, 1.6);
+        const at = slidePoint(rd.up ? 1 - pr : pr);
+        posRef.current = at;
+        setPos(at);
+        if (k >= 1) {
+          rideRef.current = null;
+          setRiding(false);
+        }
+      } else {
+        const inTop = Math.hypot(p.x - SLIDE_TOP.x, p.y - SLIDE_TOP.y) < SLIDE_R;
+        const inBot = Math.hypot(p.x - SLIDE_BOT.x, p.y - SLIDE_BOT.y) < SLIDE_R;
+        if (!inTop && !inBot) rideLock.current = false;
+        else if (!rideLock.current) {
+          rideLock.current = true;
+          startRide(inBot);
+        }
+      }
+
       let best = null;
       let bestD = Infinity;
       for (const b of BUILDINGS) {
@@ -1279,7 +1385,7 @@ function Town({ me, setMe, onKick }) {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [popBall, pressKey, doQuest]);
+  }, [popBall, pressKey, doQuest, startRide]);
 
   /* 같이 접속한 사람 */
   useEffect(() => {
@@ -1617,6 +1723,7 @@ function Town({ me, setMe, onKick }) {
             }}
           >
             <Ground />
+            <Slide />
 
             {TREES.map(([x, y, col], i) => (
               <div key={i} className="ccTree" style={{ left: x - 30, top: y - 80, zIndex: Math.round(y) }}>
@@ -1664,6 +1771,7 @@ function Town({ me, setMe, onKick }) {
           msg={myMsg}
           waiting={!!waitRef.current && !!myGid}
           hold={holding?.emoji || null}
+          slide={riding}
         />
           </div>
         </>
@@ -1830,6 +1938,10 @@ function Town({ me, setMe, onKick }) {
       )}
 
       <div className={"ccQuest" + (guideOpen ? "" : " ccQuestMin")}>
+        <span className="ccQuestPin ccQuestPinA" />
+        <span className="ccQuestPin ccQuestPinB" />
+        <span className="ccQuestPin ccQuestPinC" />
+        <span className="ccQuestPin ccQuestPinD" />
         <button
           className="ccQuestHead"
           onClick={() => {
@@ -1843,14 +1955,17 @@ function Town({ me, setMe, onKick }) {
             }
           }}
         >
-          <span className="ccQuestTitle">🧭 처음 오셨나요</span>
-          <span className="ccQuestNum">{questDone} / {QUESTS.length}</span>
+          <Pix map={DECO.star.map} palette={DECO.star.palette} scale={2} cacheKey="star" className="ccQuestStar" />
+          <span className="ccQuestTitle">처음 오셨나요?</span>
+          <span className="ccQuestNum">{questDone}/{QUESTS.length}</span>
           <span className="ccQuestArrow">{guideOpen ? "▾" : "▸"}</span>
         </button>
         {guideOpen && (
           <>
             <div className="ccQuestBar">
-              <i style={{ width: `${Math.round((questDone / QUESTS.length) * 100)}%` }} />
+              {QUESTS.map((q, i) => (
+                <span key={q.id} className={"ccQuestCell" + (i < questDone ? " ccQuestCellOn" : "")} />
+              ))}
             </div>
             <ul className="ccQuestList">
               {QUESTS.map((q) => {
@@ -2179,6 +2294,11 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
   padding:9px 12px;cursor:pointer;font-family:inherit;box-shadow:3px 3px 0 rgba(91,74,99,.25)}
 .ccChatBtn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(91,74,99,.25)}
 
+/* 곡선 미끄럼틀 */
+.ccSlide{position:absolute;left:0;top:0;pointer-events:none}
+.ccSliding .ccPix{animation:ccSlideWob .16s steps(2,end) infinite}
+@keyframes ccSlideWob{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-5px) rotate(6deg)}}
+
 .ccTree{position:absolute;animation:ccSway 3s steps(3,end) infinite}
 @keyframes ccSway{0%,100%{transform:translateX(0)}50%{transform:translateX(3px)}}
 .ccRoomStar{transform-origin:50% 100%}
@@ -2206,27 +2326,40 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
 .ccHostPanel{width:100%;padding:14px}
 
 /* 우측 세로 스택 — 회차 배지 아래로 호스트 도구와 가이드가 쌓입니다 */
-.ccSide{position:absolute;right:14px;top:66px;width:238px;display:flex;flex-direction:column;
+.ccSide{position:absolute;right:30px;top:98px;width:238px;display:flex;flex-direction:column;
   align-items:stretch;gap:8px;z-index:17}
 
 /* 뉴비 가이드 — 하나씩 해보는 투두 */
-.ccQuest{background:#fff;border:4px solid ${C.line};box-shadow:5px 5px 0 rgba(91,74,99,.3)}
-.ccQuestHead{width:100%;display:flex;align-items:center;gap:6px;background:#ffe9a8;border:none;
+.ccQuest{position:relative;background:#fff;border:4px solid ${C.line};box-shadow:5px 5px 0 rgba(91,74,99,.3)}
+/* 네 모서리 색깔 징 */
+.ccQuestPin{position:absolute;width:9px;height:9px;background:#ff8fb6;border:3px solid ${C.line};z-index:2}
+.ccQuestPinA{left:-9px;top:-9px}
+.ccQuestPinB{right:-9px;top:-9px;background:#ffd45e}
+.ccQuestPinC{left:-9px;bottom:-9px;background:#8fe3c9}
+.ccQuestPinD{right:-9px;bottom:-9px;background:#b6a6f0}
+/* 사탕 줄무늬 머리띠 */
+.ccQuestHead{width:100%;display:flex;align-items:center;gap:7px;border:none;
+  background:repeating-linear-gradient(135deg,#ffe6a0 0 7px,#ffd97a 7px 14px);
   border-bottom:4px solid ${C.line};font-family:inherit;font-weight:800;font-size:12.5px;color:${C.ink};
-  padding:9px 10px;cursor:pointer;text-align:left}
+  padding:8px 9px;cursor:pointer;text-align:left}
 .ccQuestMin .ccQuestHead{border-bottom:none}
+.ccQuestStar{flex:none;animation:ccStarF 1.6s steps(3,end) infinite}
 .ccQuestTitle{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ccQuestNum{font-size:11px;font-weight:900;color:#c05a86;white-space:nowrap}
-.ccQuestArrow{font-size:10px;color:${C.inkSoft}}
-.ccQuestBar{height:9px;background:#efe7f2;border-bottom:3px solid ${C.line}}
-.ccQuestBar i{display:block;height:100%;background:#8fe3c9;transition:width .25s steps(6,end)}
+.ccQuestNum{font-size:10.5px;font-weight:900;color:#c05a86;white-space:nowrap;background:#fff;
+  border:3px solid ${C.line};padding:2px 6px;line-height:1.2}
+.ccQuestArrow{font-size:10px;color:${C.ink};animation:ccQArrow 1.2s steps(2,end) infinite}
+@keyframes ccQArrow{0%,100%{transform:translateY(0)}50%{transform:translateY(2px)}}
+/* 진행바 — 칸을 하나씩 채웁니다 */
+.ccQuestBar{display:flex;gap:2px;padding:5px 6px;background:#fff6dc;border-bottom:3px solid ${C.line}}
+.ccQuestCell{flex:1;height:9px;background:#efe7f2;box-shadow:inset 0 0 0 2px rgba(91,74,99,.22)}
+.ccQuestCellOn{background:#8fe3c9;box-shadow:inset 0 0 0 2px ${C.line}}
 .ccQuestList{list-style:none;margin:0;padding:7px;max-height:min(54vh,430px);overflow:auto;
   display:flex;flex-direction:column;gap:2px;text-align:left}
 .ccQ{display:flex;gap:7px;align-items:flex-start;padding:5px;font-size:11.5px;font-weight:700;
   line-height:1.35;color:${C.inkSoft}}
 .ccQBox{flex:none;width:16px;height:16px;border:3px solid ${C.line};background:#fff;margin-top:1px;
   font-size:10px;line-height:10px;text-align:center;color:${C.ink}}
-.ccQBody{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ccQBody{display:flex;flex-direction:column;gap:3px;min-width:0;word-break:keep-all}
 .ccQBody b{font-weight:800}
 .ccQBody em{font-style:normal;font-size:10.5px;font-weight:700;color:${C.inkSoft};line-height:1.5}
 .ccQOk .ccQBox{background:#8fe3c9}
@@ -2537,7 +2670,7 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
 .ccIsTouch .ccChatBar{left:158px;width:min(300px,42vw)}
 .ccIsTouch .ccFeed{left:158px;width:min(300px,42vw)}
 .ccIsTouch .ccHistory{left:158px;width:min(340px,50vw);max-height:44vh}
-.ccIsTouch .ccSide{width:200px;top:60px}
+.ccIsTouch .ccSide{width:200px;right:20px;top:84px}
 .ccIsTouch .ccQuestList{max-height:min(34vh,220px)}
 
 @media (hover:none) and (pointer:coarse){
@@ -2549,7 +2682,7 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
   .ccHistory{left:158px;width:min(340px,50vw);max-height:44vh;bottom:calc(62px + var(--kb, 0px))}
   .ccHud{max-width:44vw}
   .ccHud .ccChip{font-size:11px;padding:5px 9px}
-  .ccSide{width:200px;top:60px}
+  .ccSide{width:200px;right:20px;top:84px}
   .ccQuestList{max-height:min(34vh,220px)}
 }
 @media (hover:none) and (pointer:coarse) and (orientation:portrait){

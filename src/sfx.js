@@ -227,6 +227,46 @@ export function ding() {
   });
 }
 
+/* 미끄럼틀 "슝~" — 바람 잡음이 한 번 훑고 지나가고, 그 위로 음이 미끄러집니다.
+   내려갈 때는 음이 낮아지고, 올라갈 때는 반대로 올라가요. */
+export function swoosh(down = true) {
+  const ac = audio();
+  if (!ac) return;
+  const t0 = ac.currentTime;
+  const dur = 0.95;
+
+  const n = ac.createBufferSource();
+  const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * dur), ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.6;
+  n.buffer = buf;
+  const bp = ac.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.value = 1.3;
+  bp.frequency.setValueAtTime(down ? 1900 : 480, t0);
+  bp.frequency.exponentialRampToValueAtTime(down ? 430 : 2100, t0 + dur);
+  const ng = ac.createGain();
+  ng.gain.setValueAtTime(0.0001, t0);
+  ng.gain.exponentialRampToValueAtTime(0.16, t0 + 0.13);
+  ng.gain.setValueAtTime(0.16, t0 + dur - 0.28);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  n.connect(bp).connect(ng).connect(ac.destination);
+  n.start(t0);
+  n.stop(t0 + dur);
+
+  const osc = ac.createOscillator();
+  const g = ac.createGain();
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(down ? 880 : 300, t0);
+  osc.frequency.exponentialRampToValueAtTime(down ? 290 : 1080, t0 + dur * 0.92);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(0.09, t0 + 0.09);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g).connect(ac.destination);
+  osc.start(t0);
+  osc.stop(t0 + dur);
+}
+
 /* 키보드 "톡" — 얇은 클릭 + 아주 짧은 저음 */
 export function keyclick(url) {
   if (playFile(url, 0.8)) return;
