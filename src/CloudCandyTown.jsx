@@ -1074,14 +1074,13 @@ function Town({ me, setMe, onKick }) {
           }
         }
 
-        /* 키보드 밟기 — 키보드는 화면 좌표에 반듯하게 그려서, 판정도 같은 좌표로 합니다 */
+        /* 키보드 밟기 — 키보드가 바닥에 누워 있어서 방 좌표 그대로 판정합니다 */
         if (room.keys) {
           const K = room.keys;
-          const me2 = proj(p.x, p.y);
           for (let i = 0; i < keyCount(K); i++) {
             if (pressedRef.current.includes(i)) continue;
             const c = keyPos(K, i);
-            if (Math.abs(me2.sx - c.x) < K.w / 2 && Math.abs(me2.sy - c.y) < K.h / 2) {
+            if (Math.abs(p.x - c.x) < K.w / 2 && Math.abs(p.y - c.y) < K.h / 2) {
               pressKey(i, true);
               break;
             }

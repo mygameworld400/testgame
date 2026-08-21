@@ -134,8 +134,8 @@ export const ROOMS = {
       { i: 3, x: 258, y: 340 }, { i: 4, x: 308, y: 345 }, { i: 5, x: 210, y: 345 },
       { i: 6, x: 283, y: 380 }, { i: 7, x: 350, y: 350 },
     ],
-    /* 키보드 — 오른쪽에 세로로 긴 3열 × 10줄 */
-    keys: { sx: 706, sy: 372, cols: 3, rows: 10, w: 60, h: 33, gap: 4 },
+    /* 키보드 — 오른쪽 바닥에 눕힌 3열 × 10줄 (x, y 는 뒤쪽 왼쪽 모서리의 방 좌표) */
+    keys: { x: 690, y: 100, cols: 3, rows: 10, w: 64, h: 36, gap: 5 },
     stars: [{ x: 140, y: 150 }, { x: 480, y: 470 }, { x: 640, y: 120 }],
     zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
   },
@@ -473,51 +473,73 @@ function PoolProps({ R, phase }) {
   );
 }
 
-/* 키 하나의 화면 좌표 (가운데) — 원근을 쓰지 않아 반듯하게 보입니다 */
+/* 키 하나의 방 좌표 (가운데) — 바닥에 눕혀 있어서 이동/충돌과 같은 평면을 씁니다 */
 export function keyPos(k, i) {
   const c = i % k.cols;
   const r = Math.floor(i / k.cols);
-  return { x: k.sx + c * k.w + k.w / 2, y: k.sy + r * k.h + k.h / 2 };
+  return { x: k.x + c * k.w + k.w / 2, y: k.y + r * k.h + k.h / 2 };
 }
 export const keyCount = (k) => k.cols * k.rows;
 
-/* 3열 × 10줄 키보드 — 화면 기준 반듯한 사각형으로 그립니다 */
+/* 바닥에 누운 사각형 → 화면 폴리곤. h 만큼 띄우면 그만큼 위로 올라갑니다 */
+function slab(x1, y1, x2, y2, h = 0) {
+  const a = proj(x1, y1), b = proj(x2, y1), c = proj(x2, y2), d = proj(x1, y2);
+  return `${a.sx},${a.sy - h * a.k} ${b.sx},${b.sy - h * b.k} ${c.sx},${c.sy - h * c.k} ${d.sx},${d.sy - h * d.k}`;
+}
+/* 두 점을 잇는 수직 옆면 (hTop ~ hBot 사이) */
+function wallFace(ax, ay, bx, by, hTop, hBot = 0) {
+  const a = proj(ax, ay), b = proj(bx, by);
+  return `${a.sx},${a.sy - hTop * a.k} ${b.sx},${b.sy - hTop * b.k} ${b.sx},${b.sy - hBot * b.k} ${a.sx},${a.sy - hBot * a.k}`;
+}
+
+/* 3열 × 10줄 키보드 — 바닥에 눕혀서 방 원근 그대로 그립니다 */
 function Keyboard({ keys, pressed }) {
-  const pad = 10;
-  const bw = keys.cols * keys.w + pad * 2;
-  const bh = keys.rows * keys.h + pad * 2;
+  const pad = 12;    // 판 여백(방 좌표)
+  const plate = 7;   // 판 두께
+  const lift = 12;   // 키가 올라온 높이
+  const drop = 4;    // 밟혔을 때 남는 높이
+
+  const bx1 = keys.x - pad;
+  const bx2 = keys.x + keys.cols * keys.w + pad;
+  const by1 = keys.y - pad;
+  const by2 = keys.y + keys.rows * keys.h + pad;
+
+  /* 뒷줄부터 그려야 앞줄 키가 위로 덮입니다 */
   const cells = [];
   for (let i = 0; i < keyCount(keys); i++) {
-    const c = keyPos(keys, i);
+    const c = i % keys.cols;
+    const r = Math.floor(i / keys.cols);
+    const g = keys.gap / 2;
+    const x1 = keys.x + c * keys.w + g;
+    const x2 = keys.x + (c + 1) * keys.w - g;
+    const y1 = keys.y + r * keys.h + g;
+    const y2 = keys.y + (r + 1) * keys.h - g;
     const down = pressed.includes(i);
-    const w = keys.w - keys.gap;
-    const h = keys.h - keys.gap;
+    const top = plate + (down ? drop : lift);
     cells.push(
-        <g key={i}>
-          {/* 키 옆면 */}
-          <rect x={c.x - w / 2} y={c.y - h / 2 + 4} width={w} height={h} fill="#9a8f7d" stroke="#5b4a63" strokeWidth="2.5" />
-          {/* 키 윗면 */}
-          <rect
-            x={c.x - w / 2}
-            y={c.y - h / 2 + (down ? 4 : 0)}
-            width={w}
-            height={h}
-            rx="3"
-            fill={down ? "#ded3c0" : "#fffaf0"}
-            stroke="#5b4a63"
-            strokeWidth="2.5"
-          />
-          {!down && <rect x={c.x - w / 2 + 4} y={c.y - h / 2 + 4} width={w - 8} height="3" fill="#fff" opacity="0.9" />}
+      <g key={i}>
+        {/* 키 옆면 — 앞/좌/우 */}
+        <polygon points={wallFace(x1, y1, x1, y2, top, plate)} fill="#8d8271" stroke="#5b4a63" strokeWidth="2" />
+        <polygon points={wallFace(x2, y1, x2, y2, top, plate)} fill="#8d8271" stroke="#5b4a63" strokeWidth="2" />
+        <polygon points={wallFace(x1, y2, x2, y2, top, plate)} fill="#9a8f7d" stroke="#5b4a63" strokeWidth="2" />
+        {/* 키 윗면 */}
+        <polygon points={slab(x1, y1, x2, y2, top)} fill={down ? "#ded3c0" : "#fffaf0"} stroke="#5b4a63" strokeWidth="2" />
+        {!down && (
+          <polygon points={slab(x1 + 4, y1 + 3, x2 - 4, y1 + 8, top)} fill="#fff" opacity="0.85" />
+        )}
       </g>
     );
   }
+
   return (
     <g>
       {/* 바닥 그림자 */}
-      <rect x={keys.sx - pad + 5} y={keys.sy - pad + 7} width={bw} height={bh} fill="#5b4a63" opacity="0.18" />
-      {/* 키보드 판 */}
-      <rect x={keys.sx - pad} y={keys.sy - pad} width={bw} height={bh} rx="6" fill="#7c7061" stroke="#5b4a63" strokeWidth="4" />
-      <rect x={keys.sx - pad + 4} y={keys.sy - pad + 4} width={bw - 8} height={bh - 8} rx="4" fill="#8d8171" />
+      <polygon points={slab(bx1 + 6, by1 + 5, bx2 + 6, by2 + 5)} fill="#5b4a63" opacity="0.18" />
+      {/* 키보드 판 — 옆면 먼저, 그 위에 윗면 */}
+      <polygon points={wallFace(bx1, by1, bx1, by2, plate)} fill="#6b6155" stroke="#5b4a63" strokeWidth="3" />
+      <polygon points={wallFace(bx2, by1, bx2, by2, plate)} fill="#6b6155" stroke="#5b4a63" strokeWidth="3" />
+      <polygon points={wallFace(bx1, by2, bx2, by2, plate)} fill="#7c7061" stroke="#5b4a63" strokeWidth="3" />
+      <polygon points={slab(bx1, by1, bx2, by2, plate)} fill="#8d8171" stroke="#5b4a63" strokeWidth="3" />
       {cells}
     </g>
   );
