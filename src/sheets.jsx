@@ -4,7 +4,7 @@ import { MENU } from "./rooms.jsx";
 import { Pix } from "./pix.jsx";
 import { FACES, HATS, OUTFITS, lookSprite } from "./sprites.js";
 
-import { DAY, SFX_PREFIX, addVideoLink, fbAdd, fbDel, fbList, ideaAdd, ideaDel, ideaList, isVid, moviePlay, movieStop, prepSkin, scoreAdd, scoreTop, skinAdd, skinDel, uploadVideo, vidInfo, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { DAY, SFX_PREFIX, addVideoLink, fbAdd, fbDel, fbList, ideaAdd, ideaDel, ideaList, isKar, isVid, karName, moviePlay, movieStop, prepSkin, scoreAdd, scoreTop, skinAdd, skinDel, uploadSong, uploadVideo, vidInfo, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -302,7 +302,7 @@ export function QuizSheet({ hostCode, isHost, onClose, mode = "solo", fixedPack 
 
 /* ============================ 플레이리스트 ============================ */
 
-export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId, songbook = false }) {
+export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
   const [list, setList] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -324,7 +324,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId, songb
 
   useEffect(() => { load(); }, [load]);
 
-  const songs = (list || []).filter((t) => !isSfx(t) && !isVid(t));
+  const songs = (list || []).filter((t) => !isSfx(t) && !isVid(t) && !isKar(t));
   const sfx = (list || []).filter(isSfx);
 
   /* 플레이리스트별로 묶기 */
@@ -376,7 +376,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId, songb
   return (
     <div className="ccPanel ccSheet" onClick={(e) => e.stopPropagation()}>
       <div className="ccSheetHead">
-        <h2 className="ccSheetTitle">{songbook ? "🎤 선곡표" : "♪ 플레이리스트"}</h2>
+        <h2 className="ccSheetTitle">♪ 플레이리스트</h2>
         <button className="ccX" onClick={onClose}>✕</button>
       </div>
 
@@ -2183,6 +2183,153 @@ export function MovieSheet({ me, hostCode, isHost, off = false, now, onPlay, onC
           ? "상영이 끝날 때까지는 아무도 바꿀 수 없어요. 같이 봐요!"
           : "아무나 틀 수 있어요. 한 번 틀면 끝날 때까지 다 같이 봅니다."}
       </p>
+    </div>
+  );
+}
+
+/* ---------- 🎤 노래방 선곡표 ----------
+   LP바 플레이리스트와 아예 다른 목록입니다. 곡을 'kar:제목' 으로 담아서
+   서로 안 섞여요. 번호를 쳐서 고를 수도 있습니다. */
+
+export function SongbookSheet({ hostCode, isHost, off = false, playingId, onPlay, onClose }) {
+  const [list, setList] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [no, setNo] = useState("");
+  const [title, setTitle] = useState("");
+  const [pickName, setPickName] = useState("");
+  const songFile = useRef(null);
+  const picked = useRef(null);
+
+  const load = useCallback(async () => {
+    if (off) { setList([]); return; }
+    const r = await trackList();
+    if (Array.isArray(r)) { setList(r.filter(isKar)); setErr(""); }
+    else { setList([]); setErr(msgOf(r)); }
+  }, [off]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const songs = list || [];
+
+  const sing = (i) => {
+    const t = songs[i];
+    if (!t) return;
+    ding();
+    onPlay?.(songs, i, "선곡표");
+  };
+
+  const byNumber = () => {
+    const n = Number(no);
+    if (!n || n < 1 || n > songs.length) {
+      setErr(`1 부터 ${songs.length || 0} 번까지 있어요.`);
+      buzz();
+      return;
+    }
+    setErr("");
+    setNo("");
+    sing(n - 1);
+  };
+
+  const pickFile = (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    picked.current = f;
+    setPickName(f.name);
+    if (!title.trim()) setTitle(f.name.replace(/\.[^.]+$/, "").slice(0, 30));
+  };
+
+  const add = async () => {
+    if (!picked.current) { setErr("노래 파일을 골라주세요."); return; }
+    setBusy(true);
+    const r = await uploadSong(hostCode, picked.current, title.trim());
+    setBusy(false);
+    if (!r?.ok) {
+      setErr(
+        r?.error === "bucket_limit" ? "보관함 용량 제한에 막혔어요. supabase/feedback.sql 을 다시 실행해주세요."
+          : r?.error === "too_big" ? "60MB 이하로 올려주세요."
+            : msgOf(r)
+      );
+      buzz();
+      return;
+    }
+    picked.current = null;
+    setPickName("");
+    setTitle("");
+    setErr("");
+    ding();
+    load();
+  };
+
+  const del = async (t) => {
+    setBusy(true);
+    const r = await trackDel(hostCode, t.id);
+    setBusy(false);
+    if (r?.ok) load();
+    else setErr(msgOf(r));
+  };
+
+  return (
+    <div className="ccPanel ccModal ccBook" onClick={(e) => e.stopPropagation()}>
+      <div className="ccSheetHead">
+        <h2 className="ccSheetTitle">🎤 선곡표</h2>
+        <button className="ccX" onClick={onClose}>✕</button>
+      </div>
+
+      <div className="ccBookNum">
+        <input
+          className="ccInput ccBookIn"
+          value={no}
+          inputMode="numeric"
+          maxLength={3}
+          placeholder="번호"
+          onChange={(e) => setNo(e.target.value.replace(/[^0-9]/g, ""))}
+          onKeyDown={(e) => { if (e.key === "Enter") byNumber(); }}
+        />
+        <button className="ccBtn ccBookGo" onClick={byNumber} disabled={off}>선곡</button>
+      </div>
+
+      <div className="ccBookList">
+        {list === null && <p className="ccSheetNote">불러오는 중…</p>}
+        {list?.length === 0 && (
+          <p className="ccSheetNote">
+            {off ? "혼자 둘러보는 중이라 비어 있어요." : "아직 등록된 곡이 없어요."}
+          </p>
+        )}
+        {songs.map((t, i) => (
+          <div key={t.id} className={"ccBookRow" + (playingId === t.id ? " ccBookOn" : "")}>
+            <span className="ccBookNo">{String(i + 1).padStart(3, "0")}</span>
+            <button className="ccBookName" onClick={() => sing(i)}>{karName(t)}</button>
+            {isHost && (
+              <button className="ccTrackDel" onClick={() => del(t)} disabled={busy}>지우기</button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {err && <div className="ccErr">{err}</div>}
+
+      {isHost && !off && (
+        <div className="ccVidAdd">
+          <button className="ccMini ccVidPick" onClick={() => songFile.current?.click()}>
+            {pickName || "노래 파일 고르기"}
+          </button>
+          <input ref={songFile} type="file" accept="audio/*,video/*" hidden onChange={pickFile} />
+          <input
+            className="ccInput ccVidName"
+            value={title}
+            maxLength={30}
+            placeholder="곡 제목"
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <button className="ccBtn ccVidUp" onClick={add} disabled={busy}>
+            {busy ? "올리는 중…" : "선곡표에 넣기"}
+          </button>
+        </div>
+      )}
+
+      <p className="ccSheetNote">여기 곡은 LP바 플레이리스트와 따로예요.</p>
     </div>
   );
 }

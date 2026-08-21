@@ -252,6 +252,42 @@ export const scoreTop = (game) => call("cc_score_top", { p_game: game });
    영상은 음악과 같은 보관함(music 버킷)에 넣고, 목록에는 'vid:제목' 으로
    구분해 담습니다. 따로 테이블을 만들지 않아도 되고 음악 목록에는 안 보여요. */
 
+/* 노래방 선곡표는 LP바 플레이리스트와 따로 둡니다 */
+export const KAR_PREFIX = "kar:";
+export const isKar = (t) => (t?.title || "").startsWith(KAR_PREFIX);
+export const karName = (t) => (t?.title || "").slice(KAR_PREFIX.length);
+
+export async function uploadSong(hostCode, file, title) {
+  if (!supabase) return { ok: false, error: "no_server" };
+  if (file.size > 60 * 1024 * 1024) return { ok: false, error: "too_big" };
+
+  const ext = (file.name.split(".").pop() || "mp3").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const path = `kar-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const up = await supabase.storage.from("music").upload(path, file, {
+    contentType: file.type || "audio/mpeg",
+    upsert: false,
+  });
+  if (up.error) {
+    const msg = up.error.message || "";
+    if (/exceeded the maximum allowed size|payload too large|413/i.test(msg)) {
+      return { ok: false, error: "bucket_limit", message: msg };
+    }
+    return { ok: false, error: /bucket/i.test(msg) ? "no_bucket" : "upload_failed", message: msg };
+  }
+
+  const name = (title || file.name.replace(/\.[^.]+$/, "")).slice(0, 30);
+  const reg = await trackAdd(hostCode, KAR_PREFIX + name, path, null);
+  if (!reg?.ok) {
+    try {
+      await supabase.storage.from("music").remove([path]);
+    } catch {
+      /* 무시 */
+    }
+  }
+  return reg;
+}
+
 export const VID_PREFIX = "vid:";
 export const isVid = (t) => (t?.title || "").startsWith(VID_PREFIX);
 export const vidName = (t) => (t?.title || "").slice(VID_PREFIX.length);

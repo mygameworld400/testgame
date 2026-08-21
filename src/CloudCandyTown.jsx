@@ -3,7 +3,7 @@ import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHost
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CAFE_CHAIRS, CAFE_TABLES, CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, SMALL_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, boing, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
-import { ArcadeSheet, DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, IDEA_BOX, MenuSheet, MovieSheet, MusicSheet, QuizSheet, SkinSheet, StarViewSheet, TeamLobby, WISH_BOX, WishSheet } from "./sheets.jsx";
+import { ArcadeSheet, DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, IDEA_BOX, MenuSheet, MovieSheet, MusicSheet, QuizSheet, SkinSheet, SongbookSheet, StarViewSheet, TeamLobby, WISH_BOX, WishSheet } from "./sheets.jsx";
 import { findSfx, movieNow, quizPacks, skinList, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, DEFAULT_LOOK, charForSlot, cursorUrls, grassTile, lookSprite, pathTile } from "./sprites.js";
 import { Pix } from "./pix.jsx";
@@ -2739,16 +2739,15 @@ function Town({ me, setMe, onKick }) {
             />
           )}
           {sheet === "songs" && (
-            <MusicSheet
+            <SongbookSheet
               hostCode={me.hostCode}
               isHost={me.role === "host"}
+              off={!hasServer || me.role === "solo"}
               playingId={track?.id}
-              songbook
               onPlay={(items, index, name) => {
                 setQueue(items);
                 setQi(index || 0);
                 setPlName(name || "");
-                doQuest("music");
               }}
               onClose={() => setSheet(null)}
             />
@@ -3126,6 +3125,20 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccVidTabs .ccMini{flex:1}
 .ccVidTip{margin:2px 0 0;line-height:1.6}
 .ccVidTip b{color:${C.ink}}
+
+/* 🎤 선곡표 */
+.ccBook{width:min(380px,94vw);padding:18px}
+.ccBookNum{display:flex;gap:6px;margin-bottom:10px}
+.ccBookIn{flex:1;padding:11px;font-size:17px;text-align:center;font-weight:900;letter-spacing:.1em}
+.ccBookGo{flex:none;font-size:13px;padding:11px 20px;background:#ff8fb6;color:#fff}
+.ccBookList{display:flex;flex-direction:column;gap:4px;max-height:44vh;overflow:auto;margin-bottom:4px}
+.ccBookRow{display:flex;align-items:center;gap:8px;border:3px solid ${C.line};background:#fff;padding:2px 8px}
+.ccBookOn{background:#fff6dc;box-shadow:inset 0 0 0 3px #ffd45e}
+.ccBookNo{flex:none;font-size:12px;font-weight:900;color:#c05a86;letter-spacing:.04em}
+.ccBookName{flex:1;border:none;background:none;font-family:inherit;font-size:12.5px;font-weight:700;
+  color:${C.ink};text-align:left;padding:9px 2px;cursor:pointer;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.ccBookName:hover{color:#c05a86}
 
 /* 🎬 상영표 */
 .ccMovie{width:min(380px,94vw);padding:18px}
