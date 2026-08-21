@@ -103,7 +103,7 @@ export const OUTFITS = [
   { id: "ink", label: "먹색", price: 3, c: "#5b4a63" },
 ];
 
-export const DEFAULT_LOOK = { f: 1, h: "none", o: "none" };
+export const DEFAULT_LOOK = { f: 1, h: "none", o: "none", sk: null };
 
 /* 꾸민 모습 하나를 그림으로 만들어 줍니다 */
 export function lookSprite(look) {

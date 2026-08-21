@@ -978,3 +978,66 @@ end; $$;
 
 grant execute on function public.cc_status() to anon, authenticated;
 grant execute on function public.cc_join(text, text, text) to anon, authenticated;
+
+
+-- ===========================================================
+-- 👗 캐릭터 이미지 (스킨)
+-- 호스트가 사진을 올리면 구름옷가게 '얼굴' 칸에 나타나고,
+-- 별로 사면 그 사람 캐릭터가 그 사진으로 바뀝니다.
+-- 사진은 퀴즈 이미지처럼 줄여서 base64 로 그대로 담습니다.
+-- ===========================================================
+
+create table if not exists public.cc_skins (
+  id      bigserial primary key,
+  name    text not null,
+  image   text not null,
+  price   int  not null default 3,
+  made_at timestamptz not null default now()
+);
+alter table public.cc_skins enable row level security;
+
+create or replace function public.cc_skin_list()
+returns json language plpgsql security definer set search_path = public as $$
+declare v json;
+begin
+  select coalesce(json_agg(json_build_object(
+           'id', id, 'name', name, 'image', image, 'price', price) order by id), '[]'::json)
+    into v from public.cc_skins;
+  return v;
+end; $$;
+
+create or replace function public.cc_skin_add(p_host_code text, p_name text, p_image text, p_price int)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text; v_id bigint;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  if coalesce(btrim(p_name), '') = '' or coalesce(p_image, '') = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  if length(p_image) > 900000 then
+    return json_build_object('ok', false, 'error', 'too_big');
+  end if;
+  insert into public.cc_skins (name, image, price)
+    values (left(btrim(p_name), 16), p_image, greatest(0, least(99, coalesce(p_price, 3))))
+    returning id into v_id;
+  return json_build_object('ok', true, 'id', v_id);
+end; $$;
+
+create or replace function public.cc_skin_del(p_host_code text, p_id bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  delete from public.cc_skins where id = p_id;
+  return json_build_object('ok', true);
+end; $$;
+
+grant execute on function public.cc_skin_list()                        to anon, authenticated;
+grant execute on function public.cc_skin_add(text, text, text, int)    to anon, authenticated;
+grant execute on function public.cc_skin_del(text, bigint)             to anon, authenticated;

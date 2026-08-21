@@ -120,6 +120,13 @@ export function trackUrl(path) {
   return supabase.storage.from("music").getPublicUrl(path).data.publicUrl;
 }
 
+/* ---------- 캐릭터 이미지(스킨) ---------- */
+
+export const skinList = () => call("cc_skin_list");
+export const skinAdd = (hostCode, name, image, price) =>
+  call("cc_skin_add", { p_host_code: hostCode, p_name: name, p_image: image, p_price: price });
+export const skinDel = (hostCode, id) => call("cc_skin_del", { p_host_code: hostCode, p_id: id });
+
 /* ---------- 떵개방 메뉴 가챠 ---------- */
 
 export const foodList = () => call("cc_food_list");

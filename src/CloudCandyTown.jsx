@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
-import { CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
+import { CAFE_CHAIRS, CAFE_TABLES, CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, SMALL_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
-import { DressSheet, FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
-import { findSfx, quizPacks, trackList, trackUrl } from "./content.js";
+import { DressSheet, FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, SkinSheet, TeamLobby } from "./sheets.jsx";
+import { findSfx, quizPacks, skinList, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, DEFAULT_LOOK, charForSlot, grassTile, lookSprite, pathTile } from "./sprites.js";
 import { Pix } from "./pix.jsx";
 
@@ -293,7 +293,7 @@ function Building({ b, near }) {
 
 /* ============================ 캐릭터 ============================ */
 
-function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false, hold = null, slide = false, look = null }) {
+function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false, hold = null, slide = false, look = null, skin = null }) {
   const ch = look ? lookSprite(look) : charForSlot(slot);
   return (
     <div
@@ -312,13 +312,20 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = f
         {hold && <span className="ccHold">{hold}</span>}
         {name}
       </div>
-      <Pix
-        map={ch.map}
-        palette={ch.palette}
-        scale={PX}
-        cacheKey={ch.key || "c-" + ch.id}
-        className={(moving ? "ccWalk " : "") + (facing < 0 ? "ccFlip" : "")}
-      />
+      {skin ? (
+        <div
+          className={"ccSkinPic " + (moving ? "ccWalk " : "") + (facing < 0 ? "ccFlip" : "")}
+          style={{ backgroundImage: `url(${skin})` }}
+        />
+      ) : (
+        <Pix
+          map={ch.map}
+          palette={ch.palette}
+          scale={PX}
+          cacheKey={ch.key || "c-" + ch.id}
+          className={(moving ? "ccWalk " : "") + (facing < 0 ? "ccFlip" : "")}
+        />
+      )}
       {swim && <div className="ccTube ccTubeFront" />}
     </div>
   );
@@ -735,6 +742,9 @@ function Town({ me, setMe, onKick }) {
   const [setOpen, setSetOpen] = useState(false);   // 설정 패널
   const [riding, setRiding] = useState(false);     // 미끄럼틀 타는 중
   const [talk, setTalk] = useState(null);          // 앉았을 때 오가는 말 { who, text }
+  const [staffPos, setStaffPos] = useState(null);  // 직원이 걸어다니는 자리
+  const [staffWalk, setStaffWalk] = useState(false);
+  const [skins, setSkins] = useState([]);          // 호스트가 올린 캐릭터 이미지
   const [starPop, setStarPop] = useState(false);   // 별 개수가 바뀌면 통 튑니다
   /* 꾸미기 — 고른 모습과 사둔 것들 */
   const [look, setLook] = useState(() => {
@@ -796,6 +806,13 @@ function Town({ me, setMe, onKick }) {
   const rideRef = useRef(null);     // { at, ms, up }
   const rideLock = useRef(false);   // 도착하자마자 다시 타지 않도록
   const talkTimers = useRef([]);
+  const talking = useRef(false);
+  const pairRef = useRef(null);       // 지금 같이 앉아 있는 사람의 의자 번호
+  const staffRef = useRef(null);      // 직원의 지금 자리
+  const staffTo = useRef(null);       // 직원이 가려는 자리
+  const staffFace = useRef(1);
+  const staffWalkRef = useRef(false);
+  const skinsAt = useRef(0);
   const lookRef = useRef(look);
   const myMsgTimer = useRef(null);
 
@@ -807,6 +824,29 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { pressedRef.current = pressed; }, [pressed]);
   useEffect(() => { welcomeRef.current = welcome; }, [welcome]);
   useEffect(() => { lookRef.current = look; }, [look]);
+
+  /* 직원 걸음 — 목표가 정해지면 한 걸음씩 다가갑니다 */
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const to = staffTo.current;
+      const cur = staffRef.current;
+      if (!to || !cur) return;
+      const dx = to.x - cur.x;
+      const dy = to.y - cur.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 3) {
+        if (staffWalkRef.current) { staffWalkRef.current = false; setStaffWalk(false); }
+        return;
+      }
+      if (!staffWalkRef.current) { staffWalkRef.current = true; setStaffWalk(true); }
+      if (Math.abs(dx) > 2) staffFace.current = dx > 0 ? 1 : -1;
+      const step = Math.min(d, 7);
+      const next = { x: cur.x + (dx / d) * step, y: cur.y + (dy / d) * step };
+      staffRef.current = next;
+      setStaffPos(next);
+    }, 40);
+    return () => clearInterval(iv);
+  }, []);
   useEffect(() => () => talkTimers.current.forEach(clearTimeout), []);
   useEffect(() => {
     applyFont(font);
@@ -828,6 +868,27 @@ function Town({ me, setMe, onKick }) {
   const collected = stars.filter(Boolean).length + roomTaken;
   const balance = Math.max(0, collected - spent);
   const online = me.role === "solo" ? 1 : peers.length + 1;
+
+  /* 올라온 캐릭터 이미지 가져오기 */
+  const loadSkins = useCallback(async () => {
+    if (!hasServer) return;
+    skinsAt.current = Date.now();
+    const r = await skinList();
+    if (Array.isArray(r)) setSkins(r);
+  }, []);
+
+  useEffect(() => { loadSkins(); }, [loadSkins]);
+
+  /* 남이 내가 모르는 이미지를 입고 있으면 한 번 더 받아옵니다 */
+  useEffect(() => {
+    const unknown = peerView.some((q) => q.lk?.sk && !skins.some((s) => s.id === q.lk.sk));
+    if (unknown && Date.now() - skinsAt.current > 15000) loadSkins();
+  }, [peerView, skins, loadSkins]);
+
+  const skinImg = useCallback(
+    (lk) => (lk?.sk ? skins.find((s) => s.id === lk.sk)?.image || null : null),
+    [skins]
+  );
 
   /* 꾸미기 — 안 산 건 별을 내고 삽니다 */
   const applyLook = useCallback((next, cost, key) => {
@@ -859,21 +920,70 @@ function Town({ me, setMe, onKick }) {
   const clearSeatTalk = useCallback(() => {
     talkTimers.current.forEach(clearTimeout);
     talkTimers.current = [];
+    talking.current = false;
     setTalk(null);
   }, []);
 
-  const startSeatTalk = useCallback((roomId) => {
-    clearSeatTalk();
+  /* 대사를 차례로 띄웁니다. 끝나면 done 을 부릅니다 */
+  const runTalk = useCallback((script, delay, done) => {
+    talkTimers.current.forEach(clearTimeout);
+    talkTimers.current = [];
+    if (!script.length) return;
+    talking.current = true;
+    const gap = 2300;
+    script.forEach((line, i) => {
+      talkTimers.current.push(setTimeout(() => setTalk(line), delay + i * gap));
+    });
+    talkTimers.current.push(
+      setTimeout(() => {
+        talking.current = false;
+        talkTimers.current = [];
+        setTalk(null);
+        done?.();
+      }, delay + script.length * gap)
+    );
+  }, []);
+
+  /* 앉으면 직원이 말을 겁니다. 카페에서는 테이블까지 걸어와요 */
+  const startSeatTalk = useCallback((roomId, chair) => {
     const pool = SEAT_TALK[roomId];
     if (!pool?.length) return;
     const pick = [...pool].sort(() => Math.random() - 0.5).slice(0, 2);
     const script = pick.flatMap((t) => [{ who: "s", text: t.s }, { who: "m", text: t.m }]);
-    const gap = 2300;
-    script.forEach((line, i) => {
-      talkTimers.current.push(setTimeout(() => setTalk(line), 700 + i * gap));
+
+    let delay = 700;
+    const home = ROOMS[roomId]?.staff;
+    if (roomId === "cafe" && chair != null) {
+      const c = CAFE_CHAIRS.find((x) => x.i === chair);
+      const tb = c && CAFE_TABLES[c.t];
+      if (tb) {
+        staffTo.current = { x: c.x < tb.x ? tb.x + 74 : tb.x - 74, y: tb.y + 4 };
+        delay = 1500;   // 걸어오는 동안 기다립니다
+      }
+    }
+    runTalk(script, delay, () => {
+      if (home) staffTo.current = { ...home };   // 끝나면 자리로 돌아가요
     });
-    talkTimers.current.push(setTimeout(() => setTalk(null), 700 + script.length * gap));
-  }, [clearSeatTalk]);
+  }, [runTalk]);
+
+  /* 한 테이블에 둘이 앉으면 저희끼리 스몰토크 */
+  const startPairTalk = useCallback((myChair, mateChair) => {
+    if (talking.current) return;
+    /* 두 사람 화면이 같은 대사를 고르도록 의자 번호로만 정합니다 */
+    const lo = Math.min(myChair, mateChair);
+    const t = SMALL_TALK[(myChair + mateChair * 3 + lo) % SMALL_TALK.length];
+    const first = lo === myChair ? "m" : mateChair;
+    const second = lo === myChair ? mateChair : "m";
+    runTalk(
+      [
+        { who: first, text: t.a },
+        { who: second, text: t.b },
+        { who: first, text: t.c },
+        { who: second, text: t.d },
+      ],
+      900
+    );
+  }, [runTalk]);
 
   /* 미끄럼틀 타기 — up 이면 아랫섬에서 윗섬으로 */
   const startRide = useCallback((up) => {
@@ -933,6 +1043,10 @@ function Town({ me, setMe, onKick }) {
     if (!ROOMS[id]) return;
     worldPos.current = { ...posRef.current };
     sceneRef.current = id;
+    const st = ROOMS[id].staff ? { ...ROOMS[id].staff } : null;
+    staffRef.current = st;
+    staffTo.current = st;
+    setStaffPos(st);
     const start = { x: ROOM.w / 2, y: ROOM.d - 60 };
     posRef.current = start;
     setPos(start);
@@ -948,6 +1062,10 @@ function Town({ me, setMe, onKick }) {
     sitRef.current = null;
     setSit(null);
     clearSeatTalk();
+    pairRef.current = null;
+    staffRef.current = null;
+    staffTo.current = null;
+    setStaffPos(null);
     setZoneId(null);
     setSheet(null);
     const back = worldPos.current;
@@ -966,6 +1084,9 @@ function Town({ me, setMe, onKick }) {
       sitRef.current = null;
       setSit(null);
       clearSeatTalk();
+      pairRef.current = null;
+      const back0 = ROOMS[sceneRef.current]?.staff;
+      if (back0) staffTo.current = { ...back0 };
       const room = ROOMS[sceneRef.current];
       const back = room ? freeSpot(room, c.x, c.y) : { x: c.x, y: c.y + 60 };
       posRef.current = back;
@@ -974,6 +1095,7 @@ function Town({ me, setMe, onKick }) {
     }
     if (!id) return;
     if (id === "exit") { exitRoom(); return; }
+    if (id === "dress") loadSkins();
     if (id === "chair") {
       const i = chairRef.current;
       const room1 = ROOMS[sceneRef.current];
@@ -984,12 +1106,30 @@ function Town({ me, setMe, onKick }) {
       posRef.current = { x: c.x, y: c.y };
       setPos({ x: c.x, y: c.y });
       blip(760);
-      startSeatTalk(sceneRef.current);
+      startSeatTalk(sceneRef.current, i);
       if (sceneRef.current === "cake") doQuest("sit");
       return;
     }
     setSheet(id);
-  }, [exitRoom, doQuest, startSeatTalk, clearSeatTalk]);
+  }, [exitRoom, doQuest, startSeatTalk, clearSeatTalk, loadSkins]);
+
+  /* 같은 테이블에 둘이 앉으면 스몰토크를 시작합니다 */
+  useEffect(() => {
+    if (scene !== "cafe" || sit == null) {
+      pairRef.current = null;
+      return;
+    }
+    const mine = CAFE_CHAIRS.find((c) => c.i === sit);
+    const mate = peerView.find((q) => {
+      if ((q.r || "") !== "cafe" || !(q.st >= 0)) return false;
+      const c = CAFE_CHAIRS.find((x) => x.i === q.st);
+      return c && mine && c.t === mine.t && c.i !== sit;
+    });
+    const key = mate ? mate.st : null;
+    if (key === pairRef.current) return;
+    pairRef.current = key;
+    if (key != null) startPairTalk(sit, key);
+  }, [scene, sit, peerView, startPairTalk]);
 
   const openBuilding = useCallback((id) => {
     const b = BUILDINGS.find((x) => x.id === id);
@@ -1694,11 +1834,11 @@ function Town({ me, setMe, onKick }) {
                   name={R.staffName || "직원"}
                   slot={R.id === "cake" ? 3 : 2}
                   msg={talk?.who === "s" ? talk.text : null}
-                  x={proj(R.staff.x, R.staff.y).sx}
-                  y={proj(R.staff.x, R.staff.y).sy}
-                  facing={1}
-                  moving={false}
-                  scale={depth(R.staff.y)}
+                  x={proj((staffPos || R.staff).x, (staffPos || R.staff).y).sx}
+                  y={proj((staffPos || R.staff).x, (staffPos || R.staff).y).sy}
+                  facing={staffFace.current}
+                  moving={staffWalk}
+                  scale={depth((staffPos || R.staff).y)}
                 />
               )}
               {roomPeers.map((q) => {
@@ -1712,12 +1852,13 @@ function Town({ me, setMe, onKick }) {
                     y={pr.sy}
                     facing={q.f}
                     moving={!!q.m}
-                    msg={q.msg}
+                    msg={q.msg || (talk?.who === q.st ? talk.text : null)}
                     scale={pr.k}
                     swim={inWater(R, q.x, q.y)}
                     waiting={!!q.w}
                     hold={q.hd >= 0 ? MENU[q.hd]?.emoji : null}
                     look={q.lk}
+                    skin={skinImg(q.lk)}
                   />
                 );
               })}
@@ -1735,6 +1876,7 @@ function Town({ me, setMe, onKick }) {
                 waiting={!!waitRef.current && !!myGid}
                 hold={holding?.emoji || null}
                 look={look}
+                skin={skinImg(look)}
               />
             </div>
           </div>
@@ -1827,6 +1969,7 @@ function Town({ me, setMe, onKick }) {
             waiting={!!p.w}
             hold={p.hd >= 0 ? MENU[p.hd]?.emoji : null}
             look={p.lk}
+            skin={skinImg(p.lk)}
           />
             ))}
 
@@ -1843,6 +1986,7 @@ function Town({ me, setMe, onKick }) {
           hold={holding?.emoji || null}
           slide={riding}
           look={look}
+          skin={skinImg(look)}
         />
           </div>
         </>
@@ -2011,6 +2155,12 @@ function Town({ me, setMe, onKick }) {
               </button>
             ))}
           </div>
+          <button
+            className="ccSetFont ccSetSkinBtn"
+            onClick={() => { setSheet("skins"); setSetOpen(false); loadSkins(); blip(760); }}
+          >
+            🎨 캐릭터 이미지 {me.role === "host" ? "관리" : "보기"}
+          </button>
           <p className="ccSetNote">고른 글꼴은 이 기기에 저장돼요.</p>
         </div>
       )}
@@ -2162,7 +2312,17 @@ function Town({ me, setMe, onKick }) {
               look={look}
               owned={owned}
               balance={balance}
+              skins={skins}
               onApply={applyLook}
+              onClose={() => setSheet(null)}
+            />
+          )}
+          {sheet === "skins" && (
+            <SkinSheet
+              hostCode={me.hostCode}
+              isHost={me.role === "host"}
+              skins={skins}
+              onChanged={loadSkins}
               onClose={() => setSheet(null)}
             />
           )}
@@ -2721,8 +2881,13 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
 .ccRoomWrap{position:absolute;left:50%;top:50%;transform-origin:50% 50%}
 .ccRoomSvg{position:absolute;left:0;top:0;image-rendering:auto}
 .ccRoomLayer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+/* 건물 안은 원근 때문에 아바타가 작아져서, 글씨를 키워 균형을 맞춥니다 */
+.ccRoomLayer .ccTag{font-size:15px;margin-bottom:3px}
+.ccRoomLayer .ccBubble{font-size:16px;line-height:1.45;max-width:230px;padding:11px 18px;margin-bottom:16px}
+.ccRoomLayer .ccWaitTag{font-size:13px}
+.ccRoomLayer .ccHold{font-size:16px}
 .ccZoneHint{position:absolute;left:50%;bottom:86px;transform:translateX(-50%);background:#fff;
-  border:4px solid ${C.line};padding:9px 16px;font-size:13px;font-weight:700;color:${C.ink};
+  border:4px solid ${C.line};padding:11px 20px;font-size:16px;font-weight:700;color:${C.ink};
   font-family:inherit;cursor:pointer;box-shadow:4px 4px 0 rgba(91,74,99,.3);animation:ccBlink 1s steps(2,end) infinite}
 .ccAvatar .ccPix{position:relative;z-index:2}
 /* 튜브 — 뒤쪽 반은 캐릭터 뒤, 앞쪽 반만 앞에 그려서 실제로 끼고 있는 것처럼 보이게 */
@@ -2817,6 +2982,34 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
 .ccDressAsk{display:flex;flex-direction:column;gap:8px;align-items:center;margin-top:10px;
   border:3px solid ${C.line};background:#fff6dc;padding:10px;font-size:12px;font-weight:700}
 .ccDressAskBtns{display:flex;gap:8px}
+.ccDressPic{width:34px;height:34px;object-fit:cover;border:3px solid ${C.line};display:block}
+
+/* 올린 사진으로 갈아입은 캐릭터 */
+.ccSkinPic{width:64px;height:64px;background-size:contain;background-repeat:no-repeat;
+  background-position:center bottom;position:relative;z-index:2;margin:0 auto}
+
+/* 🎨 캐릭터 이미지 관리 */
+.ccSetSkinBtn{margin-top:8px;width:100%;text-align:center}
+.ccSkins{width:min(400px,94vw);padding:18px;max-height:88vh;overflow:auto}
+.ccSkinAdd{display:flex;gap:10px;align-items:stretch;margin-bottom:10px}
+.ccSkinPick{flex:none;width:92px;height:92px;border:3px solid ${C.line};background:#f7f2fa;
+  font-family:inherit;font-size:11px;font-weight:700;color:${C.inkSoft};cursor:pointer;padding:0;
+  display:flex;align-items:center;justify-content:center;overflow:hidden}
+.ccSkinPreview{width:100%;height:100%;object-fit:cover;display:block}
+.ccSkinFields{flex:1;display:flex;flex-direction:column;gap:6px;justify-content:center}
+.ccSkinName{width:100%;padding:9px 10px;font-size:12.5px;text-align:left}
+.ccSkinRow{display:flex;gap:6px;align-items:center}
+.ccSkinPriceLabel{font-size:13px}
+.ccSkinPrice{width:52px;padding:9px 6px;font-size:13px;text-align:center}
+.ccSkinAddBtn{width:100%;font-size:12.5px;padding:10px;background:#ffd45e;color:${C.ink};
+  white-space:nowrap;margin-bottom:8px}
+.ccSkinPriceNote{font-size:10.5px;font-weight:700;color:${C.inkSoft};white-space:nowrap}
+.ccSkinList{display:flex;flex-direction:column;gap:6px;margin:6px 0 4px;max-height:38vh;overflow:auto}
+.ccSkinItem{display:flex;align-items:center;gap:9px;border:3px solid ${C.line};background:#fff;padding:6px 9px}
+.ccSkinThumb{width:40px;height:40px;object-fit:cover;border:3px solid ${C.line};flex:none;display:block}
+.ccSkinItemName{flex:1;font-size:12.5px;font-weight:800;text-align:left;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.ccSkinItemPrice{font-size:11.5px;font-weight:800;color:#c05a86}
 .ccModalEmoji{font-size:42px;line-height:1}
 .ccModalTag{display:inline-block;margin-top:10px;border:2px solid ${C.line};padding:2px 10px;font-size:11px;font-weight:700;background:#ffe9a8}
 .ccModalName{margin:9px 0 8px;font-size:19px;font-weight:900}

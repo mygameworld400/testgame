@@ -4,7 +4,7 @@ import { MENU } from "./rooms.jsx";
 import { Pix } from "./pix.jsx";
 import { FACES, HATS, OUTFITS, lookSprite } from "./sprites.js";
 
-import { DAY, SFX_PREFIX, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { DAY, SFX_PREFIX, skinAdd, skinDel, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -1096,14 +1096,20 @@ const DRESS_TABS = [
   { id: "outfit", label: "옷 색" },
 ];
 
-export function DressSheet({ look, owned, balance, onApply, onClose }) {
+export function DressSheet({ look, owned, balance, skins = [], onApply, onClose }) {
   const [tab, setTab] = useState("face");
   const [err, setErr] = useState("");
   const [pending, setPending] = useState(null);   // 살지 물어보는 중
   const me = lookSprite(look);
 
   const nextLook = (kind, item) =>
-    kind === "f" ? { ...look, f: item.i } : kind === "h" ? { ...look, h: item.id } : { ...look, o: item.id };
+    kind === "f"
+      ? { ...look, f: item.i, sk: null }
+      : kind === "s"
+        ? { ...look, sk: item.id }
+        : kind === "h"
+          ? { ...look, h: item.id }
+          : { ...look, o: item.id };
 
   const pick = (kind, item) => {
     const key = kind + ":" + item.id;
@@ -1179,8 +1185,20 @@ export function DressSheet({ look, owned, balance, onApply, onClose }) {
       </div>
 
       <div className="ccDressGrid">
-        {tab === "face" &&
-          FACES.map((f) => cell("f", { ...f, price: 0 }, (look.f || 1) === f.i, f.label, null))}
+        {tab === "face" && (
+          <>
+            {FACES.map((f) => cell("f", { ...f, price: 0 }, !look.sk && (look.f || 1) === f.i, f.label, null))}
+            {skins.map((s) =>
+              cell(
+                "s",
+                { id: s.id, label: s.name, price: s.price },
+                look.sk === s.id,
+                s.name,
+                <img className="ccDressPic" src={s.image} alt="" draggable={false} />
+              )
+            )}
+          </>
+        )}
         {tab === "hat" && HATS.map((h) => cell("h", h, look.h === h.id, h.label, null))}
         {tab === "outfit" &&
           OUTFITS.map((o) =>
@@ -1207,6 +1225,120 @@ export function DressSheet({ look, owned, balance, onApply, onClose }) {
       )}
       {err && <div className="ccErr">{err}</div>}
       <p className="ccSheetNote">고른 모습은 이 기기에 저장되고, 같이 있는 사람들에게도 그대로 보여요.</p>
+    </div>
+  );
+}
+
+/* ---------- 🎨 캐릭터 이미지 관리 (호스트) ----------
+   올린 사진은 구름옷가게 '얼굴' 칸에 나타나고, 산 사람 캐릭터가 그 사진이 됩니다. */
+
+export function SkinSheet({ hostCode, isHost, skins = [], onChanged, onClose }) {
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("3");
+  const [img, setImg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const fileRef = useRef(null);
+
+  const pickFile = async (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setErr("");
+    try {
+      const data = await shrinkImage(f, 240, 0.82);
+      setImg(data);
+      if (!name.trim()) setName(f.name.replace(/\.[^.]+$/, "").slice(0, 16));
+    } catch {
+      setErr("이미지를 읽지 못했어요.");
+    }
+  };
+
+  const add = async () => {
+    if (!img) { setErr("사진을 먼저 골라주세요."); return; }
+    if (!name.trim()) { setErr("이름을 적어주세요."); return; }
+    setBusy(true);
+    const r = await skinAdd(hostCode, name.trim(), img, Number(price) || 0);
+    setBusy(false);
+    if (!r?.ok) { setErr(msgOf(r)); buzz(); return; }
+    setErr("");
+    setImg(null);
+    setName("");
+    ding();
+    onChanged?.();
+  };
+
+  const del = async (id) => {
+    setBusy(true);
+    const r = await skinDel(hostCode, id);
+    setBusy(false);
+    if (!r?.ok) { setErr(msgOf(r)); return; }
+    onChanged?.();
+  };
+
+  return (
+    <div className="ccPanel ccModal ccSkins" onClick={(e) => e.stopPropagation()}>
+      <div className="ccSheetHead">
+        <h2 className="ccSheetTitle">🎨 캐릭터 이미지</h2>
+        <button className="ccX" onClick={onClose}>✕</button>
+      </div>
+
+      {isHost && (
+        <div className="ccSkinAdd">
+          <button className="ccSkinPick" onClick={() => fileRef.current?.click()}>
+            {img ? <img src={img} alt="" className="ccSkinPreview" draggable={false} /> : "사진 고르기"}
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickFile} />
+          <div className="ccSkinFields">
+            <input
+              className="ccInput ccSkinName"
+              value={name}
+              maxLength={16}
+              placeholder="이름 (예: 우리집 고양이)"
+              onChange={(e) => setName(e.target.value)}
+            />
+            <div className="ccSkinRow">
+              <span className="ccSkinPriceLabel">⭐</span>
+              <input
+                className="ccInput ccSkinPrice"
+                value={price}
+                inputMode="numeric"
+                onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+              />
+              <span className="ccSkinPriceNote">별을 주고 사게 됩니다</span>
+            </div>
+          </div>
+        </div>
+      )}
+      {isHost && (
+        <button className="ccBtn ccSkinAddBtn" onClick={add} disabled={busy}>
+          {busy ? "올리는 중…" : "옷가게에 올리기"}
+        </button>
+      )}
+
+      {err && <div className="ccErr">{err}</div>}
+
+      <div className="ccSkinList">
+        {skins.length === 0 && <p className="ccSheetNote">아직 올린 이미지가 없어요.</p>}
+        {skins.map((s) => (
+          <div key={s.id} className="ccSkinItem">
+            <img src={s.image} alt="" className="ccSkinThumb" draggable={false} />
+            <span className="ccSkinItemName">{s.name}</span>
+            <span className="ccSkinItemPrice">⭐{s.price}</span>
+            {isHost && (
+              <button className="ccTrackDel" onClick={() => del(s.id)} disabled={busy}>
+                지우기
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <p className="ccSheetNote">
+        {isHost
+          ? "올린 사진은 구름옷가게 '얼굴' 칸에 바로 나타나요. 사진은 240px 로 줄여서 저장합니다."
+          : "구름옷가게에서 별을 주고 살 수 있어요."}
+      </p>
     </div>
   );
 }
