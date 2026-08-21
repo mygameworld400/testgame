@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
-import { CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, depth, keyCount, keyPos, proj } from "./rooms.jsx";
+import { CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
 import { FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, TeamLobby } from "./sheets.jsx";
 import { findSfx, quizPacks, trackList, trackUrl } from "./content.js";
@@ -14,11 +14,10 @@ import { BUILDING_SPRITES, CHARACTERS, DECO, charForSlot, grassTile, pathTile, s
 
 const WORLD = { w: 1700, h: 2040 };
 
-/* 걸어다닐 수 있는 구역들 — 윗섬 · 구름다리 · 아랫섬.
-   이 사각형들 밖으로는 못 나갑니다(마인크래프트처럼 아래로 이어져요). */
+/* 걸어다닐 수 있는 구역들 — 윗섬 · 아랫섬.
+   이 사각형들 밖으로는 못 나갑니다. 두 섬은 오른쪽 미끄럼틀로만 오갑니다. */
 const AREAS = [
   { x0: 190, y0: 300, x1: 1520, y1: 900 },      // 윗섬
-  { x0: 800, y0: 880, x1: 900, y1: 1320 },      // 구름다리
   { x0: 250, y0: 1320, x1: 1450, y1: 1860 },    // 아랫섬
 ];
 const PLAY = { x0: 190, y0: 300, x1: 1520, y1: 1860 };
@@ -103,7 +102,7 @@ const QUESTS = [
   { id: "swim", icon: "🏊", name: "수영장에서 수영하기", desc: "물 안으로 그냥 걸어 들어가면 헤엄쳐요." },
   { id: "gacha", icon: "🍜", name: "떵개방에서 메뉴 추천 받기", desc: "가운데에서 하루 한 번 오늘의 메뉴를 뽑아요." },
   { id: "slide", icon: "💨", name: "미끄럼틀 타기", desc: "마을 오른쪽 끝 발판에 서면 슝 하고 반대편 섬으로 미끄러져요." },
-  { id: "buy", icon: "☕", name: "카페 가서 음료 구매해보기", desc: "구름다리나 미끄럼틀로 아랫섬 구름카페까지. 모은 별로 살 수 있어요." },
+  { id: "buy", icon: "☕", name: "카페 가서 음료 구매해보기", desc: "미끄럼틀로 내려가면 아랫섬에 구름카페가 있어요. 모은 별로 삽니다." },
 ];
 
 /* 글꼴 — 설정에서 고르면 이 기기에 저장됩니다 */
@@ -175,15 +174,6 @@ const PATHS = [
   { x: 1128, y: 616, w: 64, h: 240 },
   { x: 560, y: 816, w: 632, h: 48 },
 ];
-/* 구름다리 — 윗섬에서 아랫섬으로 */
-const BRIDGE = [
-  { x: 776, y: 900, w: 148, h: 420 },
-];
-const BRIDGE_RAIL = [
-  { x: 770, y: 900, w: 10, h: 420 },
-  { x: 920, y: 900, w: 10, h: 420 },
-];
-
 /* 아랫섬 */
 const ISLAND2 = [
   { x: 300, y: 1300, w: 1100, h: 22 },
@@ -199,7 +189,6 @@ const SOIL2 = [
   { x: 720, y: 2008, w: 260, h: 22 },
 ];
 const PATHS2 = [
-  { x: 812, y: 1320, w: 76, h: 180 },
   { x: 420, y: 1500, w: 720, h: 60 },
   { x: 600, y: 1560, w: 64, h: 120 },
   { x: 1040, y: 1560, w: 64, h: 200 },
@@ -439,12 +428,6 @@ function Ground() {
         slab(r, "p" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" })
       )}
 
-      {/* 구름다리 */}
-      {BRIDGE.map((r, i) =>
-        slab(r, "br" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" })
-      )}
-      {BRIDGE_RAIL.map((r, i) => slab(r, "rl" + i, { background: C.edge }))}
-
       {/* 아랫섬 */}
       {SOIL2.map((r, i) => slab(r, "s2" + i, { background: i % 2 ? C.soilDark : C.soil }))}
       {ISLAND2.map((r, i) => slab(r, "i2" + i, { background: C.edge }))}
@@ -564,26 +547,29 @@ function JoinGate({ onJoined, notice }) {
     onJoined({ name: r.name, role: r.role, slot: r.slot ?? 1, round: r.round, hostCode: code.trim() });
   };
 
-  const taken = status?.taken ?? 0;
-  const cap = status?.capacity ?? 5;
-  const full = status?.ok && status.full;
+  const here = status?.ok ? status.players || [] : [];
   const closed = status?.ok && status.closed && !showCode;
+  /* 아직 아무도 없으면 흐린 캐릭터 셋으로 자리를 지킵니다 */
+  const row = here.length
+    ? here.slice(0, 14).map((p, i) => ({ key: "p" + i, ch: charForSlot(p.slot), on: true }))
+    : CHARACTERS.slice(1, 4).map((c, i) => ({ key: "e" + i, ch: c, on: false }));
 
   return (
     <div className="ccGate">
       <div className="ccGateSky" />
       <form className="ccPanel ccGateCard" onSubmit={submit}>
         <div className="ccGateChars">
-          {CHARACTERS.slice(1).map((c, i) => (
+          {row.map((r) => (
             <Pix
-              key={c.id}
-              map={c.map}
-              palette={c.palette}
+              key={r.key}
+              map={r.ch.map}
+              palette={r.ch.palette}
               scale={3}
-              cacheKey={"c-" + c.id}
-              className={i < taken ? "ccGateCharOn" : "ccGateCharOff"}
+              cacheKey={"c-" + r.ch.id}
+              className={r.on ? "ccGateCharOn" : "ccGateCharOff"}
             />
           ))}
+          {here.length > 14 && <span className="ccGateMore">+{here.length - 14}</span>}
         </div>
         <h1 className="ccGateTitle">메롱</h1>
         <p className="ccGateSub">
@@ -601,8 +587,8 @@ function JoinGate({ onJoined, notice }) {
         )}
 
         {hasServer && !closed && (
-          <div className={"ccSeatCount" + (full ? " ccSeatFull" : "")}>
-            {full ? `정원 마감 ${cap} / ${cap}` : `${taken} / ${cap} 명 입장`}
+          <div className="ccSeatCount">
+            {here.length ? `지금 ${here.length}명 있어요` : "아직 아무도 없어요"}
           </div>
         )}
 
@@ -633,8 +619,8 @@ function JoinGate({ onJoined, notice }) {
         {err && <div className="ccErr">{err}</div>}
 
         {!closed && (
-          <button className="ccBtn ccGateBtn" type="submit" disabled={busy || (full && !showCode)}>
-            {busy ? "입장하는 중…" : full && !showCode ? "정원이 찼어요" : "마을로 들어가기"}
+          <button className="ccBtn ccGateBtn" type="submit" disabled={busy}>
+            {busy ? "입장하는 중…" : "마을로 들어가기"}
           </button>
         )}
 
@@ -650,7 +636,7 @@ function JoinGate({ onJoined, notice }) {
 
         {hasServer && !closed && (
           <p className="ccGateNote">
-            선착순 {cap}명까지 들어올 수 있어요. 진행 상황은 저장되지 않습니다.
+            진행 상황은 저장되지 않아요. 새로고침하면 별과 위치가 처음으로 돌아갑니다.
           </p>
         )}
       </form>
@@ -754,6 +740,8 @@ function Town({ me, setMe, onKick }) {
   });
   const [setOpen, setSetOpen] = useState(false);   // 설정 패널
   const [riding, setRiding] = useState(false);     // 미끄럼틀 타는 중
+  const [talk, setTalk] = useState(null);          // 앉았을 때 오가는 말 { who, text }
+  const [starPop, setStarPop] = useState(false);   // 별 개수가 바뀌면 통 튑니다
   const [font, setFont] = useState(savedFont);
 
   const track = queue[qi] || null;    // 지금 듣는 곡
@@ -795,6 +783,7 @@ function Town({ me, setMe, onKick }) {
   const welcomeRef = useRef(true);
   const rideRef = useRef(null);     // { at, ms, up }
   const rideLock = useRef(false);   // 도착하자마자 다시 타지 않도록
+  const talkTimers = useRef([]);
   const myMsgTimer = useRef(null);
 
   useEffect(() => { openRef.current = !!sheet; sheetRef.current = sheet; }, [sheet]);
@@ -804,6 +793,7 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { brokenRef.current = broken; }, [broken]);
   useEffect(() => { pressedRef.current = pressed; }, [pressed]);
   useEffect(() => { welcomeRef.current = welcome; }, [welcome]);
+  useEffect(() => () => talkTimers.current.forEach(clearTimeout), []);
   useEffect(() => {
     applyFont(font);
     try {
@@ -824,6 +814,26 @@ function Town({ me, setMe, onKick }) {
   const collected = stars.filter(Boolean).length + roomTaken;
   const balance = Math.max(0, collected - spent);
   const online = me.role === "solo" ? 1 : peers.length + 1;
+
+  /* 앉으면 오가는 이야기 — 두 마디씩 주고받고 끝납니다 */
+  const clearSeatTalk = useCallback(() => {
+    talkTimers.current.forEach(clearTimeout);
+    talkTimers.current = [];
+    setTalk(null);
+  }, []);
+
+  const startSeatTalk = useCallback((roomId) => {
+    clearSeatTalk();
+    const pool = SEAT_TALK[roomId];
+    if (!pool?.length) return;
+    const pick = [...pool].sort(() => Math.random() - 0.5).slice(0, 2);
+    const script = pick.flatMap((t) => [{ who: "s", text: t.s }, { who: "m", text: t.m }]);
+    const gap = 2300;
+    script.forEach((line, i) => {
+      talkTimers.current.push(setTimeout(() => setTalk(line), 700 + i * gap));
+    });
+    talkTimers.current.push(setTimeout(() => setTalk(null), 700 + script.length * gap));
+  }, [clearSeatTalk]);
 
   /* 미끄럼틀 타기 — up 이면 아랫섬에서 윗섬으로 */
   const startRide = useCallback((up) => {
@@ -897,13 +907,14 @@ function Town({ me, setMe, onKick }) {
     zoneRef.current = null;
     sitRef.current = null;
     setSit(null);
+    clearSeatTalk();
     setZoneId(null);
     setSheet(null);
     const back = worldPos.current;
     posRef.current = { ...back };
     setPos({ ...back });
     setScene(null);
-  }, []);
+  }, [clearSeatTalk]);
 
   /* 방 안에서 설치물 사용 */
   const activateZone = useCallback((id) => {
@@ -914,6 +925,7 @@ function Town({ me, setMe, onKick }) {
       if (!c) { sitRef.current = null; setSit(null); return; }
       sitRef.current = null;
       setSit(null);
+      clearSeatTalk();
       const room = ROOMS[sceneRef.current];
       const back = room ? freeSpot(room, c.x, c.y) : { x: c.x, y: c.y + 60 };
       posRef.current = back;
@@ -932,11 +944,12 @@ function Town({ me, setMe, onKick }) {
       posRef.current = { x: c.x, y: c.y };
       setPos({ x: c.x, y: c.y });
       blip(760);
+      startSeatTalk(sceneRef.current);
       if (sceneRef.current === "cake") doQuest("sit");
       return;
     }
     setSheet(id);
-  }, [exitRoom, doQuest]);
+  }, [exitRoom, doQuest, startSeatTalk, clearSeatTalk]);
 
   const openBuilding = useCallback((id) => {
     const b = BUILDINGS.find((x) => x.id === id);
@@ -1543,8 +1556,8 @@ function Town({ me, setMe, onKick }) {
     const r = await startNewRound(me.hostCode, n);
     setResetting(false);
     if (r?.ok) {
-      setRoom({ ok: true, round: r.round, capacity: r.capacity, taken: 0, players: [] });
-      setToast(`${r.round}번 테스트를 시작했어요. 자리 ${r.capacity}개가 비었습니다`);
+      setRoom({ ok: true, round: r.round, taken: 0, players: [] });
+      setToast(`${r.round}번 테스트를 시작했어요. 참가자 목록이 비었습니다`);
       /* 호스트는 새 회차에 다시 등록해서 그대로 남습니다 (게스트만 나가요) */
       setHistory([]);
       setChatLog([]);
@@ -1569,6 +1582,13 @@ function Town({ me, setMe, onKick }) {
     const t = setTimeout(() => setToast(""), 2600);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    if (!collected) return undefined;
+    setStarPop(true);
+    const t = setTimeout(() => setStarPop(false), 420);
+    return () => clearTimeout(t);
+  }, [collected]);
 
   useEffect(() => {
     if (!justDone) return undefined;
@@ -1628,8 +1648,9 @@ function Town({ me, setMe, onKick }) {
               })}
               {R.staff && (
                 <Avatar
-                  name="직원"
-                  slot={2}
+                  name={R.staffName || "직원"}
+                  slot={R.id === "cake" ? 3 : 2}
+                  msg={talk?.who === "s" ? talk.text : null}
                   x={proj(R.staff.x, R.staff.y).sx}
                   y={proj(R.staff.x, R.staff.y).sy}
                   facing={1}
@@ -1664,7 +1685,7 @@ function Town({ me, setMe, onKick }) {
                 facing={facing}
                 moving={moving}
                 me
-                msg={myMsg}
+                msg={myMsg || (talk?.who === "m" ? talk.text : null)}
                 scale={depth(pos.y)}
                 swim={inWater(R, pos.x, pos.y)}
                 waiting={!!waitRef.current && !!myGid}
@@ -1788,7 +1809,14 @@ function Town({ me, setMe, onKick }) {
           </button>
         )}
         <div className="ccChip">{me.role === "host" ? "왕관" : charForSlot(me.slot).label} · {me.name}</div>
-        <div className="ccChip">별 {balance}{spent > 0 ? ` (모은 ${collected})` : ""}</div>
+        <div
+          className={"ccChip ccStarChip" + (starPop ? " ccStarPop" : "")}
+          title={spent > 0 ? `모은 별 ${collected}개 · 쓴 별 ${spent}개` : "주운 별"}
+        >
+          <Pix map={DECO.star.map} palette={DECO.star.palette} scale={2} cacheKey="star" className="ccChipStar" />
+          <b className="ccStarNum">{balance}</b>
+          {spent > 0 && <span className="ccStarSub">/ {collected}</span>}
+        </div>
         {me.role !== "solo" && (
           <div className="ccChip" title={roomPeers.map((p) => p.name).join(", ")}>
             {scene ? `이 방 ${roomPeers.length + 1}명` : `접속 ${online}명`}
@@ -1800,7 +1828,7 @@ function Town({ me, setMe, onKick }) {
       {roundNo != null && (
         <div className="ccRound">
           <span className="ccRoundNum">{roundNo}</span>번 테스트
-          {room?.ok && <span className="ccRoundSub">{room.taken} / {room.capacity}</span>}
+          {room?.ok && <span className="ccRoundSub">{room.taken}명</span>}
           {room?.closed && <span className="ccClosedTag">비공개</span>}
         </div>
       )}
@@ -1876,7 +1904,7 @@ function Town({ me, setMe, onKick }) {
           {panel && (
             <div className="ccPanel ccHostPanel">
               <div className="ccHostTitle">{roundNo}번 테스트</div>
-              <div className="ccHostCount">게스트 {room?.taken ?? 0} / {room?.capacity ?? 5}</div>
+              <div className="ccHostCount">게스트 {room?.taken ?? 0}명</div>
               <ul className="ccHostList">
                 {(room?.players || []).map((p, i) => (
                   <li key={i}>
@@ -1910,8 +1938,8 @@ function Town({ me, setMe, onKick }) {
                 {room?.closed ? "비공개 해제하기" : "비공개 모드 켜기"}
               </button>
               <p className="ccHostNote">
-                시작하면 그 회차 참가자 기록이 지워지고 자리 {room?.capacity ?? 5}개가 새로 열려요.
-                이미 들어와 있던 사람은 새로고침해야 합니다.
+                시작하면 그 회차 참가자 기록이 지워져요. 이미 들어와 있던 사람은
+                새로고침해야 합니다. 인원 제한은 없고, 비공개 모드로 문을 여닫으면 됩니다.
               </p>
             </div>
           )}
@@ -2313,6 +2341,12 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
 .ccChip{background:#fff;border:3px solid ${C.line};padding:6px 11px;font-weight:700;font-size:12px;
   box-shadow:3px 3px 0 rgba(91,74,99,.25);color:${C.ink};font-family:inherit}
 .ccHud{position:absolute;left:14px;top:14px;display:flex;gap:8px;flex-wrap:wrap;max-width:52vw}
+.ccStarChip{display:flex;align-items:center;gap:6px;padding:4px 11px}
+.ccChipStar{flex:none}
+.ccStarNum{font-size:15px;font-weight:900;line-height:1}
+.ccStarSub{font-size:10.5px;font-weight:700;color:${C.inkSoft}}
+.ccStarPop{animation:ccStarPop .42s steps(3,end)}
+@keyframes ccStarPop{0%{transform:scale(1)}40%{transform:scale(1.16)}100%{transform:scale(1)}}
 
 .ccRound{position:absolute;right:14px;top:14px;background:#ffe9a8;border:4px solid ${C.line};
   padding:8px 14px;font-weight:700;font-size:14px;box-shadow:4px 4px 0 rgba(91,74,99,.3);
@@ -2710,7 +2744,8 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
 .ccGate{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto}
 .ccGateSky{position:absolute;inset:0;background:linear-gradient(180deg,${C.sky1} 0%,${C.sky2} 60%,${C.sky3} 100%)}
 .ccGateCard{position:relative;width:min(340px,92vw);padding:22px;text-align:center}
-.ccGateChars{display:flex;justify-content:center;gap:4px;margin-bottom:8px}
+.ccGateChars{display:flex;justify-content:center;align-items:flex-end;gap:4px;margin-bottom:8px;flex-wrap:wrap}
+.ccGateMore{font-size:12px;font-weight:800;color:${C.inkSoft};align-self:center}
 .ccGateCharOn{animation:ccWalk .5s steps(2,end) infinite}
 .ccGateCharOff{filter:grayscale(1);opacity:.35}
 .ccGateTitle{margin:4px 0 2px;font-size:22px;font-weight:900}

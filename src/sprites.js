@@ -67,7 +67,14 @@ export const CHARACTERS = [
 ];
 
 /* 슬롯 번호 → 캐릭터. 0 은 호스트, 1~5 는 게스트 */
-export const charForSlot = (slot) => CHARACTERS[Math.max(0, Math.min(CHARACTERS.length - 1, slot | 0))];
+/* 슬롯 → 캐릭터. 0 은 호스트(왕관)이고, 게스트는 캐릭터를 돌려 씁니다.
+   인원 제한이 없어서 슬롯이 캐릭터 수보다 커질 수 있거든요. */
+export const charForSlot = (slot) => {
+  const n = slot | 0;
+  if (n <= 0) return CHARACTERS[0];
+  const guests = CHARACTERS.length - 1;
+  return CHARACTERS[1 + ((n - 1) % guests)];
+};
 
 /* ---------- 건물 (24 x 22) ----------
    o 외곽선 · r 지붕 · R 지붕그늘 · b 몸통 · w 유리 · W 크림/흰색

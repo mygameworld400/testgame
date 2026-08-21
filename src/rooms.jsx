@@ -32,6 +32,26 @@ export const MENU = [
 
 /* 카운터에 서 있는 직원 */
 export const CAFE_STAFF = { x: 500, y: 118 };
+/* LP바 바텐더 */
+export const BAR_STAFF = { x: 500, y: 126 };
+
+/* 의자에 앉으면 저절로 오가는 이야기 — 이 중 두 마디를 골라 주고받습니다 */
+export const SEAT_TALK = {
+  cake: [
+    { s: "오셨어요? 아무 데나 편한 자리 앉으세요.", m: "네, 여기 앉을게요." },
+    { s: "지금 나오는 곡, 오늘 제일 아끼는 거예요.", m: "와… 이거 좋다." },
+    { s: "여기선 아무 말 안 해도 돼요.", m: "그 말이 제일 좋네요." },
+    { s: "신청곡 생기면 언제든 말씀하세요.", m: "생각나면 말할게요." },
+    { s: "구름 위라 그런지 소리가 참 잘 퍼져요.", m: "그러게요, 귀가 편해요." },
+  ],
+  cafe: [
+    { s: "어서 오세요. 창가 자리 비었어요.", m: "여기 앉을게요." },
+    { s: "오늘은 구름 라떼가 잘 나가요.", m: "그럼 그걸로 할까…" },
+    { s: "여기 앉으면 마을이 다 내려다보여요.", m: "우와, 진짜 다 보이네요." },
+    { s: "천천히 드세요. 여긴 시간 안 재요.", m: "고맙습니다." },
+    { s: "케이크는 방금 나온 게 있어요.", m: "냄새가 벌써 좋은데요." },
+  ],
+};
 
 /* 카페 — 2인 테이블 3개 (의자 6개) */
 export const CAFE_TABLES = [
@@ -66,6 +86,8 @@ export const ROOMS = {
     play: PLAY,
     blocks: [box(TABLE.x, TABLE.y, 290, 130), box(500, 60, 420, 80)],
     chairs: CHAIRS,
+    staff: BAR_STAFF,
+    staffName: "바텐더",
     stars: [{ x: 150, y: 120 }, { x: 860, y: 130 }, { x: 500, y: 460 }],
     zones: [
       { id: "lp", x: 880, y: 300, r: 90, label: "LP 플레이어" },
@@ -156,6 +178,7 @@ export const ROOMS = {
     blocks: [box(500, 70, 460, 90), ...CAFE_TABLES.map((t) => box(t.x, t.y, 120, 80))],
     chairs: CAFE_CHAIRS,
     staff: CAFE_STAFF,
+    staffName: "직원",
     stars: [{ x: 150, y: 430 }, { x: 870, y: 430 }, { x: 500, y: 470 }],
     zones: [
       { id: "menu", x: 500, y: 160, r: 120, label: "메뉴판 보기" },

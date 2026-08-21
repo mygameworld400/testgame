@@ -878,3 +878,103 @@ begin
 end; $$;
 
 grant execute on function public.cc_set_closed(text, boolean) to anon, authenticated;
+
+
+-- ===========================================================
+-- 인원 제한 없애기
+-- 베타테스트는 호스트가 비공개 모드로 열었다 닫았다 하니까,
+-- 자리 수로 막을 필요가 없어졌습니다. capacity 칸은 예전 것과
+-- 호환을 위해 남겨두지만 더 이상 쓰지 않아요.
+-- ===========================================================
+
+create or replace function public.cc_status()
+returns json language plpgsql security definer set search_path = public as $$
+declare v_round int; v_taken int; v_list json; v_closed boolean;
+begin
+  select current_round, closed into v_round, v_closed
+    from public.cc_config where id = 1;
+
+  select count(*) into v_taken
+    from public.cc_players where round = v_round and role = 'guest';
+
+  select coalesce(json_agg(json_build_object('name', name, 'role', role, 'slot', slot)
+                           order by joined_at), '[]'::json)
+    into v_list
+    from public.cc_players where round = v_round;
+
+  return json_build_object(
+    'ok', true, 'round', v_round, 'closed', v_closed,
+    'taken', v_taken, 'full', false, 'players', v_list
+  );
+end; $$;
+
+create or replace function public.cc_join(p_device text, p_name text, p_host_code text default null)
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  v_round int; v_code text; v_name text; v_role text;
+  v_slot int; v_taken int; v_closed boolean; v_is_host boolean;
+  v_exist public.cc_players;
+begin
+  select current_round, host_code, closed
+    into v_round, v_code, v_closed
+    from public.cc_config where id = 1;
+
+  v_name := btrim(coalesce(p_name, ''));
+  if v_name = '' then
+    return json_build_object('ok', false, 'error', 'no_name');
+  end if;
+  v_name := left(v_name, 12);
+  v_is_host := p_host_code is not null and btrim(p_host_code) = v_code;
+
+  /* 비공개일 때는 호스트만 들어옵니다 */
+  if v_closed and not v_is_host then
+    return json_build_object('ok', false, 'error', 'closed');
+  end if;
+
+  /* 같은 기기가 이번 회차에 이미 있으면 그 자리로 돌아갑니다 (새로고침 대응) */
+  select * into v_exist
+    from public.cc_players where round = v_round and device = p_device;
+  if found then
+    if exists (select 1 from public.cc_players
+                where round = v_round and lower(name) = lower(v_name) and id <> v_exist.id) then
+      return json_build_object('ok', false, 'error', 'name_taken');
+    end if;
+    if v_is_host and v_exist.role <> 'host' then
+      update public.cc_players set name = v_name, role = 'host', slot = 0 where id = v_exist.id;
+      select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
+      return json_build_object('ok', true, 'rejoined', true, 'upgraded', true, 'name', v_name,
+                               'role', 'host', 'slot', 0, 'round', v_round, 'taken', v_taken);
+    end if;
+    update public.cc_players set name = v_name where id = v_exist.id;
+    select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
+    return json_build_object('ok', true, 'rejoined', true, 'name', v_name, 'role', v_exist.role,
+                             'slot', v_exist.slot, 'round', v_round, 'taken', v_taken);
+  end if;
+
+  if v_is_host then
+    v_role := 'host';
+    v_slot := 0;
+  else
+    v_role := 'guest';
+    select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
+    /* 비어 있는 가장 작은 슬롯. 사람이 n 명이면 1..n+1 안에 반드시 빈 칸이 있습니다 */
+    select min(s) into v_slot
+      from generate_series(1, v_taken + 1) as s
+     where not exists (select 1 from public.cc_players
+                        where round = v_round and role = 'guest' and slot = s);
+  end if;
+
+  if exists (select 1 from public.cc_players where round = v_round and lower(name) = lower(v_name)) then
+    return json_build_object('ok', false, 'error', 'name_taken');
+  end if;
+
+  insert into public.cc_players (round, device, name, role, slot)
+    values (v_round, p_device, v_name, v_role, v_slot);
+
+  select count(*) into v_taken from public.cc_players where round = v_round and role = 'guest';
+  return json_build_object('ok', true, 'name', v_name, 'role', v_role, 'slot', v_slot,
+                           'round', v_round, 'taken', v_taken);
+end; $$;
+
+grant execute on function public.cc_status() to anon, authenticated;
+grant execute on function public.cc_join(text, text, text) to anon, authenticated;
