@@ -745,6 +745,7 @@ function Town({ me, setMe, onKick }) {
   const [staffPos, setStaffPos] = useState(null);  // 직원이 걸어다니는 자리
   const [staffWalk, setStaffWalk] = useState(false);
   const [skins, setSkins] = useState([]);          // 호스트가 올린 캐릭터 이미지
+
   const [starPop, setStarPop] = useState(false);   // 별 개수가 바뀌면 통 튑니다
   /* 꾸미기 — 고른 모습과 사둔 것들 */
   const [look, setLook] = useState(() => {
@@ -2984,7 +2985,8 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
 .ccDressAsk{display:flex;flex-direction:column;gap:8px;align-items:center;margin-top:10px;
   border:3px solid ${C.line};background:#fff6dc;padding:10px;font-size:12px;font-weight:700}
 .ccDressAskBtns{display:flex;gap:8px}
-.ccDressPic{width:34px;height:34px;object-fit:cover;border:3px solid ${C.line};display:block}
+.ccDressPic{width:40px;height:40px;object-fit:contain;object-position:center bottom;display:block;
+  background:none;border:none}
 
 /* 올린 사진으로 갈아입은 캐릭터 */
 .ccSkinPic{width:64px;height:64px;background-size:contain;background-repeat:no-repeat;
@@ -3008,7 +3010,7 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
 .ccSkinPriceNote{font-size:10.5px;font-weight:700;color:${C.inkSoft};white-space:nowrap}
 .ccSkinList{display:flex;flex-direction:column;gap:6px;margin:6px 0 4px;max-height:38vh;overflow:auto}
 .ccSkinItem{display:flex;align-items:center;gap:9px;border:3px solid ${C.line};background:#fff;padding:6px 9px}
-.ccSkinThumb{width:40px;height:40px;object-fit:cover;border:3px solid ${C.line};flex:none;display:block}
+.ccSkinThumb{width:40px;height:40px;object-fit:contain;object-position:center bottom;flex:none;display:block}
 .ccSkinItemName{flex:1;font-size:12.5px;font-weight:800;text-align:left;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .ccSkinItemPrice{font-size:11.5px;font-weight:800;color:#c05a86}
