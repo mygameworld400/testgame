@@ -225,6 +225,13 @@ export const skinAdd = (hostCode, name, image, price) =>
   call("cc_skin_add", { p_host_code: hostCode, p_name: name, p_image: image, p_price: price });
 export const skinDel = (hostCode, id) => call("cc_skin_del", { p_host_code: hostCode, p_id: id });
 
+/* ---------- 📮 우체통 (생겼으면 하는 캐릭터) ---------- */
+
+export const wishAdd = (round, name, body) =>
+  call("cc_wish_add", { p_round: round ?? 0, p_name: name, p_body: body });
+export const wishList = (round) => call("cc_wish_list", { p_round: round ?? null });
+export const wishDel = (hostCode, id) => call("cc_wish_del", { p_host_code: hostCode, p_id: id });
+
 /* ---------- 떵개방 메뉴 가챠 ---------- */
 
 export const foodList = () => call("cc_food_list");

@@ -4,7 +4,7 @@ import { MENU } from "./rooms.jsx";
 import { Pix } from "./pix.jsx";
 import { FACES, HATS, OUTFITS, lookSprite } from "./sprites.js";
 
-import { DAY, SFX_PREFIX, prepSkin, skinAdd, skinDel, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { DAY, SFX_PREFIX, prepSkin, skinAdd, skinDel, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -1377,6 +1377,116 @@ export function SkinSheet({ hostCode, isHost, skins = [], onChanged, onClose }) 
           ? "올린 사진은 구름옷가게 '얼굴' 칸에 바로 나타나요. 사진은 240px 로 줄여서 저장합니다."
           : "구름옷가게에서 별을 주고 살 수 있어요."}
       </p>
+    </div>
+  );
+}
+
+/* ---------- 📮 우체통 ----------
+   "생겼으면 하는 캐릭터를 적어주세요!" — 적은 것은 회차별로 남습니다. */
+
+export function WishSheet({ round, name, hostCode, isHost, off = false, onClose }) {
+  const [body, setBody] = useState("");
+  const [list, setList] = useState(null);
+  const [all, setAll] = useState(false);      // 호스트: 지난 회차까지 몰아 보기
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const load = useCallback(async () => {
+    if (off) { setList([]); return; }
+    const r = await wishList(all ? null : round);
+    if (Array.isArray(r)) { setList(r); setErr(""); }
+    else { setList([]); setErr(msgOf(r)); }
+  }, [all, round, off]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const send = async () => {
+    const t = body.trim();
+    if (!t) { setErr("한 줄만 적어주세요."); return; }
+    setBusy(true);
+    const r = await wishAdd(round, name, t);
+    setBusy(false);
+    if (!r?.ok) { setErr(r?.error === "too_many" ? "이번 회차 우체통이 꽉 찼어요." : msgOf(r)); buzz(); return; }
+    setErr("");
+    setBody("");
+    setSent(true);
+    ding();
+    load();
+    setTimeout(() => setSent(false), 2400);
+  };
+
+  const del = async (id) => {
+    const r = await wishDel(hostCode, id);
+    if (r?.ok) load();
+    else setErr(msgOf(r));
+  };
+
+  return (
+    <div className="ccPanel ccModal ccWish" onClick={(e) => e.stopPropagation()}>
+      <div className="ccSheetHead">
+        <h2 className="ccSheetTitle">📮 우체통</h2>
+        <button className="ccX" onClick={onClose}>✕</button>
+      </div>
+
+      <p className="ccWishAsk">생겼으면 하는 캐릭터를<br />적어주세요!</p>
+
+      <div className="ccWishRow">
+        <input
+          className="ccInput ccWishInput"
+          value={body}
+          maxLength={120}
+          placeholder={off ? "혼자 둘러보기에서는 못 넣어요" : "예: 구름 강아지, 병아리 모자 쓴 애…"}
+          disabled={off}
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+        />
+        <button className="ccBtn ccWishSend" onClick={send} disabled={busy || off}>
+          {busy ? "…" : "넣기"}
+        </button>
+      </div>
+
+      {sent && <div className="ccWishDone">우체통에 넣었어요! 고마워요 💌</div>}
+      {err && !off && <div className="ccErr">{err}</div>}
+
+      {off ? (
+        <p className="ccSheetNote ccWishOff">
+          서버 없이 둘러보는 중이라 우체통은 비어 있어요.
+          <br />
+          테스트에 입장해서 넣으면 회차별로 남습니다.
+        </p>
+      ) : (
+        <>
+          <div className="ccWishHead">
+            <span>
+              {all ? "지금까지 들어온 것" : round != null ? `${round}번 테스트 우체통` : "우체통"}
+              {list && <b className="ccWishN"> {list.length}</b>}
+            </span>
+            {isHost && (
+              <button className="ccMini" onClick={() => setAll((v) => !v)}>
+                {all ? "이번 회차만" : "전체 보기"}
+              </button>
+            )}
+          </div>
+
+          <div className="ccWishList">
+            {list === null && <p className="ccSheetNote">불러오는 중…</p>}
+            {list?.length === 0 && <p className="ccSheetNote">아직 아무도 안 넣었어요. 첫 번째가 되어보세요!</p>}
+            {list?.map((w) => (
+              <div key={w.id} className="ccWishItem">
+                {all && <span className="ccWishRound">{w.round}회</span>}
+                <span className="ccWishWho">{w.name}</span>
+                <span className="ccWishBody">{w.body}</span>
+                {isHost && (
+                  <button className="ccTrackDel" onClick={() => del(w.id)}>지우기</button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <p className="ccSheetNote">적어주신 건 테스트 회차별로 남아요. 호스트가 보고 만들어봅니다.</p>
+        </>
+      )}
     </div>
   );
 }

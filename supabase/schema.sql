@@ -1041,3 +1041,73 @@ end; $$;
 grant execute on function public.cc_skin_list()                        to anon, authenticated;
 grant execute on function public.cc_skin_add(text, text, text, int)    to anon, authenticated;
 grant execute on function public.cc_skin_del(text, bigint)             to anon, authenticated;
+
+
+-- ===========================================================
+-- 📮 구름옷가게 우체통
+-- "생겼으면 하는 캐릭터를 적어주세요!" 에 적은 것을 회차별로 남깁니다.
+-- ===========================================================
+
+create table if not exists public.cc_wishes (
+  id      bigserial primary key,
+  round   int  not null,
+  name    text not null,
+  body    text not null,
+  made_at timestamptz not null default now()
+);
+create index if not exists cc_wishes_round_idx on public.cc_wishes (round);
+alter table public.cc_wishes enable row level security;
+
+create or replace function public.cc_wish_add(p_round int, p_name text, p_body text)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_body text; v_name text; v_n int;
+begin
+  v_body := btrim(coalesce(p_body, ''));
+  v_name := btrim(coalesce(p_name, ''));
+  if v_body = '' then
+    return json_build_object('ok', false, 'error', 'empty');
+  end if;
+  if v_name = '' then v_name := '손님'; end if;
+
+  /* 한 회차에 너무 많이 쌓이지 않게 */
+  select count(*) into v_n from public.cc_wishes where round = coalesce(p_round, 0);
+  if v_n >= 300 then
+    return json_build_object('ok', false, 'error', 'too_many');
+  end if;
+
+  insert into public.cc_wishes (round, name, body)
+    values (coalesce(p_round, 0), left(v_name, 12), left(v_body, 120));
+  return json_build_object('ok', true);
+end; $$;
+
+/* p_round 를 안 주면 모든 회차를 봅니다 (호스트가 몰아 보려고) */
+create or replace function public.cc_wish_list(p_round int default null)
+returns json language plpgsql security definer set search_path = public as $$
+declare v json;
+begin
+  select coalesce(json_agg(x order by x.id desc), '[]'::json) into v
+    from (
+      select id, round, name, body
+        from public.cc_wishes
+       where p_round is null or round = p_round
+       order by id desc
+       limit 300
+    ) x;
+  return v;
+end; $$;
+
+create or replace function public.cc_wish_del(p_host_code text, p_id bigint)
+returns json language plpgsql security definer set search_path = public as $$
+declare v_code text;
+begin
+  select host_code into v_code from public.cc_config where id = 1;
+  if p_host_code is null or btrim(p_host_code) <> v_code then
+    return json_build_object('ok', false, 'error', 'bad_code');
+  end if;
+  delete from public.cc_wishes where id = p_id;
+  return json_build_object('ok', true);
+end; $$;
+
+grant execute on function public.cc_wish_add(int, text, text) to anon, authenticated;
+grant execute on function public.cc_wish_list(int)            to anon, authenticated;
+grant execute on function public.cc_wish_del(text, bigint)    to anon, authenticated;

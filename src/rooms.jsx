@@ -213,12 +213,13 @@ export const ROOMS = {
     wallDark: "#cdb9ee",
     side: "#f5eeff",
     accent: "#8b74e0",
-    hint: "가운데 전신거울 앞에 서면 꾸밀 수 있어요",
+    hint: "거울 앞에서 꾸미고, 오른쪽 우체통에 하고 싶은 말을 넣어보세요",
     play: PLAY,
-    blocks: [box(500, 120, 220, 150)],
-    stars: [{ x: 150, y: 430 }, { x: 860, y: 430 }, { x: 500, y: 470 }],
+    blocks: [box(500, 120, 220, 150), box(832, 150, 90, 80)],
+    stars: [{ x: 150, y: 430 }, { x: 620, y: 460 }, { x: 380, y: 470 }],
     zones: [
       { id: "dress", x: 500, y: 300, r: 130, label: "꾸미기" },
+      { id: "wish", x: 832, y: 235, r: 92, label: "우체통" },
       { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
     ],
   },
@@ -701,10 +702,35 @@ function DressProps() {
       </g>
     );
   };
+  /* 📮 우체통 — 오른쪽 뒤편 */
+  const post = proj(832, 150);
+  const pk = post.k;
   return (
     <g>
       {rack(180)}
-      {rack(820)}
+      {rack(760)}
+      <g>
+        {/* 기둥 */}
+        <rect x={post.sx - 9 * pk} y={post.sy - 72 * pk} width={18 * pk} height={72 * pk}
+          fill="#a98a5e" stroke="#5b4a63" strokeWidth="5" />
+        {/* 몸통 */}
+        <rect x={post.sx - 44 * pk} y={post.sy - 148 * pk} width={88 * pk} height={82 * pk}
+          fill="#ff8fb6" stroke="#5b4a63" strokeWidth="5" />
+        {/* 지붕 */}
+        <rect x={post.sx - 50 * pk} y={post.sy - 162 * pk} width={100 * pk} height={18 * pk}
+          fill="#e0688f" stroke="#5b4a63" strokeWidth="5" />
+        {/* 넣는 구멍 */}
+        <rect x={post.sx - 26 * pk} y={post.sy - 126 * pk} width={52 * pk} height={13 * pk}
+          fill="#5b4a63" />
+        {/* 하트 */}
+        <rect x={post.sx - 13 * pk} y={post.sy - 104 * pk} width={26 * pk} height={16 * pk} fill="#fff0f6" />
+        <rect x={post.sx - 18 * pk} y={post.sy - 99 * pk} width={36 * pk} height={7 * pk} fill="#fff0f6" />
+        {/* 깃발 */}
+        <rect x={post.sx + 44 * pk} y={post.sy - 168 * pk} width={7 * pk} height={44 * pk}
+          fill="#5b4a63" />
+        <rect x={post.sx + 49 * pk} y={post.sy - 168 * pk} width={26 * pk} height={20 * pk}
+          fill="#ffd45e" stroke="#5b4a63" strokeWidth="4" />
+      </g>
       {/* 전신거울 */}
       <rect x={m.sx - 130 * k} y={m.sy - 300 * k} width={260 * k} height={310 * k}
         fill="#8b74e0" stroke="#5b4a63" strokeWidth="7" />

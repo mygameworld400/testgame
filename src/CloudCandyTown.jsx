@@ -3,7 +3,7 @@ import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHost
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CAFE_CHAIRS, CAFE_TABLES, CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, SMALL_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
-import { DressSheet, FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, SkinSheet, TeamLobby } from "./sheets.jsx";
+import { DressSheet, FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, SkinSheet, TeamLobby, WishSheet } from "./sheets.jsx";
 import { findSfx, quizPacks, skinList, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, DEFAULT_LOOK, charForSlot, grassTile, lookSprite, pathTile } from "./sprites.js";
 import { Pix } from "./pix.jsx";
@@ -2320,6 +2320,16 @@ function Town({ me, setMe, onKick }) {
               onClose={() => setSheet(null)}
             />
           )}
+          {sheet === "wish" && (
+            <WishSheet
+              round={roundNo}
+              name={me.name}
+              hostCode={me.hostCode}
+              isHost={me.role === "host"}
+              off={!hasServer || me.role === "solo"}
+              onClose={() => setSheet(null)}
+            />
+          )}
           {sheet === "skins" && (
             <SkinSheet
               hostCode={me.hostCode}
@@ -3027,6 +3037,26 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
 .ccCutRange{flex:1;min-width:90px}
 .ccCutNum{font-size:11.5px;font-weight:800;color:#c05a86;width:24px;text-align:right}
 .ccCutNote{margin:6px 0 0;font-size:10.5px;font-weight:700;line-height:1.5;color:${C.inkSoft}}
+
+/* 📮 우체통 */
+.ccWish{width:min(400px,94vw);padding:18px;max-height:88vh;overflow:auto}
+.ccWishAsk{margin:2px 0 12px;font-size:15px;font-weight:900;line-height:1.6;color:${C.ink}}
+.ccWishRow{display:flex;gap:6px}
+.ccWishInput{flex:1;padding:10px 11px;font-size:12.5px;text-align:left}
+.ccWishSend{flex:none;font-size:12.5px;padding:10px 16px;background:#ffd45e;color:${C.ink}}
+.ccWishDone{margin-top:9px;border:3px solid ${C.line};background:#e8fbf1;padding:8px;
+  font-size:12px;font-weight:800;color:#2f8f68}
+.ccWishHead{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin:14px 0 6px;font-size:12px;font-weight:800;color:${C.inkSoft};text-align:left}
+.ccWishN{color:#c05a86}
+.ccWishList{display:flex;flex-direction:column;gap:5px;max-height:38vh;overflow:auto;text-align:left}
+.ccWishItem{display:flex;align-items:baseline;gap:7px;border:3px solid ${C.line};background:#fff;
+  padding:7px 9px;font-size:12px;font-weight:700;line-height:1.45}
+.ccWishRound{flex:none;font-size:10px;font-weight:800;color:#c05a86;background:#ffe9a8;
+  border:2px solid ${C.line};padding:1px 4px}
+.ccWishWho{flex:none;font-size:11px;color:${C.inkSoft}}
+.ccWishBody{flex:1;word-break:keep-all}
+.ccWishOff{margin-top:12px;line-height:1.7}
 .ccModalEmoji{font-size:42px;line-height:1}
 .ccModalTag{display:inline-block;margin-top:10px;border:2px solid ${C.line};padding:2px 10px;font-size:11px;font-weight:700;background:#ffe9a8}
 .ccModalName{margin:9px 0 8px;font-size:19px;font-weight:900}
