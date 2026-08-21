@@ -1612,3 +1612,360 @@ export function FeedbackSheet({ round, hostCode, isHost, off = false, onSent, on
     </div>
   );
 }
+
+/* ---------- 🕹️ 미니게임 세 가지 ----------
+   전부 혼자 하는 짧은 게임이고, 최고 기록은 이 브라우저에 남습니다. */
+
+const BEST_KEY = "ccArcade";
+const readBest = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem(BEST_KEY));
+    return v && typeof v === "object" ? v : {};
+  } catch {
+    return {};
+  }
+};
+const writeBest = (id, score, bigger = true) => {
+  const saved = readBest();
+  const old = saved[id];
+  if (old == null || (bigger ? score > old : score < old)) {
+    saved[id] = score;
+    try {
+      localStorage.setItem(BEST_KEY, JSON.stringify(saved));
+    } catch {
+      /* 무시 */
+    }
+    return true;
+  }
+  return false;
+};
+
+const TYPE_WORDS = [
+  "구름사탕", "방방", "미끄럼틀", "포춘쿠키", "왁뿌볼", "구름라떼", "천문대", "방탈출",
+  "노래방", "떵개방", "구름카페", "별하나", "폴짝", "사각사각", "슝", "메롱",
+  "구름옷가게", "타건음", "물갈이", "우체통", "리본", "왕관", "마들렌", "쿠키",
+];
+
+/* 💨 방구게임 — 오래 참을수록 점수, 터지면 0 */
+function FartGame({ onDone }) {
+  const [gauge, setGauge] = useState(0);
+  const [state, setState] = useState("ready");   // ready · hold · done · pop
+  const [score, setScore] = useState(0);
+  const limit = useRef(70 + Math.random() * 28);
+  const timer = useRef(null);
+
+  const stop = () => {
+    clearInterval(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => stop, []);
+
+  const start = () => {
+    if (state === "hold") return;
+    setState("hold");
+    setGauge(0);
+    limit.current = 70 + Math.random() * 28;
+    let g = 0;
+    stop();
+    timer.current = setInterval(() => {
+      g += 1.6 + Math.random() * 1.6;
+      setGauge(g);
+      if (g >= limit.current) {
+        stop();
+        setState("pop");
+        setScore(0);
+        buzz();
+      }
+    }, 60);
+  };
+
+  const release = () => {
+    if (state !== "hold") return;
+    stop();
+    const s = Math.round(gauge);
+    setScore(s);
+    setState("done");
+    ding();
+    writeBest("fart", s);
+    onDone?.(s);
+  };
+
+  const pct = Math.min(100, gauge);
+  return (
+    <div className="ccGame">
+      <p className="ccGameAsk">
+        참을 수 있을 때까지 누르고 있다가
+        <br />
+        터지기 직전에 떼세요!
+      </p>
+      <div className="ccGauge">
+        <i style={{ width: pct + "%", background: pct > 78 ? "#e0685f" : pct > 55 ? "#f0a13f" : "#8fe3c9" }} />
+        <span className="ccGaugeNum">{Math.round(pct)}</span>
+      </div>
+      <button
+        className={"ccBtn ccGameBig" + (state === "hold" ? " ccGameHold" : "")}
+        onMouseDown={start}
+        onMouseUp={release}
+        onMouseLeave={release}
+        onTouchStart={(e) => { e.preventDefault(); start(); }}
+        onTouchEnd={(e) => { e.preventDefault(); release(); }}
+      >
+        {state === "hold" ? "참는 중… 💨" : state === "pop" ? "뿌웅! 다시" : "꾹 누르기"}
+      </button>
+      <p className="ccGameOut">
+        {state === "pop" && "터졌어요… 0점"}
+        {state === "done" && `${score}점! 아슬아슬했네요`}
+        {state === "ready" && "누르고 있으면 게이지가 차올라요"}
+      </p>
+    </div>
+  );
+}
+
+/* ⌨️ 타자게임 — 20초 동안 몇 개 */
+function TypeGame({ onDone }) {
+  const [word, setWord] = useState("");
+  const [text, setText] = useState("");
+  const [left, setLeft] = useState(20);
+  const [hit, setHit] = useState(0);
+  const [state, setState] = useState("ready");
+  const typeBox = useRef(null);
+  const tick = useRef(null);
+
+  const pick = () => TYPE_WORDS[Math.floor(Math.random() * TYPE_WORDS.length)];
+
+  useEffect(() => () => clearInterval(tick.current), []);
+
+  const start = () => {
+    setHit(0);
+    setLeft(20);
+    setText("");
+    setWord(pick());
+    setState("play");
+    clearInterval(tick.current);
+    tick.current = setInterval(() => {
+      setLeft((v) => {
+        if (v <= 1) {
+          clearInterval(tick.current);
+          setState("done");
+          return 0;
+        }
+        return v - 1;
+      });
+    }, 1000);
+    setTimeout(() => typeBox.current?.focus(), 50);
+  };
+
+  useEffect(() => {
+    if (state !== "done") return;
+    ding();
+    writeBest("type", hit);
+    onDone?.(hit);
+  }, [state]);
+
+  const onType = (v) => {
+    setText(v);
+    if (v.trim() === word) {
+      setHit((n) => n + 1);
+      setText("");
+      setWord(pick());
+      blip(900);
+    }
+  };
+
+  return (
+    <div className="ccGame">
+      <p className="ccGameAsk">뜨는 낱말을 그대로 쳐주세요. 20초!</p>
+      <div className="ccTypeWord">{state === "play" ? word : "준비되면 시작"}</div>
+      <input
+        ref={typeBox}
+        className="ccInput ccTypeIn"
+        value={text}
+        disabled={state !== "play"}
+        placeholder={state === "play" ? "여기에 치세요" : ""}
+        onChange={(e) => onType(e.target.value)}
+      />
+      <div className="ccGameRow">
+        <span>남은 시간 <b>{left}</b></span>
+        <span>맞힌 개수 <b className="ccHit">{hit}</b></span>
+      </div>
+      <button className="ccBtn ccGameBig" onClick={start} disabled={state === "play"}>
+        {state === "play" ? "치는 중…" : state === "done" ? "다시 하기" : "시작"}
+      </button>
+      {state === "done" && <p className="ccGameOut">{hit}개! 손가락 빠르네요</p>}
+    </div>
+  );
+}
+
+/* ⚡ 속도게임 — 초록으로 바뀌면 바로 누르기, 3번 평균 */
+function SpeedGame({ onDone }) {
+  const [state, setState] = useState("ready");   // ready · wait · go · early · done
+  const [runs, setRuns] = useState([]);
+  const [last, setLast] = useState(0);
+  const at = useRef(0);
+  const timer = useRef(null);
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const arm = () => {
+    setState("wait");
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      at.current = performance.now();
+      setState("go");
+      blip(1200);
+    }, 900 + Math.random() * 2200);
+  };
+
+  const hit = () => {
+    if (state === "ready" || state === "done") {
+      setRuns([]);
+      arm();
+      return;
+    }
+    if (state === "wait") {
+      clearTimeout(timer.current);
+      setState("early");
+      buzz();
+      return;
+    }
+    if (state === "early") {
+      arm();
+      return;
+    }
+    if (state !== "go") return;
+    const ms = Math.round(performance.now() - at.current);
+    setLast(ms);
+    const next = [...runs, ms];
+    setRuns(next);
+    if (next.length >= 3) {
+      const avg = Math.round(next.reduce((a, b) => a + b, 0) / next.length);
+      setState("done");
+      ding();
+      writeBest("speed", avg, false);
+      onDone?.(avg);
+    } else {
+      arm();
+    }
+  };
+
+  const avg = runs.length ? Math.round(runs.reduce((a, b) => a + b, 0) / runs.length) : 0;
+  return (
+    <div className="ccGame">
+      <p className="ccGameAsk">초록으로 바뀌면 바로 누르세요. 세 번!</p>
+      <button
+        className={"ccSpeedPad ccSpeed" + state}
+        onClick={hit}
+      >
+        {state === "ready" && "눌러서 시작"}
+        {state === "wait" && "기다려…"}
+        {state === "go" && "지금!"}
+        {state === "early" && "너무 빨라요. 다시"}
+        {state === "done" && `평균 ${avg}ms`}
+      </button>
+      <div className="ccGameRow">
+        <span>이번 <b>{last ? last + "ms" : "-"}</b></span>
+        <span>기록 <b className="ccHit">{runs.length}/3</b></span>
+      </div>
+    </div>
+  );
+}
+
+const ARCADE = [
+  { id: "fart", name: "방구게임", icon: "💨", unit: "점", bigger: true, Comp: FartGame },
+  { id: "type", name: "타자게임", icon: "⌨️", unit: "개", bigger: true, Comp: TypeGame },
+  { id: "speed", name: "속도게임", icon: "⚡", unit: "ms", bigger: false, Comp: SpeedGame },
+];
+
+export function ArcadeSheet({ pick, onClose }) {
+  const [tab, setTab] = useState(pick || "fart");
+  const [best, setBest] = useState(readBest);
+  const g = ARCADE.find((x) => x.id === tab) || ARCADE[0];
+  const Comp = g.Comp;
+
+  return (
+    <div className="ccPanel ccModal ccArcade" onClick={(e) => e.stopPropagation()}>
+      <div className="ccSheetHead">
+        <h2 className="ccSheetTitle">🕹️ 미니게임</h2>
+        <button className="ccX" onClick={onClose}>✕</button>
+      </div>
+
+      <div className="ccArcTabs">
+        {ARCADE.map((x) => (
+          <button
+            key={x.id}
+            className={"ccArcTab" + (tab === x.id ? " ccArcOn" : "")}
+            onClick={() => { setTab(x.id); blip(720); }}
+          >
+            <span className="ccArcIcon">{x.icon}</span>
+            <span>{x.name}</span>
+          </button>
+        ))}
+      </div>
+
+      <Comp onDone={() => setBest(readBest())} />
+
+      <p className="ccSheetNote">
+        내 최고 기록 — {best[g.id] != null ? `${best[g.id]}${g.unit}` : "아직 없어요"}
+      </p>
+    </div>
+  );
+}
+
+/* ---------- 🔭 별 보기 ---------- */
+
+export function StarViewSheet({ onClose }) {
+  const dots = Array.from({ length: 90 }, (_, i) => ({
+    x: (i * 137) % 100,
+    y: (i * 61) % 100,
+    r: i % 9 === 0 ? 3 : i % 3 === 0 ? 2 : 1.2,
+    d: (i % 11) * 0.3,
+  }));
+  return (
+    <div className="ccStarView" onClick={onClose}>
+      <div className="ccStarSky">
+        {dots.map((d, i) => (
+          <span key={i} className="ccStarDot"
+            style={{ left: d.x + "%", top: d.y + "%", width: d.r * 2, height: d.r * 2, animationDelay: d.d + "s" }} />
+        ))}
+        <span className="ccShoot" />
+      </div>
+      <div className="ccStarWord">
+        조용하죠?
+        <br />
+        <b>아무 데나 눌러서 나가기</b>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- 🎬 상영표 ---------- */
+
+const MOVIES = [
+  { t: "구름 위의 하루", when: "13:00", tag: "잔잔" },
+  { t: "왁뿌볼 대소동", when: "15:30", tag: "코미디" },
+  { t: "미끄럼틀 레이스", when: "17:00", tag: "액션" },
+  { t: "별이 내리는 밤", when: "20:00", tag: "별" },
+];
+
+export function MovieSheet({ onClose }) {
+  return (
+    <div className="ccPanel ccModal ccMovie" onClick={(e) => e.stopPropagation()}>
+      <div className="ccSheetHead">
+        <h2 className="ccSheetTitle">🎬 오늘의 상영표</h2>
+        <button className="ccX" onClick={onClose}>✕</button>
+      </div>
+      <div className="ccMovieList">
+        {MOVIES.map((m) => (
+          <div key={m.t} className="ccMovieRow">
+            <span className="ccMovieWhen">{m.when}</span>
+            <span className="ccMovieName">{m.t}</span>
+            <span className="ccMovieTag">{m.tag}</span>
+          </div>
+        ))}
+      </div>
+      <p className="ccSheetNote">
+        아직 필름이 안 왔어요. 곧 진짜 영상을 틀 수 있게 만들 예정입니다.
+      </p>
+    </div>
+  );
+}

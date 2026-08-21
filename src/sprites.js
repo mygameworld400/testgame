@@ -421,33 +421,6 @@ export const BUILDING_SPRITES = {
   },
 
   /* ---- 윗동네 일곱 채 ---- */
-  fish: {
-    map: [
-      "...........oo...........",
-      "..........orro..........",
-      ".........orrrro.........",
-      "........orrrrrro........",
-      ".......orrrrrrrro.......",
-      "......orrrrrrrrrro......",
-      ".....orrrrrrrrrrrro.....",
-      "....orrrrrrrrrrrrrro....",
-      "..owwaawwaawwaawwaawwo..",
-      "..owwaawwaawwaawwaawwo..",
-      "..oooooooooooooooooooo..",
-      "..obbbbbbbbbbbbbbbbbbo..",
-      "..oowwwwwwwwwwwooooooo..",
-      "..owwwwwwwwwwwwodddddo..",
-      "..owwwwwwwwwwwwodddddo..",
-      "..owwwwwwwwwwwwodddddo..",
-      "..oowwwwwwwwwwwodddddo..",
-      "..obbbbbbbbbbbbodddddo..",
-      "..obbbbbbbbbbbbodddddo..",
-      "..obbbbbbbbbbbbodddddo..",
-      "..obbbbbbbbbbbbodddddo..",
-      "..oooooooooooooooooooo..",
-    ],
-    palette: { o: "#2f6b8c", r: "#7fc8f5", R: "#4aa8e6", b: "#eaf6ff", w: "#bfe6ff", d: "#a9e4ff", a: "#ffd45e", y: "#ffd45e", g: "#8fd8a8", k: "#2f6b8c" },
-  },
   jump: {
     map: [
       "........................",

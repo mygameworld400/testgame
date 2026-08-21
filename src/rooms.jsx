@@ -226,47 +226,33 @@ export const ROOMS = {
 
   /* ---- 윗동네 일곱 방 (얼개만 잡아둔 상태) ---- */
 
-  /* 🎣 구름낚시터 */
-  fish: {
-    id: "fish", name: "구름낚시터", emoji: "🎣",
-    floor: "#dff0ff", floorLine: "#dff0ff", wall: "#f0f8ff", wallDark: "#a9d2f5",
-    side: "#e8f4ff", accent: "#2f6b8c",
-    hint: "물가 끝에 서면 낚싯대를 드리울 수 있어요",
-    play: PLAY, blocks: [],
-    water: { x: 500, y: 190, w: 720, d: 250 },
-    stars: [{ x: 140, y: 430 }, { x: 860, y: 430 }, { x: 500, y: 470 }],
-    zones: [
-      { id: "soon", x: 500, y: 340, r: 130, label: "낚싯대 드리우기" },
-      { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
-    ],
-  },
-
   /* 🤸 방방 */
   jump: {
     id: "jump", name: "방방", emoji: "🤸",
-    floor: "#ffe6f2", floorLine: "#ffe6f2", wall: "#fff2f8", wallDark: "#ffc0dd",
-    side: "#ffedf5", accent: "#e0688f",
-    hint: "가운데 방방 위에서 통통 튀어보세요",
+    floor: "#ffdcec", floorLine: "#ffdcec", wall: "#ffeaf4", wallDark: "#ffb0d2",
+    side: "#ffe4f0", accent: "#e0688f",
+    hint: "가운데 방방 위에 올라서면 저절로 통통 튀어요",
     play: PLAY, blocks: [],
-    tramps: [{ x: 340, y: 250, r: 120 }, { x: 680, y: 300, r: 100 }],
-    stars: [{ x: 140, y: 140 }, { x: 880, y: 150 }, { x: 500, y: 470 }],
+    tramps: [{ x: 500, y: 260, r: 250 }],
+    ball: { x: 500, y: 120 },
+    stars: [{ x: 120, y: 440 }, { x: 880, y: 440 }, { x: 500, y: 480 }],
     zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
   },
 
-  /* 🎤 구름노래방 */
+  /* 🎤 구름노래방 — 코인노래방처럼 좁고 어둡게 */
   sing: {
     id: "sing", name: "구름노래방", emoji: "🎤",
-    floor: "#efe6ff", floorLine: "#efe6ff", wall: "#f7f2ff", wallDark: "#c9b8ff",
-    side: "#f3edff", accent: "#5b3a7a",
-    hint: "마이크 앞에 서면 노래를 고를 수 있어요",
-    play: PLAY, blocks: [box(500, 110, 380, 130)],
+    floor: "#2b2340", floorLine: "#2b2340", wall: "#332a4a", wallDark: "#1d1830",
+    side: "#2f2745", accent: "#ff8fb6",
+    hint: "소파에 앉거나 기계 앞에서 노래를 고르세요",
+    play: PLAY, blocks: [box(500, 250, 300, 90)],
+    ball: { x: 500, y: 150 },
     chairs: [
-      { i: 0, x: 250, y: 380 }, { i: 1, x: 390, y: 400 },
-      { i: 2, x: 610, y: 400 }, { i: 3, x: 750, y: 380 },
+      { i: 0, x: 380, y: 400 }, { i: 1, x: 500, y: 400 }, { i: 2, x: 620, y: 400 },
     ],
-    stars: [{ x: 130, y: 250 }, { x: 870, y: 250 }, { x: 500, y: 470 }],
+    stars: [{ x: 130, y: 460 }, { x: 870, y: 460 }, { x: 500, y: 490 }],
     zones: [
-      { id: "soon", x: 500, y: 250, r: 120, label: "노래 고르기" },
+      { id: "soon", x: 500, y: 310, r: 110, label: "노래 고르기" },
       { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
     ],
   },
@@ -277,11 +263,15 @@ export const ROOMS = {
     floor: "#daf5ec", floorLine: "#daf5ec", wall: "#eafff8", wallDark: "#8fe3c9",
     side: "#e4faf2", accent: "#2f5b4a",
     hint: "오락기 앞에 서면 게임을 고를 수 있어요",
-    play: PLAY, blocks: [box(230, 170, 200, 140), box(500, 150, 200, 140), box(770, 170, 200, 140)],
-    cabs: [{ x: 230, y: 170 }, { x: 500, y: 150 }, { x: 770, y: 170 }],
-    stars: [{ x: 130, y: 420 }, { x: 870, y: 420 }, { x: 500, y: 470 }],
+    play: PLAY, blocks: [box(230, 190, 200, 150), box(500, 170, 200, 150), box(770, 190, 200, 150)],
+    cabs: [
+      { id: "fart", x: 230, y: 190, name: "방구게임" },
+      { id: "type", x: 500, y: 170, name: "타자게임" },
+      { id: "speed", x: 770, y: 190, name: "속도게임" },
+    ],
+    stars: [{ x: 130, y: 440 }, { x: 870, y: 440 }, { x: 500, y: 480 }],
     zones: [
-      { id: "soon", x: 500, y: 300, r: 130, label: "게임 고르기" },
+      { id: "arcade", x: 500, y: 330, r: 150, label: "게임 고르기" },
       { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
     ],
   },
@@ -312,8 +302,12 @@ export const ROOMS = {
       { i: 0, x: 240, y: 330 }, { i: 1, x: 380, y: 330 }, { i: 2, x: 620, y: 330 }, { i: 3, x: 760, y: 330 },
       { i: 4, x: 300, y: 440 }, { i: 5, x: 440, y: 440 }, { i: 6, x: 560, y: 440 }, { i: 7, x: 700, y: 440 },
     ],
-    stars: [{ x: 120, y: 200 }, { x: 880, y: 200 }, { x: 500, y: 480 }],
-    zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
+    board: { x: 905, y: 250 },
+    stars: [{ x: 120, y: 230 }, { x: 500, y: 490 }],
+    zones: [
+      { id: "showtime", x: 880, y: 280, r: 105, label: "상영표 보기" },
+      { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
+    ],
   },
 
   /* 🔭 천문대 */
@@ -323,9 +317,12 @@ export const ROOMS = {
     side: "#354063", accent: "#ffd45e",
     hint: "망원경 앞에 서면 하늘을 볼 수 있어요",
     play: PLAY, blocks: [box(500, 210, 190, 170)],
-    stars: [{ x: 140, y: 430 }, { x: 860, y: 430 }, { x: 500, y: 470 }],
+    mats: [{ x: 250, y: 400 }, { x: 750, y: 400 }],
+    stars: [{ x: 140, y: 470 }, { x: 860, y: 470 }, { x: 500, y: 490 }],
     zones: [
-      { id: "soon", x: 500, y: 350, r: 120, label: "망원경 들여다보기" },
+      { id: "starview", x: 500, y: 330, r: 115, label: "망원경 들여다보기" },
+      { id: "lie", x: 250, y: 400, r: 95, label: "여기 눕기" },
+      { id: "lie2", x: 750, y: 400, r: 95, label: "여기 눕기" },
       { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
     ],
   },
@@ -786,54 +783,46 @@ function CafeProps({ R, seats = [] }) {
   );
 }
 
+/* 미러볼 — 천장에 매달려 빙글빙글 돌고 빛을 뿌립니다 */
+function MirrorBall({ at, tint = "#ff8fb6" }) {
+  const k = at.k;
+  const r = 34 * k;
+  return (
+    <g>
+      <rect x={at.sx - 4 * k} y={at.sy - 150 * k} width={8 * k} height={110 * k} fill="#5b4a63" />
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <polygon
+          key={i}
+          className="ccBeam"
+          style={{ animationDelay: i * 0.5 + "s" }}
+          points={
+            at.sx + "," + at.sy + " " +
+            (at.sx + Math.cos((i / 6) * Math.PI * 2) * 420) + "," + (at.sy + Math.sin((i / 6) * Math.PI * 2) * 300 + 60) + " " +
+            (at.sx + Math.cos((i / 6) * Math.PI * 2 + 0.34) * 420) + "," + (at.sy + Math.sin((i / 6) * Math.PI * 2 + 0.34) * 300 + 60)
+          }
+          fill={tint}
+          opacity="0.14"
+        />
+      ))}
+      <circle cx={at.sx} cy={at.sy} r={r} fill="#c9d4ff" stroke="#3a3550" strokeWidth="5" />
+      {[-0.5, 0, 0.5].map((f, i) => (
+        <ellipse key={i} cx={at.sx} cy={at.sy + f * r} rx={r * Math.sqrt(1 - f * f) * 0.98} ry={r * 0.16}
+          fill="none" stroke="#8b9ad6" strokeWidth="3" />
+      ))}
+      {[-0.55, 0, 0.55].map((f, i) => (
+        <ellipse key={"v" + i} cx={at.sx + f * r} cy={at.sy} rx={r * 0.16} ry={r * Math.sqrt(1 - f * f) * 0.98}
+          fill="none" stroke="#8b9ad6" strokeWidth="3" />
+      ))}
+      <circle className="ccBallShine" cx={at.sx - r * 0.34} cy={at.sy - r * 0.34} r={r * 0.24} fill="#ffffff" opacity="0.8" />
+    </g>
+  );
+}
+
 /* ---- 윗동네 방들 — 얼개만 잡아둔 상태라 소품 위주입니다 ---- */
-export const UP_PROPS = { fish: 1, jump: 1, sing: 1, arcade: 1, escape: 1, movie: 1, star: 1 };
+export const UP_PROPS = { jump: 1, sing: 1, arcade: 1, escape: 1, movie: 1, star: 1 };
 
 function UpProps({ R, phase = 0 }) {
   const at = (x, y) => proj(x, y);
-
-  if (R.id === "fish") {
-    const w = R.water;
-    const b1 = at(w.x - w.w / 2, w.y - w.d / 2);
-    const b2 = at(w.x + w.w / 2, w.y - w.d / 2);
-    const f1 = at(w.x - w.w / 2, w.y + w.d / 2);
-    const f2 = at(w.x + w.w / 2, w.y + w.d / 2);
-    const d = at(500, 340);
-    return (
-      <g>
-        <polygon
-          points={b1.sx + "," + b1.sy + " " + b2.sx + "," + b2.sy + " " + f2.sx + "," + f2.sy + " " + f1.sx + "," + f1.sy}
-          fill="#a9e4ff"
-          stroke="#2f6b8c"
-          strokeWidth="6"
-        />
-        {[0, 1, 2, 3].map((i) => (
-          <ellipse
-            key={i}
-            cx={b1.sx + 120 + i * 150}
-            cy={b1.sy + 60 + ((i * 37) % 90)}
-            rx={26}
-            ry={7}
-            fill="#ffffff"
-            opacity={0.5 + 0.2 * Math.sin(phase + i)}
-          />
-        ))}
-        <rect x={d.sx - 90 * d.k} y={d.sy - 14 * d.k} width={180 * d.k} height={30 * d.k}
-          fill="#c9a06a" stroke="#6b4a2f" strokeWidth="5" />
-        {[0, 1, 2, 3].map((i) => (
-          <rect key={i} x={d.sx - 84 * d.k + i * 44 * d.k} y={d.sy - 12 * d.k}
-            width={6 * d.k} height={26 * d.k} fill="#a9762f" />
-        ))}
-        <rect x={d.sx + 60 * d.k} y={d.sy - 120 * d.k} width={7 * d.k} height={110 * d.k} fill="#6b4a2f" />
-        <path
-          d={"M" + (d.sx + 64 * d.k) + "," + (d.sy - 118 * d.k) +
-             " Q" + (d.sx + 10 * d.k) + "," + (d.sy - 150 * d.k) +
-             " " + (d.sx - 40 * d.k) + "," + (d.sy - 70 * d.k)}
-          stroke="#5b4a63" strokeWidth="3" fill="none"
-        />
-      </g>
-    );
-  }
 
   if (R.id === "jump") {
     return (
@@ -841,39 +830,76 @@ function UpProps({ R, phase = 0 }) {
         {(R.tramps || []).map((t, i) => {
           const p = at(t.x, t.y);
           const k = p.k;
+          const legs = [-0.78, -0.26, 0.26, 0.78];
           return (
             <g key={i}>
-              <ellipse cx={p.sx} cy={p.sy + 14 * k} rx={t.r * k} ry={t.r * 0.42 * k} fill="#5b4a63" opacity="0.18" />
+              {legs.map((a, n) => (
+                <rect key={n} x={p.sx + a * t.r * k - 8 * k} y={p.sy + t.r * 0.3 * k}
+                  width={16 * k} height={70 * k} fill="#8c4a5e" />
+              ))}
+              <ellipse cx={p.sx} cy={p.sy + 22 * k} rx={t.r * k} ry={t.r * 0.44 * k} fill="#5b4a63" opacity="0.16" />
               <ellipse cx={p.sx} cy={p.sy} rx={t.r * k} ry={t.r * 0.46 * k}
-                fill="#e0688f" stroke="#8c4a5e" strokeWidth="6" />
-              <ellipse className="ccTramp" cx={p.sx} cy={p.sy - 4 * k}
-                rx={t.r * 0.82 * k} ry={t.r * 0.36 * k} fill="#ffd7e8" />
+                fill="#e0688f" stroke="#8c4a5e" strokeWidth="8" />
+              <ellipse className="ccTramp" cx={p.sx} cy={p.sy - 6 * k}
+                rx={t.r * 0.84 * k} ry={t.r * 0.36 * k} fill="#ffd7e8" stroke="#ffb0d2" strokeWidth="5" />
+              {[0.3, 0.55, 0.8].map((f, n) => (
+                <ellipse key={n} cx={p.sx} cy={p.sy - 6 * k} rx={t.r * 0.84 * f * k} ry={t.r * 0.36 * f * k}
+                  fill="none" stroke="#ffb0d2" strokeWidth="3" opacity="0.7" />
+              ))}
             </g>
           );
         })}
+        <MirrorBall at={at(R.ball.x, R.ball.y)} tint="#ff9ec4" />
       </g>
     );
   }
 
   if (R.id === "sing") {
-    const st = at(500, 130);
+    const mc = at(500, 250);          // 노래방 기계
+    const sofa = at(500, 415);
     return (
       <g>
-        <rect x={330} y={40} width={340} height={150} fill="#2b2340" stroke="#5b3a7a" strokeWidth="6" />
+        {/* 큰 화면 — 벽에 바짝 */}
+        <rect x={272} y={44} width={456} height={228} fill="#0d0a18" stroke="#ff8fb6" strokeWidth="7" />
+        <rect x={288} y={60} width={424} height={196} fill="#171230" />
+        <ellipse className="ccMuralGlow" cx={500} cy={150} rx={150} ry={62} fill="#5b3a7a" opacity="0.6" />
         {[0, 1, 2].map((i) => (
-          <rect key={i} x={352} y={70 + i * 36} width={296 - i * 60} height={14} fill="#b6a6f0" opacity="0.8" />
+          <rect key={i} className="ccMuralShimmer" style={{ animationDuration: 2.4 + i * 0.5 + "s", animationDelay: i * 0.4 + "s" }}
+            x={318} y={104 + i * 44} width={364 - i * 84} height={18} fill="#ffd7e8" />
         ))}
-        <rect x={st.sx - 200 * st.k} y={st.sy - 40 * st.k} width={400 * st.k} height={80 * st.k}
-          fill="#8b74e0" stroke="#5b3a7a" strokeWidth="6" />
-        <rect x={st.sx - 200 * st.k} y={st.sy - 40 * st.k} width={400 * st.k} height={14 * st.k} fill="#c9b8ff" />
-        <rect x={st.sx - 5 * st.k} y={st.sy - 110 * st.k} width={10 * st.k} height={78 * st.k} fill="#5b4a63" />
-        <ellipse cx={st.sx} cy={st.sy - 118 * st.k} rx={16 * st.k} ry={20 * st.k}
-          fill="#ffd45e" stroke="#5b3a7a" strokeWidth="5" />
+        {/* 노래방 기계 */}
+        <rect x={mc.sx - 150 * mc.k} y={mc.sy - 96 * mc.k} width={300 * mc.k} height={110 * mc.k}
+          fill="#3a2f55" stroke="#120e22" strokeWidth="6" />
+        <rect x={mc.sx - 128 * mc.k} y={mc.sy - 82 * mc.k} width={150 * mc.k} height={54 * mc.k} fill="#ff8fb6" />
+        <rect x={mc.sx - 120 * mc.k} y={mc.sy - 74 * mc.k} width={134 * mc.k} height={38 * mc.k} fill="#2b2340" />
+        {[0, 1, 2, 3].map((n) => (
+          <circle key={n} cx={mc.sx + (46 + (n % 2) * 52) * mc.k} cy={mc.sy + (-72 + Math.floor(n / 2) * 40) * mc.k}
+            r={15 * mc.k} fill={["#ffd45e", "#8fe3c9", "#7fc8f5", "#ff8fb6"][n]} stroke="#120e22" strokeWidth="4" />
+        ))}
+        {/* 마이크 두 개 — 기계에 걸려 있어요 */}
+        {[-1, 1].map((d) => (
+          <g key={d}>
+            <rect x={mc.sx + d * 118 * mc.k - 4 * mc.k} y={mc.sy - 6 * mc.k} width={8 * mc.k} height={44 * mc.k} fill="#120e22" />
+            <ellipse cx={mc.sx + d * 118 * mc.k} cy={mc.sy - 14 * mc.k} rx={13 * mc.k} ry={16 * mc.k}
+              fill="#e8e0ff" stroke="#120e22" strokeWidth="4" />
+          </g>
+        ))}
+        {/* 소파 */}
+        <rect x={sofa.sx - 230 * sofa.k} y={sofa.sy - 66 * sofa.k} width={460 * sofa.k} height={54 * sofa.k}
+          fill="#7a4a62" stroke="#3a2038" strokeWidth="6" />
+        <rect x={sofa.sx - 230 * sofa.k} y={sofa.sy - 26 * sofa.k} width={460 * sofa.k} height={40 * sofa.k}
+          fill="#a05a7c" stroke="#3a2038" strokeWidth="6" />
+        {[-1, 1].map((d) => (
+          <rect key={d} x={sofa.sx + d * 214 * sofa.k - 22 * sofa.k} y={sofa.sy - 78 * sofa.k}
+            width={44 * sofa.k} height={92 * sofa.k} fill="#7a4a62" stroke="#3a2038" strokeWidth="6" />
+        ))}
+        <MirrorBall at={at(R.ball.x, R.ball.y)} tint="#ff8fb6" />
       </g>
     );
   }
 
   if (R.id === "arcade") {
+    const ICON = { fart: "💨", type: "⌨️", speed: "⚡" };
     return (
       <g>
         {(R.cabs || []).map((c, i) => {
@@ -881,16 +907,19 @@ function UpProps({ R, phase = 0 }) {
           const k = p.k;
           const col = ["#ff9ec4", "#7fc8f5", "#ffd45e"][i % 3];
           return (
-            <g key={i}>
-              <rect x={p.sx - 62 * k} y={p.sy - 150 * k} width={124 * k} height={170 * k}
+            <g key={c.id}>
+              <rect x={p.sx - 66 * k} y={p.sy - 160 * k} width={132 * k} height={180 * k}
                 fill={col} stroke="#2f5b4a" strokeWidth="6" />
-              <rect x={p.sx - 46 * k} y={p.sy - 132 * k} width={92 * k} height={64 * k} fill="#1f2b28" />
-              {[0, 1, 2].map((n) => (
-                <rect key={n} x={p.sx - 38 * k + n * 26 * k} y={p.sy - 118 * k + ((n * 13) % 26) * k}
-                  width={12 * k} height={12 * k} fill={["#8fe3c9", "#ffd45e", "#ff9ec4"][n]} />
-              ))}
-              <circle cx={p.sx - 22 * k} cy={p.sy - 46 * k} r={11 * k} fill="#ff5b7a" stroke="#2f5b4a" strokeWidth="4" />
-              <circle cx={p.sx + 16 * k} cy={p.sy - 46 * k} r={11 * k} fill="#4aa8e6" stroke="#2f5b4a" strokeWidth="4" />
+              <rect x={p.sx - 50 * k} y={p.sy - 144 * k} width={100 * k} height={74 * k} fill="#141d1b" />
+              <text x={p.sx} y={p.sy - 96 * k} textAnchor="middle" fontSize={44 * k}>
+                {ICON[c.id]}
+              </text>
+              <circle cx={p.sx - 24 * k} cy={p.sy - 44 * k} r={12 * k} fill="#ff5b7a" stroke="#2f5b4a" strokeWidth="4" />
+              <circle cx={p.sx + 18 * k} cy={p.sy - 44 * k} r={12 * k} fill="#4aa8e6" stroke="#2f5b4a" strokeWidth="4" />
+              <text x={p.sx} y={p.sy + 48 * k} textAnchor="middle" fontSize={21 * k} fontWeight="900"
+                fill="#2f5b4a" fontFamily="inherit">
+                {c.name}
+              </text>
             </g>
           );
         })}
@@ -926,11 +955,24 @@ function UpProps({ R, phase = 0 }) {
   }
 
   if (R.id === "movie") {
+    const bd = at(R.board.x, R.board.y);
     return (
       <g>
-        <rect x={250} y={30} width={500} height={200} fill="#0e0c18" stroke="#ffd45e" strokeWidth="7" />
-        <rect x={268} y={46} width={464} height={168} fill="#1b1830" />
-        <ellipse className="ccMuralGlow" cx={500} cy={130} rx={150} ry={60} fill="#5b4a8c" opacity="0.55" />
+        <rect x={150} y={20} width={700} height={264} fill="#0e0c18" stroke="#ffd45e" strokeWidth="8" />
+        <rect x={168} y={38} width={664} height={228} fill="#1b1830" />
+        <ellipse className="ccMuralGlow" cx={500} cy={152} rx={230} ry={82} fill="#5b4a8c" opacity="0.55" />
+        {/* 옆 벽 상영표 */}
+        <g>
+          <rect x={bd.sx - 62 * bd.k} y={bd.sy - 150 * bd.k} width={124 * bd.k} height={190 * bd.k}
+            fill="#ffd45e" stroke="#3a3550" strokeWidth="7" />
+          <rect x={bd.sx - 48 * bd.k} y={bd.sy - 134 * bd.k} width={96 * bd.k} height={158 * bd.k} fill="#2f2b45" />
+          <text x={bd.sx} y={bd.sy - 108 * bd.k} textAnchor="middle" fontSize={20 * bd.k} fontWeight="900"
+            fill="#ffd45e" fontFamily="inherit">상영표</text>
+          {[0, 1, 2, 3].map((n) => (
+            <rect key={n} x={bd.sx - 38 * bd.k} y={bd.sy - 88 * bd.k + n * 30 * bd.k}
+              width={(76 - (n % 2) * 22) * bd.k} height={10 * bd.k} fill="#8b74e0" />
+          ))}
+        </g>
         {[0, 1, 2, 3, 4].map((i) => (
           <rect key={i} className="ccMuralStar" style={{ animationDelay: i * 0.4 + "s" }}
             x={120 + i * 190} y={300} width={10} height={10} fill="#ffd45e" />
@@ -955,6 +997,17 @@ function UpProps({ R, phase = 0 }) {
     const tp = at(500, 210);
     return (
       <g>
+        {/* 누울 자리 */}
+        {(R.mats || []).map((m, i) => {
+          const p = at(m.x, m.y);
+          const k = p.k;
+          return (
+            <g key={i}>
+              <ellipse cx={p.sx} cy={p.sy} rx={96 * k} ry={38 * k} fill="#3f4a75" stroke="#232b47" strokeWidth="5" />
+              <ellipse cx={p.sx} cy={p.sy - 5 * k} rx={78 * k} ry={28 * k} fill="#54608c" />
+            </g>
+          );
+        })}
         <rect x={230} y={30} width={540} height={210} fill="#141a33" stroke="#3a4a7a" strokeWidth="7" />
         {Array.from({ length: 22 }, (_, i) => (
           <rect key={i} className="ccMuralStar" style={{ animationDelay: (i % 7) * 0.35 + "s" }}

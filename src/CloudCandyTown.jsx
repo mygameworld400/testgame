@@ -3,7 +3,7 @@ import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHost
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CAFE_CHAIRS, CAFE_TABLES, CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, SMALL_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
-import { DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, IDEA_BOX, MenuSheet, MusicSheet, QuizSheet, SkinSheet, TeamLobby, WISH_BOX, WishSheet } from "./sheets.jsx";
+import { ArcadeSheet, DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, IDEA_BOX, MenuSheet, MovieSheet, MusicSheet, QuizSheet, SkinSheet, StarViewSheet, TeamLobby, WISH_BOX, WishSheet } from "./sheets.jsx";
 import { findSfx, quizPacks, skinList, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, DEFAULT_LOOK, charForSlot, cursorUrls, grassTile, lookSprite, pathTile } from "./sprites.js";
 import { Pix } from "./pix.jsx";
@@ -73,20 +73,18 @@ const BUILDINGS = [
       "가장 인기 있는 건 사탕 껍질 부스럭 소리래요. 이해는 안 되지만요.",
     ] },
   /* ---- 윗동네 ---- */
-  { id: "fish", name: "구름낚시터", emoji: "🎣", tag: "낚시", x: 400, y: 420, scale: 8,
-    lines: ["오늘은 뭐가 물릴까요?", "여긴 구름물고기만 나와요."] },
-  { id: "jump", name: "방방", emoji: "🤸", tag: "트램폴린", x: 700, y: 420, scale: 8,
+  { id: "jump", name: "방방", emoji: "🤸", tag: "트램폴린", x: 470, y: 420, scale: 8,
     lines: ["신발 벗고 올라오세요!", "높이 뛰면 별에 닿을지도 몰라요."] },
-  { id: "sing", name: "구름노래방", emoji: "🎤", tag: "노래", x: 1000, y: 420, scale: 8,
+  { id: "sing", name: "구름노래방", emoji: "🎤", tag: "노래", x: 866, y: 420, scale: 8,
     lines: ["오늘 첫 곡 누가 부르실래요?", "탬버린은 저기 있어요."] },
-  { id: "arcade", name: "미니게임장", emoji: "🕹️", tag: "게임", x: 1300, y: 420, scale: 8,
+  { id: "arcade", name: "미니게임장", emoji: "🕹️", tag: "게임", x: 1262, y: 420, scale: 8,
     lines: ["동전은 필요 없어요. 그냥 하세요.", "최고 점수 아직 비어 있어요."] },
-  { id: "escape", name: "방탈출", emoji: "🔐", tag: "탈출", x: 560, y: 740, scale: 8,
+  { id: "escape", name: "방탈출", emoji: "🔐", tag: "탈출", x: 470, y: 760, scale: 8,
     lines: ["열쇠는 이 방 안 어딘가에.", "겁먹지 마세요. 안 무서워요."] },
-  { id: "movie", name: "구름영화관", emoji: "🎬", tag: "영화", x: 866, y: 740, scale: 8,
-    lines: ["곧 시작합니다. 자리 잡으세요.", "팝콘은 아직 준비 중이에요."] },
-  { id: "star", name: "천문대", emoji: "🔭", tag: "별", x: 1180, y: 740, scale: 8,
-    lines: ["망원경으로 보면 별이 더 커요.", "오늘 밤은 잘 보이겠는데요."] },
+  { id: "movie", name: "구름영화관", emoji: "🎬", tag: "영화", x: 866, y: 760, scale: 8,
+    lines: ["곧 시작합니다. 자리 잡으세요.", "상영표는 옆 벽에 있어요."] },
+  { id: "star", name: "천문대", emoji: "🔭", tag: "별", x: 1262, y: 760, scale: 8,
+    lines: ["망원경으로 보면 별이 더 커요.", "바닥에 누워서 봐도 좋아요."] },
 
   { id: "sign", name: "여기 뭐 만들지..?", emoji: "🪧", tag: "윗동네", x: 1420, y: 640, scale: 5, sheet: "idea",
     lines: [
@@ -137,11 +135,11 @@ const QUESTS = [
   { id: "wish", icon: "💌", name: "우체통에 캐릭터 적어넣기", desc: "옷가게 오른쪽 우체통에 생겼으면 하는 캐릭터를 적어주세요." },
   { id: "feedback", icon: "📮", name: "피드백 남기기", desc: "오른쪽 아래 📮 를 눌러 아무 말이나 남겨주세요. 익명이에요." },
   { id: "idea", icon: "🪧", name: "윗동네 팻말에 적기", desc: "왼쪽 민트 미끄럼틀로 윗동네에 올라가, 가운데 팻말에 뭘 만들지 적어주세요." },
-  { id: "up", icon: "🎣", name: "윗동네 새 건물 구경하기", desc: "낚시터·방방·노래방·미니게임장·방탈출·영화관·천문대 중 아무 데나 들어가 보세요." },
+  { id: "up", icon: "🤸", name: "윗동네 새 건물 구경하기", desc: "방방·노래방·미니게임장·방탈출·영화관·천문대 중 아무 데나 들어가 보세요." },
 ];
 
 /* 윗동네에 새로 생긴 방들 */
-const UP_ROOMS = ["fish", "jump", "sing", "arcade", "escape", "movie", "star"];
+const UP_ROOMS = ["jump", "sing", "arcade", "escape", "movie", "star"];
 
 /* 투두를 다 깨면 주는 별 */
 const CLEAR_BONUS = 100;
@@ -428,11 +426,11 @@ function Building({ b, near }) {
 
 /* ============================ 캐릭터 ============================ */
 
-function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false, hold = null, slide = false, look = null, skin = null }) {
+function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false, hold = null, slide = false, look = null, skin = null, lie = false, bounce = false }) {
   const ch = look ? lookSprite(look) : charForSlot(slot);
   return (
     <div
-      className={"ccAvatar" + (swim ? " ccSwim" : "") + (slide ? " ccSliding" : "")}
+      className={"ccAvatar" + (swim ? " ccSwim" : "") + (slide ? " ccSliding" : "") + (lie ? " ccLying" : "") + (bounce ? " ccBouncing" : "")}
       style={{
         left: x,
         top: y,
@@ -898,6 +896,8 @@ function Town({ me, setMe, onKick }) {
   });
   const [setOpen, setSetOpen] = useState(false);   // 설정 패널
   const [riding, setRiding] = useState(false);     // 미끄럼틀 타는 중
+  const [lying, setLying] = useState(false);       // 천문대에서 눕기
+  const [bouncing, setBouncing] = useState(false); // 방방 위에서 통통
   const [talk, setTalk] = useState(null);          // 앉았을 때 오가는 말 { who, text }
   const [staffPos, setStaffPos] = useState(null);  // 직원이 걸어다니는 자리
   const [staffWalk, setStaffWalk] = useState(false);
@@ -969,6 +969,9 @@ function Town({ me, setMe, onKick }) {
   const welcomeRef = useRef(true);
   const rideRef = useRef(null);     // { at, ms, up }
   const rideLock = useRef(false);   // 도착하자마자 다시 타지 않도록
+  const lyingRef = useRef(false);
+  const bounceRef = useRef(false);
+  const bounceAt = useRef(0);
   const talkTimers = useRef([]);
   const talking = useRef(false);
   const pairRef = useRef(null);       // 지금 같이 앉아 있는 사람의 의자 번호
@@ -1265,6 +1268,10 @@ function Town({ me, setMe, onKick }) {
     zoneRef.current = null;
     sitRef.current = null;
     setSit(null);
+    lyingRef.current = false;
+    setLying(false);
+    bounceRef.current = false;
+    setBouncing(false);
     clearSeatTalk();
     pairRef.current = null;
     staffRef.current = null;
@@ -1300,6 +1307,20 @@ function Town({ me, setMe, onKick }) {
     if (!id) return;
     if (id === "exit") { exitRoom(); return; }
     if (id === "dress") loadSkins();
+    if (id === "arcade" || id === "starview" || id === "showtime") { setSheet(id); return; }
+    if (id === "lie" || id === "lie2") {
+      /* 천문대 바닥에 눕기 — 한 번 더 누르면 일어나요 */
+      const mat = ROOMS.star.mats[id === "lie" ? 0 : 1];
+      const on = !lyingRef.current;
+      lyingRef.current = on;
+      setLying(on);
+      if (on) {
+        posRef.current = { x: mat.x, y: mat.y };
+        setPos({ x: mat.x, y: mat.y });
+      }
+      blip(on ? 620 : 780);
+      return;
+    }
     if (id === "soon") {
       setToast("아직 만드는 중이에요. 우체통에 아이디어 주시면 반영할게요!");
       blip(520);
@@ -1580,7 +1601,7 @@ function Town({ me, setMe, onKick }) {
       if (k.arrowdown || k.s) dy += 1;
       const st = stick.current;
       if (st.x || st.y) { dx = st.x; dy = st.y; }
-      if (openRef.current || sitRef.current != null || rideRef.current) { dx = 0; dy = 0; }
+      if (openRef.current || sitRef.current != null || rideRef.current || lyingRef.current) { dx = 0; dy = 0; }
 
       const bounds = room
         ? { x0: room.play.x0, x1: room.play.x1, y0: room.play.y0, y1: room.play.y1 }
@@ -1656,6 +1677,24 @@ function Town({ me, setMe, onKick }) {
         }
         if (sitRef.current != null) z = "chair";
         if (z !== zoneRef.current) { zoneRef.current = z; setZoneId(z); }
+
+        /* 방방 위에 올라서면 저절로 통통 튑니다 */
+        if (room.tramps) {
+          const on = room.tramps.some(
+            (t) => Math.hypot(p.x - t.x, (p.y - t.y) * 2.1) < t.r * 0.92
+          );
+          if (on !== bounceRef.current) {
+            bounceRef.current = on;
+            setBouncing(on);
+          }
+          if (on && now - bounceAt.current > 520) {
+            bounceAt.current = now;
+            blip(520 + Math.round(Math.random() * 260));
+          }
+        } else if (bounceRef.current) {
+          bounceRef.current = false;
+          setBouncing(false);
+        }
 
         /* 낙엽 밟는 소리 */
         if (room.crunch && isMoving) {
@@ -2105,6 +2144,8 @@ function Town({ me, setMe, onKick }) {
                 hold={holding?.emoji || null}
                 look={look}
                 skin={skinImg(look)}
+                lie={lying}
+                bounce={bouncing}
               />
             </div>
           </div>
@@ -2631,6 +2672,8 @@ function Town({ me, setMe, onKick }) {
               onClose={() => setSheet(null)}
             />
           )}
+          {sheet === "arcade" && <ArcadeSheet onClose={() => setSheet(null)} />}
+          {sheet === "showtime" && <MovieSheet onClose={() => setSheet(null)} />}
           {sheet === "skins" && (
             <SkinSheet
               hostCode={me.hostCode}
@@ -2672,6 +2715,8 @@ function Town({ me, setMe, onKick }) {
           )}
         </div>
       )}
+
+      {sheet === "starview" && <StarViewSheet onClose={() => setSheet(null)} />}
 
       {welcome && (
         <div className="ccWelWrap" onClick={closeWelcome}>
@@ -2881,6 +2926,17 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccTree{position:absolute;animation:ccSway 3s steps(3,end) infinite}
 @keyframes ccSway{0%,100%{transform:translateX(0)}50%{transform:translateX(3px)}}
 .ccTramp{animation:ccTrampB 1.1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+/* 미러볼 */
+.ccBeam{animation:ccBeamT 6s linear infinite;transform-box:fill-box;transform-origin:0 0}
+@keyframes ccBeamT{0%{opacity:.06}50%{opacity:.2}100%{opacity:.06}}
+.ccBallShine{animation:ccBallS 2.2s ease-in-out infinite}
+@keyframes ccBallS{0%,100%{opacity:.85}50%{opacity:.35}}
+/* 방방 위에서 저절로 통통 */
+.ccBouncing .ccPix,.ccBouncing .ccSkinPic{animation:ccBoing .52s ease-in-out infinite}
+@keyframes ccBoing{0%,100%{transform:translateY(0) scaleY(1)}20%{transform:translateY(-4px) scaleY(.9)}55%{transform:translateY(-34px) scaleY(1.06)}}
+/* 천문대에서 눕기 */
+.ccLying .ccPix,.ccLying .ccSkinPic{transform:rotate(-84deg) translateY(6px)}
+.ccLying .ccTag{opacity:.7}
 @keyframes ccTrampB{0%,100%{transform:scaleY(1)}50%{transform:scaleY(0.86)}}
 .ccRoomStar{transform-origin:50% 100%}
 .ccStar{position:absolute;z-index:5;animation:ccStarF 1.6s steps(3,end) infinite}
@@ -2897,6 +2953,58 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccStarSub{font-size:10.5px;font-weight:700;color:${C.inkSoft}}
 .ccOffline{background:#ffe2e2;color:#b8474b;animation:ccBlink 1.2s steps(2,end) infinite}
 .ccStarPop{animation:ccStarPop .42s steps(3,end)}
+
+/* 🕹️ 미니게임 */
+.ccArcade{width:min(400px,94vw);padding:18px}
+.ccArcTabs{display:flex;gap:6px;margin-bottom:12px}
+.ccArcTab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:3px solid ${C.line};
+  background:#fff;color:${C.ink};font-family:inherit;font-size:11px;font-weight:800;padding:8px 2px;cursor:pointer;
+  box-shadow:2px 2px 0 rgba(91,74,99,.18)}
+.ccArcTab:active{transform:translate(2px,2px);box-shadow:none}
+.ccArcOn{background:#ffe9a8;box-shadow:inset 0 0 0 3px #ffd45e,2px 2px 0 rgba(91,74,99,.18)}
+.ccArcIcon{font-size:22px;line-height:1}
+.ccGame{display:flex;flex-direction:column;gap:10px;align-items:stretch}
+.ccGameAsk{margin:0;font-size:12.5px;font-weight:800;line-height:1.6;color:${C.ink}}
+.ccGameBig{width:100%;padding:15px;font-size:15px;background:#ffd45e;color:${C.ink}}
+.ccGameHold{background:#ff8fb6;color:#fff}
+.ccGameOut{margin:0;font-size:12px;font-weight:800;color:#c05a86;min-height:17px}
+.ccGameRow{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:${C.inkSoft}}
+.ccGameRow b{color:${C.ink};font-size:14px;margin-left:4px}
+.ccHit{color:#c05a86 !important}
+.ccGauge{position:relative;height:26px;border:4px solid ${C.line};background:#efe7f2;overflow:hidden}
+.ccGauge i{display:block;height:100%;transition:width .06s linear}
+.ccGaugeNum{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:900;color:${C.ink}}
+.ccTypeWord{border:4px solid ${C.line};background:#fff6dc;padding:14px;font-size:22px;font-weight:900;
+  letter-spacing:.04em;color:${C.ink}}
+.ccTypeIn{width:100%;padding:11px;font-size:15px;text-align:center}
+.ccSpeedPad{border:4px solid ${C.line};background:#efe7f2;color:${C.ink};font-family:inherit;
+  font-size:17px;font-weight:900;height:150px;cursor:pointer;width:100%}
+.ccSpeedwait{background:#ffd9ea}
+.ccSpeedgo{background:#8fe3c9}
+.ccSpeedearly{background:#ffd7d7;color:#b8474b}
+.ccSpeeddone{background:#ffe9a8}
+
+/* 🔭 별 보기 */
+.ccStarView{position:absolute;inset:0;z-index:45;background:#0b1024;cursor:pointer;overflow:hidden}
+.ccStarSky{position:absolute;inset:0}
+.ccStarDot{position:absolute;background:#fff;border-radius:50%;animation:ccTw 3s ease-in-out infinite}
+@keyframes ccTw{0%,100%{opacity:.25}50%{opacity:1}}
+.ccShoot{position:absolute;left:-10%;top:18%;width:120px;height:3px;background:linear-gradient(90deg,transparent,#fff);
+  animation:ccShoot 7s linear infinite}
+@keyframes ccShoot{0%{transform:translate(0,0) rotate(18deg);opacity:0}6%{opacity:1}18%{transform:translate(1200px,320px) rotate(18deg);opacity:0}100%{opacity:0}}
+.ccStarWord{position:absolute;left:0;right:0;bottom:12%;text-align:center;color:#dfe6ff;
+  font-size:15px;font-weight:800;line-height:2}
+.ccStarWord b{color:#ffd45e;font-size:13px}
+
+/* 🎬 상영표 */
+.ccMovie{width:min(380px,94vw);padding:18px}
+.ccMovieList{display:flex;flex-direction:column;gap:6px;margin:6px 0 4px}
+.ccMovieRow{display:flex;align-items:center;gap:9px;border:3px solid ${C.line};background:#fff;
+  padding:9px 11px;font-size:12.5px;font-weight:700;text-align:left}
+.ccMovieWhen{flex:none;font-weight:900;color:#c05a86}
+.ccMovieName{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccMovieTag{flex:none;font-size:10px;background:#ffe9a8;border:2px solid ${C.line};padding:1px 5px}
 @keyframes ccStarPop{0%{transform:scale(1)}40%{transform:scale(1.16)}100%{transform:scale(1)}}
 
 .ccRound{position:absolute;right:14px;top:14px;background:#ffe9a8;border:4px solid ${C.line};
