@@ -90,6 +90,25 @@ const BUILDINGS = [
     ] },
 ];
 
+/* 뉴비 가이드 — 위에서부터 하나씩 해보는 목록. 순서대로 안내합니다 */
+const QUESTS = [
+  { id: "walk", icon: "🚶", name: "마을 걸어보기", desc: "방향키나 WASD 로 움직여요. 폰이면 왼쪽 아래 조이스틱." },
+  { id: "star", icon: "⭐", name: "별 줍기", desc: "바닥에 떠 있는 별 위로 걸어가면 주워져요." },
+  { id: "enter", icon: "🚪", name: "건물 들어가기", desc: "건물 앞에 서면 말풍선이 떠요. SPACE 를 누르세요." },
+  { id: "chat", icon: "💬", name: "한마디 남기기", desc: "C 를 누르고 아무 말이나 쳐보세요. 머리 위에 떠요." },
+  { id: "music", icon: "🎧", name: "LP바에서 음악 틀기", desc: "LP바 오른쪽 LP 플레이어 앞에서 SPACE." },
+  { id: "quiz", icon: "❓", name: "퀴즈 한 문제 풀기", desc: "퀴즈상가 단상에 올라서면 문제가 나와요." },
+  { id: "swim", icon: "🏊", name: "수영장에서 헤엄치기", desc: "수영장 물 안으로 그냥 걸어 들어가면 돼요." },
+  { id: "sand", icon: "🏖️", name: "모래 밟아보기", desc: "ASMR 타운 가운데 모래밭 위를 걸으면 사각사각." },
+  { id: "ball", icon: "🫧", name: "왁뿌볼 뿌수기", desc: "ASMR 타운 왼쪽 무더기를 밟으면 뿌셔져요." },
+  { id: "key", icon: "⌨️", name: "키보드 밟아보기", desc: "ASMR 타운 오른쪽 바닥 키보드를 밟으면 타건음이 나요." },
+  { id: "fortune", icon: "🥠", name: "포춘쿠키 뽑기", desc: "왼쪽 작은 쿠키 건물에서 하루 한 번." },
+  { id: "bridge", icon: "🌉", name: "구름다리 건너기", desc: "마을 아래쪽 다리를 건너면 두 번째 섬이 나와요." },
+  { id: "sit", icon: "🪑", name: "의자에 앉아보기", desc: "구름카페나 LP바 의자 앞에서 SPACE." },
+  { id: "buy", icon: "☕", name: "별로 음료 사기", desc: "구름카페 카운터에서 메뉴판을 열어요. 별이 필요해요." },
+  { id: "gacha", icon: "🍜", name: "떵개방 메뉴 가챠", desc: "떵개방 가운데에서 하루 한 번 오늘의 메뉴." },
+];
+
 const STAR_SPOTS = [
   [300, 700], [560, 640], [780, 930], [1000, 600], [1180, 700],
   [1440, 800], [980, 330], [430, 350], [1430, 380], [700, 980],
@@ -618,6 +637,22 @@ function Town({ me, setMe, onKick }) {
   const [myMsg, setMyMsg] = useState(null);
   const [roundInput, setRoundInput] = useState(String((me.round ?? 1) + 1));
   const [resetting, setResetting] = useState(false);
+  /* 뉴비 가이드 — 해본 항목은 기기에 남습니다 */
+  const [quests, setQuests] = useState(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("ccQuests"));
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  });
+  const [guideOpen, setGuideOpen] = useState(() => {
+    const v = localStorage.getItem("ccGuide");
+    if (v === "off") return false;
+    if (v === "on") return true;
+    return !(typeof navigator !== "undefined" && (navigator.maxTouchPoints > 0 || "ontouchstart" in window));
+  });
+  const [justDone, setJustDone] = useState(null);   // 방금 체크된 항목 (반짝임)
 
   const track = queue[qi] || null;    // 지금 듣는 곡
 
@@ -653,6 +688,8 @@ function Town({ me, setMe, onKick }) {
   const audio = useRef(null);
   const chatBox = useRef(null);
   const histBox = useRef(null);
+  const questRef = useRef(quests);
+  const walkRef = useRef(0);      // 마을에서 걸은 거리
   const myMsgTimer = useRef(null);
 
   useEffect(() => { openRef.current = !!sheet; sheetRef.current = sheet; }, [sheet]);
@@ -674,6 +711,35 @@ function Town({ me, setMe, onKick }) {
   const balance = Math.max(0, collected - spent);
   const online = me.role === "solo" ? 1 : peers.length + 1;
 
+  /* 가이드 한 줄 체크 */
+  const doQuest = useCallback((id) => {
+    if (questRef.current.includes(id)) return;
+    questRef.current = [...questRef.current, id];
+    setQuests(questRef.current);
+    try {
+      localStorage.setItem("ccQuests", JSON.stringify(questRef.current));
+    } catch {
+      /* 무시 */
+    }
+    const q = QUESTS.find((x) => x.id === id);
+    setJustDone(id);
+    setToast(`✅ ${q ? q.name : ""} — 해봤어요!`);
+    blip(880);
+    setTimeout(() => blip(1170), 110);
+  }, []);
+
+  const resetQuests = useCallback(() => {
+    questRef.current = [];
+    walkRef.current = 0;
+    setQuests([]);
+    setJustDone(null);
+    try {
+      localStorage.removeItem("ccQuests");
+    } catch {
+      /* 무시 */
+    }
+  }, []);
+
   /* 건물 안으로 */
   const enterRoom = useCallback((id) => {
     if (!ROOMS[id]) return;
@@ -685,7 +751,8 @@ function Town({ me, setMe, onKick }) {
     setScene(id);
     setSheet(null);
     setToast(`${ROOMS[id].emoji} ${ROOMS[id].name} — ${ROOMS[id].hint}`);
-  }, []);
+    doQuest("enter");
+  }, [doQuest]);
 
   /* 마을로 */
   const exitRoom = useCallback(() => {
@@ -728,10 +795,11 @@ function Town({ me, setMe, onKick }) {
       posRef.current = { x: c.x, y: c.y };
       setPos({ x: c.x, y: c.y });
       blip(760);
+      doQuest("sit");
       return;
     }
     setSheet(id);
-  }, [exitRoom]);
+  }, [exitRoom, doQuest]);
 
   const openBuilding = useCallback((id) => {
     const b = BUILDINGS.find((x) => x.id === id);
@@ -831,12 +899,12 @@ function Town({ me, setMe, onKick }) {
     pressedRef.current = [...pressedRef.current, i];
     setPressed(pressedRef.current);
     keyclick(sfxUrl.current.key);
-    if (mine) chanRef.current?.fx({ t: "key", i });
+    if (mine) { chanRef.current?.fx({ t: "key", i }); doQuest("key"); }
     setTimeout(() => {
       pressedRef.current = pressedRef.current.filter((n) => n !== i);
       setPressed(pressedRef.current);
     }, 1500);
-  }, []);
+  }, [doQuest]);
 
   /* 메뉴 사기 — 별을 쓰고 손에 듭니다 */
   const buyMenu = useCallback((item) => {
@@ -844,7 +912,8 @@ function Town({ me, setMe, onKick }) {
     setHolding(item);
     holdRef.current = MENU.findIndex((m) => m.id === item.id);
     setToast(`${item.emoji} ${item.name} 를 샀어요`);
-  }, []);
+    doQuest("buy");
+  }, [doQuest]);
 
   /* 왁뿌볼 — 밟으면 뿌셔지고 12초 뒤 다시 생깁니다 */
   const popBall = useCallback((i, mine) => {
@@ -852,12 +921,12 @@ function Town({ me, setMe, onKick }) {
     brokenRef.current = [...brokenRef.current, i];
     setBroken(brokenRef.current);
     crack(sfxUrl.current.ball);
-    if (mine) chanRef.current?.fx({ t: "ball", i, r: "flower" });
+    if (mine) { chanRef.current?.fx({ t: "ball", i, r: "flower" }); doQuest("ball"); }
     setTimeout(() => {
       brokenRef.current = brokenRef.current.filter((n) => n !== i);
       setBroken(brokenRef.current);
     }, 12000);
-  }, []);
+  }, [doQuest]);
 
   /* ---------- 팀전 ----------
      방을 만든 사람이 그 방의 주인이고, 자기 방 상태를 주기적으로 알립니다.
@@ -982,6 +1051,7 @@ function Town({ me, setMe, onKick }) {
         if (!hit(x, ny) && (room || inArea(x, ny))) y = ny;
         posRef.current = { x, y };
         setPos({ x, y });
+        if (!room) walkRef.current += sp;
         if (dx !== 0) {
           facingRef.current = dx > 0 ? 1 : -1;
           setFacing(facingRef.current);
@@ -1044,6 +1114,7 @@ function Town({ me, setMe, onKick }) {
           if (d < room.crunch.r && now - sfxAt.current > 380) {
             sfxAt.current = now;
             crunch(sfxUrl.current.sand);
+            doQuest("sand");
           }
         }
 
@@ -1060,6 +1131,7 @@ function Town({ me, setMe, onKick }) {
             roomStarsRef.current = { ...roomStarsRef.current, [room.id]: next };
             setRoomStars(roomStarsRef.current);
             setToast("별을 주웠어요");
+            doQuest("star");
           }
         }
 
@@ -1094,7 +1166,7 @@ function Town({ me, setMe, onKick }) {
             Math.abs(p.x - w.x) < w.w / 2 && Math.abs(p.y - w.y) < w.d / 2;
           if (inWater !== swimRef.current) {
             swimRef.current = inWater;
-            if (inWater) { splash(sfxUrl.current.splash); sfxAt.current = now; }
+            if (inWater) { splash(sfxUrl.current.splash); sfxAt.current = now; doQuest("swim"); }
           } else if (inWater && isMoving && now - sfxAt.current > 700) {
             sfxAt.current = now;
             splash(sfxUrl.current.splash);
@@ -1129,7 +1201,12 @@ function Town({ me, setMe, onKick }) {
         setStars(next);
         const n = next.filter(Boolean).length;
         setToast(n === STAR_SPOTS.length ? "별을 전부 모았어요!" : `별을 주웠어요  ${n} / ${STAR_SPOTS.length}`);
+        doQuest("star");
       }
+
+      /* 가이드 — 조금 걸어보기 · 구름다리 건너 아랫섬 도착 */
+      if (walkRef.current > 700) doQuest("walk");
+      if (p.y > 1340) doQuest("bridge");
 
       const v = viewRef.current;
       const z = v.z || 1;
@@ -1146,7 +1223,7 @@ function Town({ me, setMe, onKick }) {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [popBall, pressKey]);
+  }, [popBall, pressKey, doQuest]);
 
   /* 같이 접속한 사람 */
   useEffect(() => {
@@ -1232,7 +1309,8 @@ function Town({ me, setMe, onKick }) {
     setMyMsg(t);
     clearTimeout(myMsgTimer.current);
     myMsgTimer.current = setTimeout(() => setMyMsg(null), CHAT_MS);
-  }, [chatText, me]);
+    doQuest("chat");
+  }, [chatText, me, doQuest]);
 
   /* 기록을 열거나 새 말이 오면 맨 아래로 내려줍니다 */
   useEffect(() => {
@@ -1327,7 +1405,15 @@ function Town({ me, setMe, onKick }) {
     return () => clearTimeout(t);
   }, [toast]);
 
+  useEffect(() => {
+    if (!justDone) return undefined;
+    const t = setTimeout(() => setJustDone(null), 1800);
+    return () => clearTimeout(t);
+  }, [justDone]);
+
   const ordered = useMemo(() => [...BUILDINGS].sort((a, b) => a.y - b.y), []);
+  const questDone = QUESTS.filter((q) => quests.includes(q.id)).length;
+  const nextQuest = QUESTS.find((q) => !quests.includes(q.id));
   const roundNo = room?.round ?? me.round;
   const R = scene ? ROOMS[scene] : null;
   const here = scene || "";
@@ -1613,6 +1699,8 @@ function Town({ me, setMe, onKick }) {
 
       {toast && <div className="ccToast">{toast}</div>}
 
+      {/* 우측 세로 스택 — 호스트 도구 + 뉴비 가이드 */}
+      <div className="ccSide">
       {me.role === "host" && (
         <>
           <button className="ccChip ccHostBtn" onClick={() => setPanel((v) => !v)}>
@@ -1663,6 +1751,67 @@ function Town({ me, setMe, onKick }) {
         </>
       )}
 
+      <div className={"ccQuest" + (guideOpen ? "" : " ccQuestMin")}>
+        <button
+          className="ccQuestHead"
+          onClick={() => {
+            const next = !guideOpen;
+            setGuideOpen(next);
+            blip(next ? 760 : 520);
+            try {
+              localStorage.setItem("ccGuide", next ? "on" : "off");
+            } catch {
+              /* 무시 */
+            }
+          }}
+        >
+          <span className="ccQuestTitle">🧭 처음 오셨나요</span>
+          <span className="ccQuestNum">{questDone} / {QUESTS.length}</span>
+          <span className="ccQuestArrow">{guideOpen ? "▾" : "▸"}</span>
+        </button>
+        {guideOpen && (
+          <>
+            <div className="ccQuestBar">
+              <i style={{ width: `${Math.round((questDone / QUESTS.length) * 100)}%` }} />
+            </div>
+            <ul className="ccQuestList">
+              {QUESTS.map((q) => {
+                const ok = quests.includes(q.id);
+                const now = !ok && nextQuest?.id === q.id;
+                return (
+                  <li
+                    key={q.id}
+                    className={
+                      "ccQ" +
+                      (ok ? " ccQOk" : "") +
+                      (now ? " ccQNow" : "") +
+                      (justDone === q.id ? " ccQFlash" : "")
+                    }
+                  >
+                    <span className="ccQBox">{ok ? "✔" : ""}</span>
+                    <span className="ccQBody">
+                      <b>{q.icon} {q.name}</b>
+                      {now && <em>{q.desc}</em>}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="ccQuestFoot">
+              {nextQuest
+                ? "위에서부터 하나씩 해보세요. 하면 저절로 체크돼요."
+                : "다 해보셨어요! 이제 마음대로 놀아도 됩니다 🎉"}
+            </p>
+            {questDone > 0 && (
+              <button className="ccQuestReset" onClick={resetQuests}>
+                처음부터 다시
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      </div>
+
       {/* 모바일 조작 — 왼쪽 조이스틱, 오른쪽 액션 */}
       <div className="ccTouch">
         <Stick onMove={(v) => { stick.current = v; }} />
@@ -1711,6 +1860,7 @@ function Town({ me, setMe, onKick }) {
                 setQueue(items);
                 setQi(index || 0);
                 setPlName(name || "");
+                doQuest("music");
               }}
               onClose={() => setSheet(null)}
             />
@@ -1721,9 +1871,10 @@ function Town({ me, setMe, onKick }) {
               isHost={me.role === "host"}
               mode={teamPack ? "team" : quizMode}
               fixedPack={teamPack}
-              onFinish={(sc) =>
-                chanRef.current?.fx({ t: "score", id: deviceId(), name: me.name, ok: sc.ok, done: sc.done })
-              }
+              onFinish={(sc) => {
+                chanRef.current?.fx({ t: "score", id: deviceId(), name: me.name, ok: sc.ok, done: sc.done });
+                doQuest("quiz");
+              }}
               onClose={() => { setSheet(null); setTeamPack(null); }}
             />
           )}
@@ -1736,10 +1887,20 @@ function Town({ me, setMe, onKick }) {
             />
           )}
           {sheet === "fortune" && (
-            <FortuneSheet hostCode={me.hostCode} isHost={me.role === "host"} onClose={() => setSheet(null)} />
+            <FortuneSheet
+              hostCode={me.hostCode}
+              isHost={me.role === "host"}
+              onDraw={() => doQuest("fortune")}
+              onClose={() => setSheet(null)}
+            />
           )}
           {sheet === "gacha" && (
-            <GachaSheet hostCode={me.hostCode} isHost={me.role === "host"} onClose={() => setSheet(null)} />
+            <GachaSheet
+              hostCode={me.hostCode}
+              isHost={me.role === "host"}
+              onDraw={() => doQuest("gacha")}
+              onClose={() => setSheet(null)}
+            />
           )}
           {sheet === "lobby" && (
             <TeamLobby
@@ -1934,13 +2095,49 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccRoundNum{font-size:22px;font-weight:900}
 .ccRoundSub{font-size:11px;color:${C.inkSoft};margin-left:4px}
 
-.ccHelp{position:absolute;right:16px;bottom:16px;font-size:11px;font-weight:700;
+.ccHelp{position:absolute;left:16px;bottom:16px;font-size:11px;font-weight:700;
   color:${C.ink};background:rgba(255,255,255,.9);border:2px solid ${C.line};padding:5px 10px;white-space:nowrap}
 .ccToast{position:absolute;left:50%;top:74px;transform:translateX(-50%);background:#fff;border:4px solid ${C.line};
   padding:9px 16px;font-weight:700;font-size:13px;box-shadow:4px 4px 0 rgba(91,74,99,.3);white-space:nowrap}
 
-.ccHostBtn{position:absolute;right:14px;top:70px;cursor:pointer}
-.ccHostPanel{position:absolute;right:14px;top:110px;width:250px;padding:14px}
+.ccHostBtn{cursor:pointer;align-self:flex-end}
+.ccHostPanel{width:100%;padding:14px}
+
+/* 우측 세로 스택 — 회차 배지 아래로 호스트 도구와 가이드가 쌓입니다 */
+.ccSide{position:absolute;right:14px;top:66px;width:238px;display:flex;flex-direction:column;
+  align-items:stretch;gap:8px;z-index:17}
+
+/* 뉴비 가이드 — 하나씩 해보는 투두 */
+.ccQuest{background:#fff;border:4px solid ${C.line};box-shadow:5px 5px 0 rgba(91,74,99,.3)}
+.ccQuestHead{width:100%;display:flex;align-items:center;gap:6px;background:#ffe9a8;border:none;
+  border-bottom:4px solid ${C.line};font-family:inherit;font-weight:800;font-size:12.5px;color:${C.ink};
+  padding:9px 10px;cursor:pointer;text-align:left}
+.ccQuestMin .ccQuestHead{border-bottom:none}
+.ccQuestTitle{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ccQuestNum{font-size:11px;font-weight:900;color:#c05a86;white-space:nowrap}
+.ccQuestArrow{font-size:10px;color:${C.inkSoft}}
+.ccQuestBar{height:9px;background:#efe7f2;border-bottom:3px solid ${C.line}}
+.ccQuestBar i{display:block;height:100%;background:#8fe3c9;transition:width .25s steps(6,end)}
+.ccQuestList{list-style:none;margin:0;padding:7px;max-height:min(54vh,430px);overflow:auto;
+  display:flex;flex-direction:column;gap:2px;text-align:left}
+.ccQ{display:flex;gap:7px;align-items:flex-start;padding:5px;font-size:11.5px;font-weight:700;
+  line-height:1.35;color:${C.inkSoft}}
+.ccQBox{flex:none;width:16px;height:16px;border:3px solid ${C.line};background:#fff;margin-top:1px;
+  font-size:10px;line-height:10px;text-align:center;color:${C.ink}}
+.ccQBody{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ccQBody b{font-weight:800}
+.ccQBody em{font-style:normal;font-size:10.5px;font-weight:700;color:${C.inkSoft};line-height:1.5}
+.ccQOk .ccQBox{background:#8fe3c9}
+.ccQOk .ccQBody b{opacity:.5;text-decoration:line-through}
+.ccQNow{color:${C.ink};background:#fff6dc;box-shadow:inset 0 0 0 3px #ffd45e}
+.ccQFlash{animation:ccQFlash .32s steps(2,end) 4}
+@keyframes ccQFlash{0%,100%{background:#fff}50%{background:#a9f0d2}}
+.ccQuestFoot{margin:0;padding:0 10px 9px;font-size:10px;font-weight:700;line-height:1.55;
+  color:${C.inkSoft};text-align:left}
+.ccQuestReset{display:block;width:calc(100% - 20px);margin:0 10px 10px;border:3px solid ${C.line};
+  background:#fff;font-family:inherit;font-size:10.5px;font-weight:700;color:${C.inkSoft};
+  padding:6px;cursor:pointer}
+.ccQuestReset:active{transform:translate(2px,2px)}
 .ccHostTitle{font-weight:900;font-size:15px}
 .ccHostCount{font-size:12px;font-weight:700;color:${C.inkSoft};margin-top:3px}
 .ccHostList{list-style:none;margin:9px 0;padding:0;max-height:150px;overflow:auto;font-size:12px;font-weight:700;line-height:1.85}
@@ -2025,7 +2222,7 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccFoodEdit{width:110px;font-size:12px;padding:5px 7px}
 
 /* 팀전 */
-.ccLobbyBtn{position:absolute;right:16px;top:64px;border:4px solid ${C.line};background:#ffd8d8;
+.ccLobbyBtn{position:absolute;left:16px;top:172px;border:4px solid ${C.line};background:#ffd8d8;
   font-family:inherit;font-weight:800;font-size:13px;color:${C.ink};padding:10px 14px;cursor:pointer;
   box-shadow:5px 5px 0 rgba(91,74,99,.3);display:flex;align-items:center;gap:7px;z-index:12}
 .ccLobbyBtn:active{transform:translate(3px,3px);box-shadow:2px 2px 0 rgba(91,74,99,.3)}
@@ -2199,6 +2396,8 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
 .ccIsTouch .ccChatBar{left:158px;width:min(300px,42vw)}
 .ccIsTouch .ccFeed{left:158px;width:min(300px,42vw)}
 .ccIsTouch .ccHistory{left:158px;width:min(340px,50vw);max-height:44vh}
+.ccIsTouch .ccSide{width:200px;top:60px}
+.ccIsTouch .ccQuestList{max-height:min(34vh,220px)}
 
 @media (hover:none) and (pointer:coarse){
   .ccTouch{display:block}
@@ -2209,6 +2408,8 @@ body{font-family:"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui
   .ccHistory{left:158px;width:min(340px,50vw);max-height:44vh;bottom:calc(62px + var(--kb, 0px))}
   .ccHud{max-width:44vw}
   .ccHud .ccChip{font-size:11px;padding:5px 9px}
+  .ccSide{width:200px;top:60px}
+  .ccQuestList{max-height:min(34vh,220px)}
 }
 @media (hover:none) and (pointer:coarse) and (orientation:portrait){
   .ccRotate{display:flex}

@@ -689,7 +689,7 @@ export function TeamLobby({ me, games, myGid, packs, onCreate, onJoin, onLeave, 
 
 /* ============================ 떵개방 메뉴 가챠 ============================ */
 
-export function GachaSheet({ hostCode, isHost, onClose }) {
+export function GachaSheet({ hostCode, isHost, onClose, onDraw }) {
   const [foods, setFoods] = useState(null);
   const [step, setStep] = useState("ask");      // ask -> rolling -> done
   const [pick, setPick] = useState(null);
@@ -733,6 +733,7 @@ export function GachaSheet({ hostCode, isHost, onClose }) {
         prev.current = { at: Date.now(), food: win };
         setStep("done");
         ding();
+        onDraw?.();
       }
     }, 90);
   };
@@ -875,7 +876,7 @@ export function GachaSheet({ hostCode, isHost, onClose }) {
 
 /* ============================ 포춘쿠키 ============================ */
 
-export function FortuneSheet({ hostCode, isHost, onClose }) {
+export function FortuneSheet({ hostCode, isHost, onClose, onDraw }) {
   const [items, setItems] = useState(null);
   const [pick, setPick] = useState(null);
   const prev = useRef(lastDraw("fortune"));
@@ -920,6 +921,7 @@ export function FortuneSheet({ hostCode, isHost, onClose }) {
       prev.current = { at: Date.now(), food: win };
       setOpening(false);
       ding();
+      onDraw?.();
     }, 700);
   };
 
