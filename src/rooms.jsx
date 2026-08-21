@@ -824,6 +824,24 @@ function GachaProps({ R }) {
   ];
   return (
     <g>
+      {/* 정면 벽에 크게 쓴 안내 */}
+      <g className="ccWallNote">
+        <text x={502} y={90} textAnchor="middle" fontSize="42" fontWeight="900" fill="#5b4a63" opacity="0.16">
+          떵개방 아이디어
+        </text>
+        <text x={500} y={88} textAnchor="middle" fontSize="42" fontWeight="900" fill={R.accent}>
+          떵개방 아이디어
+        </text>
+        <text x={502} y={142} textAnchor="middle" fontSize="42" fontWeight="900" fill="#5b4a63" opacity="0.16">
+          받습니다..
+        </text>
+        <text x={500} y={140} textAnchor="middle" fontSize="42" fontWeight="900" fill={R.accent}>
+          받습니다..
+        </text>
+        <text x={500} y={178} textAnchor="middle" fontSize="17" fontWeight="800" fill="#5b4a63" opacity="0.5">
+          오른쪽 📮 를 눌러 남겨주세요
+        </text>
+      </g>
       {/* 받침 */}
       <rect x={x} y={y + H * 0.66} width={W} height={H * 0.34} fill="#ffd45e" stroke="#5b4a63" strokeWidth="4" />
       <rect x={x + W * 0.3} y={y + H * 0.78} width={W * 0.4} height={H * 0.16} fill="#5b4a63" opacity="0.25" />

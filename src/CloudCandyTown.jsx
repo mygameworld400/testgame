@@ -3,7 +3,7 @@ import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHost
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CAFE_CHAIRS, CAFE_TABLES, CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, SMALL_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
-import { DressSheet, FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, SkinSheet, TeamLobby, WishSheet } from "./sheets.jsx";
+import { DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, MenuSheet, MusicSheet, QuizSheet, SkinSheet, TeamLobby, WishSheet } from "./sheets.jsx";
 import { findSfx, quizPacks, skinList, trackList, trackUrl } from "./content.js";
 import { BUILDING_SPRITES, CHARACTERS, DECO, DEFAULT_LOOK, charForSlot, grassTile, lookSprite, pathTile } from "./sprites.js";
 import { Pix } from "./pix.jsx";
@@ -110,7 +110,13 @@ const QUESTS = [
   { id: "gacha", icon: "🍜", name: "떵개방에서 메뉴 추천 받기", desc: "가운데에서 하루 한 번 오늘의 메뉴를 뽑아요." },
   { id: "slide", icon: "💨", name: "미끄럼틀 타기", desc: "마을 오른쪽 끝 발판에 서면 슝 하고 반대편 섬으로 미끄러져요." },
   { id: "buy", icon: "☕", name: "카페 가서 음료 구매해보기", desc: "미끄럼틀로 내려가면 아랫섬에 구름카페가 있어요. 모은 별로 삽니다." },
+  { id: "dress", icon: "👗", name: "구름옷가게에서 꾸미기", desc: "카페 옆 옷가게 전신거울 앞에서 얼굴·머리·옷 색을 바꿔보세요." },
+  { id: "wish", icon: "💌", name: "우체통에 캐릭터 적어넣기", desc: "옷가게 오른쪽 우체통에 생겼으면 하는 캐릭터를 적어주세요." },
+  { id: "feedback", icon: "📮", name: "피드백 남기기", desc: "오른쪽 아래 📮 를 눌러 아무 말이나 남겨주세요. 익명이에요." },
 ];
+
+/* 투두를 다 깨면 주는 별 */
+const CLEAR_BONUS = 100;
 
 /* 글꼴 — 설정에서 고르면 이 기기에 저장됩니다 */
 const FONTS = [
@@ -732,6 +738,13 @@ function Town({ me, setMe, onKick }) {
     return !(typeof navigator !== "undefined" && (navigator.maxTouchPoints > 0 || "ontouchstart" in window));
   });
   const [justDone, setJustDone] = useState(null);   // 방금 체크된 항목 (반짝임)
+  const [bonus, setBonus] = useState(() => {
+    try {
+      return localStorage.getItem("ccBonus") === "1" ? CLEAR_BONUS : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [welcome, setWelcome] = useState(() => {
     try {
       return localStorage.getItem("ccWelcome") !== "seen";
@@ -868,7 +881,7 @@ function Town({ me, setMe, onKick }) {
   const roomTaken = Object.values(roomStars).reduce((n, list) => n + list.filter(Boolean).length, 0);
   /* 호스트는 옷가게 물건을 마음껏 시험해볼 수 있게 별을 넉넉히 들고 시작합니다 */
   const hostStars = me.role === "host" ? 300 : 0;
-  const collected = stars.filter(Boolean).length + roomTaken + hostStars;
+  const collected = stars.filter(Boolean).length + roomTaken + hostStars + bonus;
   const balance = Math.max(0, collected - spent);
   const online = me.role === "solo" ? 1 : peers.length + 1;
 
@@ -1021,9 +1034,22 @@ function Town({ me, setMe, onKick }) {
     }
     const q = QUESTS.find((x) => x.id === id);
     setJustDone(id);
-    setToast(`✅ ${q ? q.name : ""} — 해봤어요!`);
     blip(880);
     setTimeout(() => blip(1170), 110);
+
+    if (questRef.current.length >= QUESTS.length) {
+      /* 다 깼습니다 — 별 100개 */
+      setBonus(CLEAR_BONUS);
+      setToast(`🎉 다 해내셨어요! 별 ${CLEAR_BONUS}개를 받았습니다`);
+      try {
+        localStorage.setItem("ccBonus", "1");
+      } catch {
+        /* 무시 */
+      }
+      [0, 160, 320, 520].forEach((ms, i) => setTimeout(() => blip([880, 1050, 1320, 1760][i]), ms + 200));
+      return;
+    }
+    setToast(`✅ ${q ? q.name : ""} — 해봤어요!`);
   }, []);
 
   const resetQuests = useCallback(() => {
@@ -1031,11 +1057,13 @@ function Town({ me, setMe, onKick }) {
     walkRef.current = 0;
     setQuests([]);
     setJustDone(null);
+    setBonus(0);
     setWelcome(true);
     welcomeRef.current = true;
     try {
       localStorage.removeItem("ccQuests");
       localStorage.removeItem("ccWelcome");
+      localStorage.removeItem("ccBonus");
     } catch {
       /* 무시 */
     }
@@ -2234,6 +2262,15 @@ function Town({ me, setMe, onKick }) {
           </>
         )}
       </div>
+
+      <button
+        className="ccFbBtn"
+        title="피드백 보내기 (익명)"
+        onClick={() => { setSheet("feedback"); blip(760); }}
+      >
+        <span className="ccFbIcon">📮</span>
+        <span className="ccFbWord">피드백</span>
+      </button>
       </div>
 
       {/* 모바일 조작 — 왼쪽 조이스틱, 오른쪽 액션 */}
@@ -2316,7 +2353,7 @@ function Town({ me, setMe, onKick }) {
               owned={owned}
               balance={balance}
               skins={skins}
-              onApply={applyLook}
+              onApply={(next, cost, key) => { applyLook(next, cost, key); doQuest("dress"); }}
               onClose={() => setSheet(null)}
             />
           )}
@@ -2327,6 +2364,17 @@ function Town({ me, setMe, onKick }) {
               hostCode={me.hostCode}
               isHost={me.role === "host"}
               off={!hasServer || me.role === "solo"}
+              onSent={() => doQuest("wish")}
+              onClose={() => setSheet(null)}
+            />
+          )}
+          {sheet === "feedback" && (
+            <FeedbackSheet
+              round={roundNo}
+              hostCode={me.hostCode}
+              isHost={me.role === "host"}
+              off={!hasServer || me.role === "solo"}
+              onSent={() => doQuest("feedback")}
               onClose={() => setSheet(null)}
             />
           )}
@@ -2389,6 +2437,7 @@ function Town({ me, setMe, onKick }) {
             <p className="ccWelText">
               오른쪽 <b className="ccWelHi">투두리스트</b>를 따라<br />게임을 즐겨보세요!
             </p>
+            <p className="ccWelBonus">다 깨면 별 <b>{CLEAR_BONUS}</b>개 드려요 ⭐</p>
             <button className="ccBtn ccWelBtn" onClick={closeWelcome}>놀러 가기</button>
           </div>
         </div>
@@ -3057,6 +3106,31 @@ body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:gra
 .ccWishWho{flex:none;font-size:11px;color:${C.inkSoft}}
 .ccWishBody{flex:1;word-break:keep-all}
 .ccWishOff{margin-top:12px;line-height:1.7}
+
+/* 투두 아래 우체통 아이콘 — 네모 없이 아이콘만 */
+.ccFbBtn{align-self:flex-end;display:flex;flex-direction:column;align-items:center;gap:1px;
+  background:none;border:none;padding:4px 6px;cursor:pointer;font-family:inherit;
+  filter:drop-shadow(2px 2px 0 rgba(91,74,99,.35))}
+.ccFbBtn:active{transform:translate(1px,1px)}
+.ccFbIcon{font-size:30px;line-height:1;animation:ccFbNudge 2.6s steps(2,end) infinite}
+@keyframes ccFbNudge{0%,88%,100%{transform:translateY(0)}94%{transform:translateY(-4px)}}
+.ccFbWord{font-size:10.5px;font-weight:800;color:${C.ink};
+  text-shadow:-2px 0 #fff,2px 0 #fff,0 -2px #fff,0 2px #fff,-2px -2px #fff,2px -2px #fff,-2px 2px #fff,2px 2px #fff}
+
+/* 📮 피드백 창 */
+.ccFb{width:min(400px,94vw);padding:18px;max-height:88vh;overflow:auto}
+.ccFbAsk{margin:2px 0 11px;font-size:14px;font-weight:800;line-height:1.65;color:${C.ink}}
+.ccFbText{width:100%;padding:11px;font-size:12.5px;text-align:left;line-height:1.6;resize:vertical}
+.ccFbBar{display:flex;align-items:center;gap:8px;margin-top:8px}
+.ccFbAnon{flex:1;font-size:10.5px;font-weight:700;color:${C.inkSoft};text-align:left;line-height:1.4}
+.ccFbSend{flex:none;font-size:12.5px;padding:10px 18px;background:#ffd45e;color:${C.ink}}
+.ccFbBtns{display:flex;gap:5px}
+.ccFbItem{align-items:flex-start}
+
+/* 환영 팝업 — 보상 한 줄 */
+.ccWelBonus{margin:10px 0 0;font-size:12px;font-weight:800;color:${C.ink};
+  background:#fff6dc;border:3px solid ${C.line};padding:6px 10px;display:inline-block}
+.ccWelBonus b{color:#c05a86;font-size:14px}
 .ccModalEmoji{font-size:42px;line-height:1}
 .ccModalTag{display:inline-block;margin-top:10px;border:2px solid ${C.line};padding:2px 10px;font-size:11px;font-weight:700;background:#ffe9a8}
 .ccModalName{margin:9px 0 8px;font-size:19px;font-weight:900}

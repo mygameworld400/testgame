@@ -232,6 +232,13 @@ export const wishAdd = (round, name, body) =>
 export const wishList = (round) => call("cc_wish_list", { p_round: round ?? null });
 export const wishDel = (hostCode, id) => call("cc_wish_del", { p_host_code: hostCode, p_id: id });
 
+/* ---------- 📮 피드백 (익명) ---------- */
+
+export const fbAdd = (round, body) => call("cc_fb_add", { p_round: round ?? 0, p_body: body });
+export const fbList = (hostCode, round) =>
+  call("cc_fb_list", { p_host_code: hostCode, p_round: round ?? null });
+export const fbDel = (hostCode, id) => call("cc_fb_del", { p_host_code: hostCode, p_id: id });
+
 /* ---------- 떵개방 메뉴 가챠 ---------- */
 
 export const foodList = () => call("cc_food_list");

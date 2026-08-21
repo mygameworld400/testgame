@@ -4,7 +4,7 @@ import { MENU } from "./rooms.jsx";
 import { Pix } from "./pix.jsx";
 import { FACES, HATS, OUTFITS, lookSprite } from "./sprites.js";
 
-import { DAY, SFX_PREFIX, prepSkin, skinAdd, skinDel, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { DAY, SFX_PREFIX, fbAdd, fbDel, fbList, prepSkin, skinAdd, skinDel, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -1384,7 +1384,7 @@ export function SkinSheet({ hostCode, isHost, skins = [], onChanged, onClose }) 
 /* ---------- 📮 우체통 ----------
    "생겼으면 하는 캐릭터를 적어주세요!" — 적은 것은 회차별로 남습니다. */
 
-export function WishSheet({ round, name, hostCode, isHost, off = false, onClose }) {
+export function WishSheet({ round, name, hostCode, isHost, off = false, onSent, onClose }) {
   const [body, setBody] = useState("");
   const [list, setList] = useState(null);
   const [all, setAll] = useState(false);      // 호스트: 지난 회차까지 몰아 보기
@@ -1412,6 +1412,7 @@ export function WishSheet({ round, name, hostCode, isHost, off = false, onClose 
     setBody("");
     setSent(true);
     ding();
+    onSent?.();
     load();
     setTimeout(() => setSent(false), 2400);
   };
@@ -1487,6 +1488,119 @@ export function WishSheet({ round, name, hostCode, isHost, off = false, onClose 
           <p className="ccSheetNote">적어주신 건 테스트 회차별로 남아요. 호스트가 보고 만들어봅니다.</p>
         </>
       )}
+    </div>
+  );
+}
+
+/* ---------- 📮 피드백 (익명) ----------
+   이름도 기기 표식도 안 보냅니다. 목록은 호스트만 봅니다. */
+
+export function FeedbackSheet({ round, hostCode, isHost, off = false, onSent, onClose }) {
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState("");
+  const [open, setOpen] = useState(false);    // 호스트: 들어온 것 보기
+  const [all, setAll] = useState(false);
+  const [list, setList] = useState(null);
+
+  const load = useCallback(async () => {
+    if (!isHost || !open) return;
+    const r = await fbList(hostCode, all ? null : round);
+    if (r?.ok) { setList(r.list || []); setErr(""); }
+    else { setList([]); setErr(msgOf(r)); }
+  }, [isHost, open, all, round, hostCode]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const send = async () => {
+    const t = body.trim();
+    if (!t) { setErr("하고 싶은 말을 적어주세요."); return; }
+    setBusy(true);
+    const r = await fbAdd(round, t);
+    setBusy(false);
+    if (!r?.ok) { setErr(r?.error === "too_many" ? "이번 회차 우체통이 꽉 찼어요." : msgOf(r)); buzz(); return; }
+    setErr("");
+    setBody("");
+    setSent(true);
+    ding();
+    onSent?.();
+    load();
+    setTimeout(() => setSent(false), 2600);
+  };
+
+  const del = async (id) => {
+    const r = await fbDel(hostCode, id);
+    if (r?.ok) load();
+    else setErr(msgOf(r));
+  };
+
+  return (
+    <div className="ccPanel ccModal ccFb" onClick={(e) => e.stopPropagation()}>
+      <div className="ccSheetHead">
+        <h2 className="ccSheetTitle">📮 피드백</h2>
+        <button className="ccX" onClick={onClose}>✕</button>
+      </div>
+
+      <p className="ccFbAsk">
+        불편한 점, 있었으면 하는 것,
+        <br />
+        아무 말이나 좋아요.
+      </p>
+
+      <textarea
+        className="ccInput ccFbText"
+        value={body}
+        maxLength={400}
+        rows={5}
+        disabled={off}
+        placeholder={off ? "혼자 둘러보기에서는 못 보내요" : "여기에 적어주세요…"}
+        onChange={(e) => setBody(e.target.value)}
+      />
+      <div className="ccFbBar">
+        <span className="ccFbAnon">🕶 익명이에요. 이름도 기기도 안 남습니다.</span>
+        <button className="ccBtn ccFbSend" onClick={send} disabled={busy || off}>
+          {busy ? "…" : "보내기"}
+        </button>
+      </div>
+
+      {sent && <div className="ccWishDone">잘 받았어요! 고마워요 💌</div>}
+      {err && <div className="ccErr">{err}</div>}
+
+      {isHost && (
+        <>
+          <div className="ccWishHead">
+            <span>들어온 피드백{list && <b className="ccWishN"> {list.length}</b>}</span>
+            <span className="ccFbBtns">
+              {open && (
+                <button className="ccMini" onClick={() => setAll((v) => !v)}>
+                  {all ? "이번 회차만" : "전체"}
+                </button>
+              )}
+              <button className="ccMini" onClick={() => setOpen((v) => !v)}>
+                {open ? "접기" : "보기"}
+              </button>
+            </span>
+          </div>
+          {open && (
+            <div className="ccWishList">
+              {list === null && <p className="ccSheetNote">불러오는 중…</p>}
+              {list?.length === 0 && <p className="ccSheetNote">아직 들어온 게 없어요.</p>}
+              {list?.map((f) => (
+                <div key={f.id} className="ccWishItem ccFbItem">
+                  {all && <span className="ccWishRound">{f.round}회</span>}
+                  <span className="ccWishBody">{f.body}</span>
+                  <button className="ccTrackDel" onClick={() => del(f.id)}>지우기</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      <p className="ccSheetNote">
+        {isHost ? "들어온 피드백은 호스트만 볼 수 있어요." : "호스트만 볼 수 있고, 누가 썼는지는 아무도 몰라요."}
+      </p>
     </div>
   );
 }
