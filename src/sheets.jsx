@@ -4,7 +4,7 @@ import { MENU } from "./rooms.jsx";
 import { Pix } from "./pix.jsx";
 import { FACES, HATS, OUTFITS, lookSprite } from "./sprites.js";
 
-import { DAY, SFX_PREFIX, fbAdd, fbDel, fbList, ideaAdd, ideaDel, ideaList, isVid, moviePlay, movieStop, prepSkin, scoreAdd, scoreTop, skinAdd, skinDel, uploadVideo, vidInfo, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
+import { DAY, SFX_PREFIX, addVideoLink, fbAdd, fbDel, fbList, ideaAdd, ideaDel, ideaList, isVid, moviePlay, movieStop, prepSkin, scoreAdd, scoreTop, skinAdd, skinDel, uploadVideo, vidInfo, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
 
 const ERR = {
   bad_code: "호스트 코드가 맞지 않아요.",
@@ -2006,6 +2006,8 @@ export function MovieSheet({ me, hostCode, isHost, off = false, now, onPlay, onC
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
   const [pickName, setPickName] = useState("");
+  const [link, setLink] = useState("");
+  const [mode, setMode] = useState("file");   // file · link
   const vidFile = useRef(null);
   const chosen = useRef(null);
 
@@ -2053,15 +2055,21 @@ export function MovieSheet({ me, hostCode, isHost, off = false, now, onPlay, onC
   };
 
   const send = async () => {
-    if (!chosen.current) { setErr("영상 파일을 골라주세요."); return; }
     setBusy(true);
-    const r = await uploadVideo(hostCode, chosen.current, title.trim());
+    const r =
+      mode === "link"
+        ? await addVideoLink(hostCode, link, title.trim())
+        : chosen.current
+          ? await uploadVideo(hostCode, chosen.current, title.trim())
+          : { ok: false, error: "no_file" };
     setBusy(false);
     if (!r?.ok) {
       setErr(
-        r?.error === "too_big" ? "60MB 이하로 줄여서 올려주세요."
-          : r?.error === "bad_video" ? "영상을 읽지 못했어요. mp4 로 올려보세요."
-            : msgOf(r)
+        r?.error === "no_file" ? "영상 파일을 골라주세요."
+          : r?.error === "bad_url" ? "http 로 시작하는 주소를 넣어주세요."
+            : r?.error === "too_big" ? "60MB 이하로 줄여주세요. (npm run video 로 줄일 수 있어요)"
+              : r?.error === "bad_video" ? "영상을 읽지 못했어요. mp4 직접 링크인지 확인해주세요."
+                : msgOf(r)
       );
       buzz();
       return;
@@ -2069,6 +2077,7 @@ export function MovieSheet({ me, hostCode, isHost, off = false, now, onPlay, onC
     chosen.current = null;
     setPickName("");
     setTitle("");
+    setLink("");
     setErr("");
     ding();
     load();
@@ -2119,10 +2128,37 @@ export function MovieSheet({ me, hostCode, isHost, off = false, now, onPlay, onC
 
       {isHost && !off && (
         <div className="ccVidAdd">
-          <button className="ccMini ccVidPick" onClick={() => vidFile.current?.click()}>
-            {pickName || "영상 파일 고르기"}
-          </button>
-          <input ref={vidFile} type="file" accept="video/*" hidden onChange={pickFile} />
+          <div className="ccVidTabs">
+            <button
+              className={"ccMini" + (mode === "file" ? " ccMiniOn" : "")}
+              onClick={() => { setMode("file"); setErr(""); }}
+            >
+              파일 올리기
+            </button>
+            <button
+              className={"ccMini" + (mode === "link" ? " ccMiniOn" : "")}
+              onClick={() => { setMode("link"); setErr(""); }}
+            >
+              링크로 추가
+            </button>
+          </div>
+
+          {mode === "file" ? (
+            <>
+              <button className="ccMini ccVidPick" onClick={() => vidFile.current?.click()}>
+                {pickName || "영상 파일 고르기 (60MB 이하)"}
+              </button>
+              <input ref={vidFile} type="file" accept="video/*" hidden onChange={pickFile} />
+            </>
+          ) : (
+            <input
+              className="ccInput ccVidName"
+              value={link}
+              placeholder="https://… .mp4 직접 링크"
+              onChange={(e) => setLink(e.target.value)}
+            />
+          )}
+
           <input
             className="ccInput ccVidName"
             value={title}
@@ -2131,8 +2167,13 @@ export function MovieSheet({ me, hostCode, isHost, off = false, now, onPlay, onC
             onChange={(e) => setTitle(e.target.value)}
           />
           <button className="ccBtn ccVidUp" onClick={send} disabled={busy}>
-            {busy ? "올리는 중…" : "올리기"}
+            {busy ? (mode === "link" ? "확인하는 중…" : "올리는 중…") : mode === "link" ? "링크 추가" : "올리기"}
           </button>
+          {mode === "link" && (
+            <p className="ccSheetNote ccVidTip">
+              깃허브 릴리스에 올리려면 터미널에서 <b>npm run video-up "파일"</b> — 주소가 나옵니다.
+            </p>
+          )}
         </div>
       )}
 

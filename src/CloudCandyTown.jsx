@@ -3122,6 +3122,10 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccVidPick{width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ccVidName{width:100%;padding:9px 10px;font-size:12.5px;text-align:left}
 .ccVidUp{width:100%;font-size:12.5px;padding:10px;background:#ffd45e;color:${C.ink}}
+.ccVidTabs{display:flex;gap:6px}
+.ccVidTabs .ccMini{flex:1}
+.ccVidTip{margin:2px 0 0;line-height:1.6}
+.ccVidTip b{color:${C.ink}}
 
 /* 🎬 상영표 */
 .ccMovie{width:min(380px,94vw);padding:18px}

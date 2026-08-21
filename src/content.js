@@ -214,7 +214,10 @@ export const findSfx = (list, key) =>
   (list || []).find((t) => t.title === SFX_PREFIX + key) || null;
 
 export function trackUrl(path) {
-  if (!supabase || !path) return null;
+  if (!path) return null;
+  /* 바깥 주소(깃허브 릴리스·아카이브 등)는 그대로 씁니다 */
+  if (/^https?:\/\//i.test(path)) return path;
+  if (!supabase) return null;
   return supabase.storage.from("music").getPublicUrl(path).data.publicUrl;
 }
 
@@ -309,6 +312,39 @@ export function vidInfo(t) {
   const i = raw.lastIndexOf("|");
   if (i < 0) return { name: raw, secs: 0 };
   return { name: raw.slice(0, i), secs: Number(raw.slice(i + 1)) || 0 };
+}
+
+/* 링크로 넣기 — 파일을 올리지 않고 주소만 등록합니다.
+   길이는 브라우저가 그 주소를 잠깐 열어 재봅니다. */
+export function videoSecondsFromUrl(url) {
+  return new Promise((resolve) => {
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.crossOrigin = "anonymous";
+    const done = (n) => {
+      v.src = "";
+      resolve(n);
+    };
+    const t = setTimeout(() => done(0), 12000);
+    v.onloadedmetadata = () => {
+      clearTimeout(t);
+      done(Math.max(1, Math.round(v.duration || 0)));
+    };
+    v.onerror = () => {
+      clearTimeout(t);
+      done(0);
+    };
+    v.src = url;
+  });
+}
+
+export async function addVideoLink(hostCode, url, title) {
+  const u = (url || "").trim();
+  if (!/^https?:\/\//i.test(u)) return { ok: false, error: "bad_url" };
+  const secs = await videoSecondsFromUrl(u);
+  if (!secs) return { ok: false, error: "bad_video" };
+  const name = (title || u.split("/").pop().replace(/\.[^.]+$/, "")).slice(0, 30);
+  return trackAdd(hostCode, VID_PREFIX + name + "|" + secs, u, null);
 }
 
 export const movieNow = () => call("cc_movie_now");
