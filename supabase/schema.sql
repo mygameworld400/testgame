@@ -1125,7 +1125,6 @@ create table if not exists public.cc_feedback (
   body    text not null,
   made_at timestamptz not null default now()
 );
-create index if not exists cc_feedback_round_idx on public.cc_feedback (round);
 alter table public.cc_feedback enable row level security;
 
 create or replace function public.cc_fb_add(p_round int, p_body text)
