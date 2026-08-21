@@ -13,13 +13,13 @@ import { Pix } from "./pix.jsx";
    방향키(또는 WASD)로 걷고, 건물 앞에서 Space, Enter 로 채팅해요.
    =========================================================== */
 
-const WORLD = { w: 1700, h: 2820 };
+const WORLD = { w: 1900, h: 2820 };
 
 /* 걸어다닐 수 있는 구역들 — 윗동네 · 가운데섬 · 아랫섬.
    이 사각형들 밖으로는 못 나갑니다. 섬끼리는 미끄럼틀로만 오갑니다.
    (오른쪽 분홍 미끄럼틀 = 가운데↔아래, 왼쪽 민트 미끄럼틀 = 위↔가운데) */
 const AREAS = [
-  { x0: 400, y0: 320, x1: 1310, y1: 760 },       // 윗동네 (구름정원)
+  { x0: 250, y0: 250, x1: 1500, y1: 810 },       // 윗동네
   { x0: 190, y0: 1080, x1: 1520, y1: 1680 },     // 가운데섬
   { x0: 250, y0: 2100, x1: 1450, y1: 2640 },     // 아랫섬
 ];
@@ -72,7 +72,23 @@ const BUILDINGS = [
       "여기 유리온실은 소리가 정말 잘 울려요. 한번 속삭여 보세요.",
       "가장 인기 있는 건 사탕 껍질 부스럭 소리래요. 이해는 안 되지만요.",
     ] },
-  { id: "sign", name: "여기 뭐 만들지..?", emoji: "🪧", tag: "윗동네", x: 855, y: 540, scale: 5, sheet: "idea",
+  /* ---- 윗동네 ---- */
+  { id: "fish", name: "구름낚시터", emoji: "🎣", tag: "낚시", x: 400, y: 420, scale: 8,
+    lines: ["오늘은 뭐가 물릴까요?", "여긴 구름물고기만 나와요."] },
+  { id: "jump", name: "방방", emoji: "🤸", tag: "트램폴린", x: 700, y: 420, scale: 8,
+    lines: ["신발 벗고 올라오세요!", "높이 뛰면 별에 닿을지도 몰라요."] },
+  { id: "sing", name: "구름노래방", emoji: "🎤", tag: "노래", x: 1000, y: 420, scale: 8,
+    lines: ["오늘 첫 곡 누가 부르실래요?", "탬버린은 저기 있어요."] },
+  { id: "arcade", name: "미니게임장", emoji: "🕹️", tag: "게임", x: 1300, y: 420, scale: 8,
+    lines: ["동전은 필요 없어요. 그냥 하세요.", "최고 점수 아직 비어 있어요."] },
+  { id: "escape", name: "방탈출", emoji: "🔐", tag: "탈출", x: 560, y: 740, scale: 8,
+    lines: ["열쇠는 이 방 안 어딘가에.", "겁먹지 마세요. 안 무서워요."] },
+  { id: "movie", name: "구름영화관", emoji: "🎬", tag: "영화", x: 866, y: 740, scale: 8,
+    lines: ["곧 시작합니다. 자리 잡으세요.", "팝콘은 아직 준비 중이에요."] },
+  { id: "star", name: "천문대", emoji: "🔭", tag: "별", x: 1180, y: 740, scale: 8,
+    lines: ["망원경으로 보면 별이 더 커요.", "오늘 밤은 잘 보이겠는데요."] },
+
+  { id: "sign", name: "여기 뭐 만들지..?", emoji: "🪧", tag: "윗동네", x: 1420, y: 640, scale: 5, sheet: "idea",
     lines: [
       "여기 뭘 만들면 좋을까요?",
       "적어주신 걸 보고 채워볼게요.",
@@ -121,7 +137,11 @@ const QUESTS = [
   { id: "wish", icon: "💌", name: "우체통에 캐릭터 적어넣기", desc: "옷가게 오른쪽 우체통에 생겼으면 하는 캐릭터를 적어주세요." },
   { id: "feedback", icon: "📮", name: "피드백 남기기", desc: "오른쪽 아래 📮 를 눌러 아무 말이나 남겨주세요. 익명이에요." },
   { id: "idea", icon: "🪧", name: "윗동네 팻말에 적기", desc: "왼쪽 민트 미끄럼틀로 윗동네에 올라가, 가운데 팻말에 뭘 만들지 적어주세요." },
+  { id: "up", icon: "🎣", name: "윗동네 새 건물 구경하기", desc: "낚시터·방방·노래방·미니게임장·방탈출·영화관·천문대 중 아무 데나 들어가 보세요." },
 ];
+
+/* 윗동네에 새로 생긴 방들 */
+const UP_ROOMS = ["fish", "jump", "sing", "arcade", "escape", "movie", "star"];
 
 /* 투두를 다 깨면 주는 별 */
 const CLEAR_BONUS = 100;
@@ -203,7 +223,7 @@ const STAR_SPOTS = [
   /* 아랫섬 */
   [400, 2400], [1260, 2300], [980, 2200], [520, 2620], [1340, 2520],
   /* 윗동네 */
-  [560, 420], [1120, 400], [860, 700], [470, 690], [1230, 660], [700, 340],
+  [300, 300], [1440, 300], [866, 250], [420, 620], [1310, 620], [866, 640],
 ];
 
 const CLOUDS = [
@@ -219,8 +239,8 @@ const TREES = [
   [330, 2210, "#ff9ec4"], [1300, 2200, "#8fe3c9"], [380, 2560, "#ffd45e"],
   [1240, 2580, "#b6a6f0"], [880, 2620, "#ff9ec4"], [1180, 2400, "#ffd45e"],
   /* 윗동네 */
-  [500, 520, "#8fe3c9"], [1220, 500, "#ff9ec4"], [640, 730, "#ffd45e"],
-  [1080, 720, "#b6a6f0"], [960, 380, "#8fe3c9"],
+  [268, 380, "#8fe3c9"], [1470, 380, "#ff9ec4"], [268, 700, "#ffd45e"],
+  [1470, 700, "#b6a6f0"], [866, 200, "#8fe3c9"],
 ];
 
 /* 섬 — 계단식 사각형으로 쌓아 픽셀 느낌을 냅니다 */
@@ -268,21 +288,23 @@ const PATHS2 = [
 
 /* 윗동네 — 가운데섬 위에 뜬 작은 섬 */
 const ISLAND3 = [
-  { x: 470, y: 236, w: 780, h: 20 },
-  { x: 428, y: 256, w: 864, h: 20 },
-  { x: 396, y: 276, w: 928, h: 484 },
-  { x: 428, y: 760, w: 864, h: 20 },
-  { x: 470, y: 780, w: 780, h: 20 },
+  { x: 310, y: 166, w: 1140, h: 20 },
+  { x: 268, y: 186, w: 1224, h: 20 },
+  { x: 236, y: 206, w: 1288, h: 604 },
+  { x: 268, y: 810, w: 1224, h: 20 },
+  { x: 310, y: 830, w: 1140, h: 20 },
 ];
 const SOIL3 = [
-  { x: 510, y: 800, w: 700, h: 34 },
-  { x: 590, y: 834, w: 540, h: 30 },
-  { x: 690, y: 864, w: 340, h: 24 },
-  { x: 790, y: 888, w: 140, h: 20 },
+  { x: 360, y: 850, w: 1040, h: 34 },
+  { x: 460, y: 884, w: 840, h: 30 },
+  { x: 580, y: 914, w: 600, h: 24 },
+  { x: 720, y: 938, w: 320, h: 20 },
 ];
 const PATHS3 = [
-  { x: 470, y: 600, w: 720, h: 56 },
-  { x: 830, y: 360, w: 56, h: 244 },
+  { x: 280, y: 470, w: 1200, h: 60 },
+  { x: 280, y: 770, w: 1200, h: 44 },
+  { x: 620, y: 530, w: 56, h: 240 },
+  { x: 1080, y: 530, w: 56, h: 240 },
 ];
 
 const POND = [
@@ -305,9 +327,9 @@ const SLIDES = [
   {
     id: "up",                         // 윗동네 ↔ 가운데섬 (왼쪽, 민트)
     skin: { edge: "#5b4a63", deep: "#8fe3c9", mid: "#c6f2df", shine: "#f0fff9", leg: "#a9e4ff" },
-    ax: 476, ay: 726,     // 위 입구 (윗동네)
-    c1x: 96, c1y: 856,
-    c2x: 74, c2y: 1074,
+    ax: 320, ay: 780,     // 위 입구 (윗동네)
+    c1x: 60, c1y: 900,
+    c2x: 50, c2y: 1090,
     bx: 262, by: 1186,    // 아래 입구 (가운데섬)
   },
 ];
@@ -327,6 +349,19 @@ const SLIDE_ENDS = SLIDES.flatMap((sl) => [
   { sl, up: false, x: sl.ax, y: sl.ay },
   { sl, up: true, x: sl.bx, y: sl.by },
 ]);
+
+/* 들어온 시각 — 방금 온 사람은 "방금", 아니면 몇 분 전 · 시:분 */
+function joinedAgo(at) {
+  if (!at) return "";
+  const t = new Date(at);
+  if (Number.isNaN(t.getTime())) return "";
+  const min = Math.floor((Date.now() - t.getTime()) / 60000);
+  const hh = String(t.getHours()).padStart(2, "0");
+  const mm = String(t.getMinutes()).padStart(2, "0");
+  if (min < 1) return `방금 · ${hh}:${mm}`;
+  if (min < 60) return `${min}분 전 · ${hh}:${mm}`;
+  return `${Math.floor(min / 60)}시간 전 · ${hh}:${mm}`;
+}
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
@@ -930,6 +965,7 @@ function Town({ me, setMe, onKick }) {
   const walkRef = useRef(0);      // 마을에서 걸은 거리
   const bonusRef = useRef(savedBonus.total);
   const bonusAt = useRef(savedBonus.at);   // 몇 개짜리 목록을 깨고 받았는지
+  const doQuestRef = useRef(null);        // enterRoom 이 doQuest 보다 먼저 선언돼서
   const welcomeRef = useRef(true);
   const rideRef = useRef(null);     // { at, ms, up }
   const rideLock = useRef(false);   // 도착하자마자 다시 타지 않도록
@@ -1184,6 +1220,8 @@ function Town({ me, setMe, onKick }) {
     setToast(`✅ ${q ? q.name : ""} — 해봤어요!`);
   }, []);
 
+  useEffect(() => { doQuestRef.current = doQuest; }, [doQuest]);
+
   const resetQuests = useCallback(() => {
     questRef.current = [];
     walkRef.current = 0;
@@ -1218,6 +1256,7 @@ function Town({ me, setMe, onKick }) {
     setScene(id);
     setSheet(null);
     setToast(`${ROOMS[id].emoji} ${ROOMS[id].name} — ${ROOMS[id].hint}`);
+    if (UP_ROOMS.includes(id)) doQuestRef.current?.("up");
   }, []);
 
   /* 마을로 */
@@ -1261,6 +1300,11 @@ function Town({ me, setMe, onKick }) {
     if (!id) return;
     if (id === "exit") { exitRoom(); return; }
     if (id === "dress") loadSkins();
+    if (id === "soon") {
+      setToast("아직 만드는 중이에요. 우체통에 아이디어 주시면 반영할게요!");
+      blip(520);
+      return;
+    }
     if (id === "chair") {
       const i = chairRef.current;
       const room1 = ROOMS[sceneRef.current];
@@ -2284,13 +2328,18 @@ function Town({ me, setMe, onKick }) {
           {panel && (
             <div className="ccPanel ccHostPanel">
               <div className="ccHostTitle">{roundNo}번 테스트</div>
-              <div className="ccHostCount">게스트 {room?.taken ?? 0}명</div>
+              <div className="ccHostCount">게스트 {room?.taken ?? 0}명 · 최근 순</div>
               <ul className="ccHostList">
-                {(room?.players || []).map((p, i) => (
-                  <li key={i}>
-                    {p.role === "host" ? "왕관" : charForSlot(p.slot).label} · {p.name}
-                  </li>
-                ))}
+                {[...(room?.players || [])]
+                  .sort((a, b) => new Date(b.joined || 0) - new Date(a.joined || 0))
+                  .map((p, i) => (
+                    <li key={i}>
+                      <span className="ccHostWho">
+                        {p.role === "host" ? "왕관" : charForSlot(p.slot).label} · {p.name}
+                      </span>
+                      <span className="ccHostWhen">{joinedAgo(p.joined)}</span>
+                    </li>
+                  ))}
                 {!room?.players?.length && <li className="ccHostEmpty">아직 아무도 안 왔어요</li>}
               </ul>
               <div className="ccRoundRow">
@@ -2831,6 +2880,8 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 
 .ccTree{position:absolute;animation:ccSway 3s steps(3,end) infinite}
 @keyframes ccSway{0%,100%{transform:translateX(0)}50%{transform:translateX(3px)}}
+.ccTramp{animation:ccTrampB 1.1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes ccTrampB{0%,100%{transform:scaleY(1)}50%{transform:scaleY(0.86)}}
 .ccRoomStar{transform-origin:50% 100%}
 .ccStar{position:absolute;z-index:5;animation:ccStarF 1.6s steps(3,end) infinite}
 @keyframes ccStarF{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
@@ -2951,7 +3002,11 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccWelBtn{width:100%;margin-top:17px}
 .ccHostTitle{font-weight:900;font-size:15px}
 .ccHostCount{font-size:12px;font-weight:700;color:${C.inkSoft};margin-top:3px}
-.ccHostList{list-style:none;margin:9px 0;padding:0;max-height:150px;overflow:auto;font-size:12px;font-weight:700;line-height:1.85}
+.ccHostList{list-style:none;margin:9px 0;padding:0;max-height:180px;overflow:auto;font-size:12px;font-weight:700}
+.ccHostList li{display:flex;align-items:baseline;gap:6px;padding:3px 0;border-bottom:2px solid #f3eef5}
+.ccHostList li:last-child{border-bottom:none}
+.ccHostWho{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccHostWhen{flex:none;font-size:10px;font-weight:700;color:${C.inkSoft};white-space:nowrap}
 .ccHostEmpty{color:${C.inkSoft}}
 .ccRoundRow{display:flex;gap:6px;margin-top:6px}
 .ccRoundInput{width:64px;padding:8px;font-size:14px;text-align:center}

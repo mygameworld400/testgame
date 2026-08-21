@@ -224,6 +224,112 @@ export const ROOMS = {
     ],
   },
 
+  /* ---- 윗동네 일곱 방 (얼개만 잡아둔 상태) ---- */
+
+  /* 🎣 구름낚시터 */
+  fish: {
+    id: "fish", name: "구름낚시터", emoji: "🎣",
+    floor: "#dff0ff", floorLine: "#dff0ff", wall: "#f0f8ff", wallDark: "#a9d2f5",
+    side: "#e8f4ff", accent: "#2f6b8c",
+    hint: "물가 끝에 서면 낚싯대를 드리울 수 있어요",
+    play: PLAY, blocks: [],
+    water: { x: 500, y: 190, w: 720, d: 250 },
+    stars: [{ x: 140, y: 430 }, { x: 860, y: 430 }, { x: 500, y: 470 }],
+    zones: [
+      { id: "soon", x: 500, y: 340, r: 130, label: "낚싯대 드리우기" },
+      { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
+    ],
+  },
+
+  /* 🤸 방방 */
+  jump: {
+    id: "jump", name: "방방", emoji: "🤸",
+    floor: "#ffe6f2", floorLine: "#ffe6f2", wall: "#fff2f8", wallDark: "#ffc0dd",
+    side: "#ffedf5", accent: "#e0688f",
+    hint: "가운데 방방 위에서 통통 튀어보세요",
+    play: PLAY, blocks: [],
+    tramps: [{ x: 340, y: 250, r: 120 }, { x: 680, y: 300, r: 100 }],
+    stars: [{ x: 140, y: 140 }, { x: 880, y: 150 }, { x: 500, y: 470 }],
+    zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
+  },
+
+  /* 🎤 구름노래방 */
+  sing: {
+    id: "sing", name: "구름노래방", emoji: "🎤",
+    floor: "#efe6ff", floorLine: "#efe6ff", wall: "#f7f2ff", wallDark: "#c9b8ff",
+    side: "#f3edff", accent: "#5b3a7a",
+    hint: "마이크 앞에 서면 노래를 고를 수 있어요",
+    play: PLAY, blocks: [box(500, 110, 380, 130)],
+    chairs: [
+      { i: 0, x: 250, y: 380 }, { i: 1, x: 390, y: 400 },
+      { i: 2, x: 610, y: 400 }, { i: 3, x: 750, y: 380 },
+    ],
+    stars: [{ x: 130, y: 250 }, { x: 870, y: 250 }, { x: 500, y: 470 }],
+    zones: [
+      { id: "soon", x: 500, y: 250, r: 120, label: "노래 고르기" },
+      { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
+    ],
+  },
+
+  /* 🕹️ 미니게임장 */
+  arcade: {
+    id: "arcade", name: "미니게임장", emoji: "🕹️",
+    floor: "#daf5ec", floorLine: "#daf5ec", wall: "#eafff8", wallDark: "#8fe3c9",
+    side: "#e4faf2", accent: "#2f5b4a",
+    hint: "오락기 앞에 서면 게임을 고를 수 있어요",
+    play: PLAY, blocks: [box(230, 170, 200, 140), box(500, 150, 200, 140), box(770, 170, 200, 140)],
+    cabs: [{ x: 230, y: 170 }, { x: 500, y: 150 }, { x: 770, y: 170 }],
+    stars: [{ x: 130, y: 420 }, { x: 870, y: 420 }, { x: 500, y: 470 }],
+    zones: [
+      { id: "soon", x: 500, y: 300, r: 130, label: "게임 고르기" },
+      { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
+    ],
+  },
+
+  /* 🔐 방탈출 */
+  escape: {
+    id: "escape", name: "방탈출", emoji: "🔐",
+    floor: "#f3e4cf", floorLine: "#f3e4cf", wall: "#fff3dc", wallDark: "#c9a06a",
+    side: "#f8ecdb", accent: "#6b4a2f",
+    hint: "잠긴 문 앞에서 단서를 찾아보세요",
+    play: PLAY, blocks: [box(500, 120, 200, 150)],
+    clues: [{ x: 180, y: 300 }, { x: 820, y: 300 }, { x: 500, y: 400 }],
+    stars: [{ x: 150, y: 450 }, { x: 850, y: 450 }, { x: 500, y: 470 }],
+    zones: [
+      { id: "soon", x: 500, y: 260, r: 120, label: "잠긴 문" },
+      { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
+    ],
+  },
+
+  /* 🎬 구름영화관 */
+  movie: {
+    id: "movie", name: "구름영화관", emoji: "🎬",
+    floor: "#3f3a58", floorLine: "#3f3a58", wall: "#4a4568", wallDark: "#2f2b45",
+    side: "#463f63", accent: "#ffd45e",
+    hint: "자리에 앉으면 곧 시작해요",
+    play: PLAY, blocks: [],
+    chairs: [
+      { i: 0, x: 240, y: 330 }, { i: 1, x: 380, y: 330 }, { i: 2, x: 620, y: 330 }, { i: 3, x: 760, y: 330 },
+      { i: 4, x: 300, y: 440 }, { i: 5, x: 440, y: 440 }, { i: 6, x: 560, y: 440 }, { i: 7, x: 700, y: 440 },
+    ],
+    stars: [{ x: 120, y: 200 }, { x: 880, y: 200 }, { x: 500, y: 480 }],
+    zones: [{ id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" }],
+  },
+
+  /* 🔭 천문대 */
+  star: {
+    id: "star", name: "천문대", emoji: "🔭",
+    floor: "#2f3a5e", floorLine: "#2f3a5e", wall: "#3a4570", wallDark: "#232b47",
+    side: "#354063", accent: "#ffd45e",
+    hint: "망원경 앞에 서면 하늘을 볼 수 있어요",
+    play: PLAY, blocks: [box(500, 210, 190, 170)],
+    stars: [{ x: 140, y: 430 }, { x: 860, y: 430 }, { x: 500, y: 470 }],
+    zones: [
+      { id: "soon", x: 500, y: 350, r: 120, label: "망원경 들여다보기" },
+      { id: "exit", x: 500, y: ROOM.d - 10, r: 110, label: "나가기" },
+    ],
+  },
+
   /* 🍜 떵개방 — 준비중 */
   carousel: {
     id: "carousel",
@@ -283,6 +389,7 @@ export function RoomStage({ room, children, waterPhase, seats = [], broken = [],
       {R.id === "carousel" && <GachaProps R={R} />}
       {R.id === "cafe" && <CafeProps R={R} seats={seats} />}
       {R.id === "dress" && <DressProps />}
+      {UP_PROPS[R.id] && <UpProps R={R} phase={waterPhase} />}
 
       {/* 문 */}
       <Door />
@@ -677,6 +784,196 @@ function CafeProps({ R, seats = [] }) {
       })}
     </g>
   );
+}
+
+/* ---- 윗동네 방들 — 얼개만 잡아둔 상태라 소품 위주입니다 ---- */
+export const UP_PROPS = { fish: 1, jump: 1, sing: 1, arcade: 1, escape: 1, movie: 1, star: 1 };
+
+function UpProps({ R, phase = 0 }) {
+  const at = (x, y) => proj(x, y);
+
+  if (R.id === "fish") {
+    const w = R.water;
+    const b1 = at(w.x - w.w / 2, w.y - w.d / 2);
+    const b2 = at(w.x + w.w / 2, w.y - w.d / 2);
+    const f1 = at(w.x - w.w / 2, w.y + w.d / 2);
+    const f2 = at(w.x + w.w / 2, w.y + w.d / 2);
+    const d = at(500, 340);
+    return (
+      <g>
+        <polygon
+          points={b1.sx + "," + b1.sy + " " + b2.sx + "," + b2.sy + " " + f2.sx + "," + f2.sy + " " + f1.sx + "," + f1.sy}
+          fill="#a9e4ff"
+          stroke="#2f6b8c"
+          strokeWidth="6"
+        />
+        {[0, 1, 2, 3].map((i) => (
+          <ellipse
+            key={i}
+            cx={b1.sx + 120 + i * 150}
+            cy={b1.sy + 60 + ((i * 37) % 90)}
+            rx={26}
+            ry={7}
+            fill="#ffffff"
+            opacity={0.5 + 0.2 * Math.sin(phase + i)}
+          />
+        ))}
+        <rect x={d.sx - 90 * d.k} y={d.sy - 14 * d.k} width={180 * d.k} height={30 * d.k}
+          fill="#c9a06a" stroke="#6b4a2f" strokeWidth="5" />
+        {[0, 1, 2, 3].map((i) => (
+          <rect key={i} x={d.sx - 84 * d.k + i * 44 * d.k} y={d.sy - 12 * d.k}
+            width={6 * d.k} height={26 * d.k} fill="#a9762f" />
+        ))}
+        <rect x={d.sx + 60 * d.k} y={d.sy - 120 * d.k} width={7 * d.k} height={110 * d.k} fill="#6b4a2f" />
+        <path
+          d={"M" + (d.sx + 64 * d.k) + "," + (d.sy - 118 * d.k) +
+             " Q" + (d.sx + 10 * d.k) + "," + (d.sy - 150 * d.k) +
+             " " + (d.sx - 40 * d.k) + "," + (d.sy - 70 * d.k)}
+          stroke="#5b4a63" strokeWidth="3" fill="none"
+        />
+      </g>
+    );
+  }
+
+  if (R.id === "jump") {
+    return (
+      <g>
+        {(R.tramps || []).map((t, i) => {
+          const p = at(t.x, t.y);
+          const k = p.k;
+          return (
+            <g key={i}>
+              <ellipse cx={p.sx} cy={p.sy + 14 * k} rx={t.r * k} ry={t.r * 0.42 * k} fill="#5b4a63" opacity="0.18" />
+              <ellipse cx={p.sx} cy={p.sy} rx={t.r * k} ry={t.r * 0.46 * k}
+                fill="#e0688f" stroke="#8c4a5e" strokeWidth="6" />
+              <ellipse className="ccTramp" cx={p.sx} cy={p.sy - 4 * k}
+                rx={t.r * 0.82 * k} ry={t.r * 0.36 * k} fill="#ffd7e8" />
+            </g>
+          );
+        })}
+      </g>
+    );
+  }
+
+  if (R.id === "sing") {
+    const st = at(500, 130);
+    return (
+      <g>
+        <rect x={330} y={40} width={340} height={150} fill="#2b2340" stroke="#5b3a7a" strokeWidth="6" />
+        {[0, 1, 2].map((i) => (
+          <rect key={i} x={352} y={70 + i * 36} width={296 - i * 60} height={14} fill="#b6a6f0" opacity="0.8" />
+        ))}
+        <rect x={st.sx - 200 * st.k} y={st.sy - 40 * st.k} width={400 * st.k} height={80 * st.k}
+          fill="#8b74e0" stroke="#5b3a7a" strokeWidth="6" />
+        <rect x={st.sx - 200 * st.k} y={st.sy - 40 * st.k} width={400 * st.k} height={14 * st.k} fill="#c9b8ff" />
+        <rect x={st.sx - 5 * st.k} y={st.sy - 110 * st.k} width={10 * st.k} height={78 * st.k} fill="#5b4a63" />
+        <ellipse cx={st.sx} cy={st.sy - 118 * st.k} rx={16 * st.k} ry={20 * st.k}
+          fill="#ffd45e" stroke="#5b3a7a" strokeWidth="5" />
+      </g>
+    );
+  }
+
+  if (R.id === "arcade") {
+    return (
+      <g>
+        {(R.cabs || []).map((c, i) => {
+          const p = at(c.x, c.y);
+          const k = p.k;
+          const col = ["#ff9ec4", "#7fc8f5", "#ffd45e"][i % 3];
+          return (
+            <g key={i}>
+              <rect x={p.sx - 62 * k} y={p.sy - 150 * k} width={124 * k} height={170 * k}
+                fill={col} stroke="#2f5b4a" strokeWidth="6" />
+              <rect x={p.sx - 46 * k} y={p.sy - 132 * k} width={92 * k} height={64 * k} fill="#1f2b28" />
+              {[0, 1, 2].map((n) => (
+                <rect key={n} x={p.sx - 38 * k + n * 26 * k} y={p.sy - 118 * k + ((n * 13) % 26) * k}
+                  width={12 * k} height={12 * k} fill={["#8fe3c9", "#ffd45e", "#ff9ec4"][n]} />
+              ))}
+              <circle cx={p.sx - 22 * k} cy={p.sy - 46 * k} r={11 * k} fill="#ff5b7a" stroke="#2f5b4a" strokeWidth="4" />
+              <circle cx={p.sx + 16 * k} cy={p.sy - 46 * k} r={11 * k} fill="#4aa8e6" stroke="#2f5b4a" strokeWidth="4" />
+            </g>
+          );
+        })}
+      </g>
+    );
+  }
+
+  if (R.id === "escape") {
+    const dr = at(500, 130);
+    return (
+      <g>
+        <rect x={dr.sx - 90 * dr.k} y={dr.sy - 190 * dr.k} width={180 * dr.k} height={210 * dr.k}
+          fill="#8c5a2f" stroke="#6b4a2f" strokeWidth="7" />
+        <rect x={dr.sx - 70 * dr.k} y={dr.sy - 170 * dr.k} width={140 * dr.k} height={80 * dr.k} fill="#a9762f" />
+        <circle cx={dr.sx} cy={dr.sy - 60 * dr.k} r={26 * dr.k} fill="#ffd45e" stroke="#6b4a2f" strokeWidth="6" />
+        <rect x={dr.sx - 7 * dr.k} y={dr.sy - 62 * dr.k} width={14 * dr.k} height={30 * dr.k} fill="#6b4a2f" />
+        {(R.clues || []).map((c, i) => {
+          const p = at(c.x, c.y);
+          const k = p.k;
+          return (
+            <g key={i}>
+              <rect x={p.sx - 24 * k} y={p.sy - 30 * k} width={48 * k} height={36 * k}
+                fill="#fff3dc" stroke="#6b4a2f" strokeWidth="4" />
+              {[0, 1, 2].map((n) => (
+                <rect key={n} x={p.sx - 16 * k} y={p.sy - 22 * k + n * 9 * k}
+                  width={(32 - n * 8) * k} height={4 * k} fill="#c9a06a" />
+              ))}
+            </g>
+          );
+        })}
+      </g>
+    );
+  }
+
+  if (R.id === "movie") {
+    return (
+      <g>
+        <rect x={250} y={30} width={500} height={200} fill="#0e0c18" stroke="#ffd45e" strokeWidth="7" />
+        <rect x={268} y={46} width={464} height={168} fill="#1b1830" />
+        <ellipse className="ccMuralGlow" cx={500} cy={130} rx={150} ry={60} fill="#5b4a8c" opacity="0.55" />
+        {[0, 1, 2, 3, 4].map((i) => (
+          <rect key={i} className="ccMuralStar" style={{ animationDelay: i * 0.4 + "s" }}
+            x={120 + i * 190} y={300} width={10} height={10} fill="#ffd45e" />
+        ))}
+        {(R.chairs || []).map((c) => {
+          const p = at(c.x, c.y);
+          const k = p.k;
+          return (
+            <g key={c.i}>
+              <rect x={p.sx - 26 * k} y={p.sy - 34 * k} width={52 * k} height={22 * k}
+                fill="#6b5a8c" stroke="#2f2b45" strokeWidth="4" />
+              <rect x={p.sx - 26 * k} y={p.sy - 60 * k} width={52 * k} height={30 * k}
+                fill="#8b74e0" stroke="#2f2b45" strokeWidth="4" />
+            </g>
+          );
+        })}
+      </g>
+    );
+  }
+
+  if (R.id === "star") {
+    const tp = at(500, 210);
+    return (
+      <g>
+        <rect x={230} y={30} width={540} height={210} fill="#141a33" stroke="#3a4a7a" strokeWidth="7" />
+        {Array.from({ length: 22 }, (_, i) => (
+          <rect key={i} className="ccMuralStar" style={{ animationDelay: (i % 7) * 0.35 + "s" }}
+            x={250 + ((i * 97) % 500)} y={48 + ((i * 61) % 175)}
+            width={i % 4 === 0 ? 8 : 5} height={i % 4 === 0 ? 8 : 5} fill="#ffd45e" />
+        ))}
+        <ellipse cx={tp.sx} cy={tp.sy + 16 * tp.k} rx={62 * tp.k} ry={20 * tp.k}
+          fill="#3a4a7a" stroke="#232b47" strokeWidth="5" />
+        <rect x={tp.sx - 12 * tp.k} y={tp.sy - 40 * tp.k} width={24 * tp.k} height={54 * tp.k} fill="#5b4a63" />
+        <g transform={"rotate(-32 " + tp.sx + " " + (tp.sy - 40 * tp.k) + ")"}>
+          <rect x={tp.sx - 20 * tp.k} y={tp.sy - 160 * tp.k} width={40 * tp.k} height={126 * tp.k}
+            fill="#a9b6f0" stroke="#232b47" strokeWidth="6" />
+          <rect x={tp.sx - 26 * tp.k} y={tp.sy - 168 * tp.k} width={52 * tp.k} height={18 * tp.k}
+            fill="#ffd45e" stroke="#232b47" strokeWidth="5" />
+        </g>
+      </g>
+    );
+  }
+  return null;
 }
 
 /* 옷가게 — 전신거울 + 양옆 옷걸이 */

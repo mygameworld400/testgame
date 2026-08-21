@@ -172,3 +172,47 @@ grant execute
 grant execute
   on function public.cc_idea_del(text, bigint)
   to anon, authenticated;
+
+
+-- ⏰ 참가자 목록에 들어온 시각 추가 (호스트 패널에서 씁니다)
+
+create or replace function public.cc_status()
+returns json language plpgsql security definer set search_path = public as $$
+declare
+  v_round int;
+  v_taken int;
+  v_list json;
+  v_closed boolean;
+begin
+  select current_round, closed into v_round, v_closed
+    from public.cc_config
+   where id = 1;
+
+  select count(*) into v_taken
+    from public.cc_players
+   where round = v_round
+     and role = 'guest';
+
+  select coalesce(json_agg(json_build_object(
+           'name', name,
+           'role', role,
+           'slot', slot,
+           'joined', joined_at) order by joined_at), '[]'::json)
+    into v_list
+    from public.cc_players
+   where round = v_round;
+
+  return json_build_object(
+    'ok', true,
+    'round', v_round,
+    'closed', v_closed,
+    'taken', v_taken,
+    'full', false,
+    'players', v_list
+  );
+end;
+$$;
+
+grant execute
+  on function public.cc_status()
+  to anon, authenticated;
