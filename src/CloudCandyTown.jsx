@@ -15,6 +15,10 @@ import { Pix } from "./pix.jsx";
 
 const WORLD = { w: 1900, h: 2820 };
 
+/* 카페 자동대화만 실시간으로 공유하기 위한 내부 채팅 표식.
+   일반 유저 채팅에는 표시되지 않습니다. */
+const CAFE_TALK_PREFIX = "__ccct__";
+
 /* 걸어다닐 수 있는 구역들 — 윗동네 · 가운데섬 · 아랫섬.
    이 사각형들 밖으로는 못 나갑니다. 섬끼리는 미끄럼틀로만 오갑니다.
    (오른쪽 분홍 미끄럼틀 = 가운데↔아래, 왼쪽 민트 미끄럼틀 = 위↔가운데) */
@@ -515,48 +519,21 @@ function Stick({ onMove }) {
   /* 포인터가 되면 포인터로, 안 되면 터치로 — 둘 다 달면 두 번 처리됩니다 */
   const handlers = HAS_POINTER
     ? {
-        onPointerDown: (e) => {
-          if (e.pointerType === "mouse" && e.button !== 0) return;
-          e.preventDefault();
-          try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 무시 */ }
-          begin(e.clientX, e.clientY);
-        },
-        onPointerMove: (e) => {
-          if (!active.current) return;
-          e.preventDefault();
-          move(e.clientX, e.clientY);
-        },
-        onPointerUp: (e) => {
-          e.preventDefault();
-          end();
-        },
+        onPointerDown: (e) => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 무시 */ } begin(e.clientX, e.clientY); },
+        onPointerMove: (e) => move(e.clientX, e.clientY),
+        onPointerUp: end,
         onPointerCancel: end,
+        onPointerLeave: end,
       }
     : {
-        onTouchStart: (e) => {
-          e.preventDefault();
-          const t = e.changedTouches[0];
-          if (t) begin(t.clientX, t.clientY);
-        },
-        onTouchMove: (e) => {
-          if (!active.current) return;
-          e.preventDefault();
-          const t = e.changedTouches[0];
-          if (t) move(t.clientX, t.clientY);
-        },
-        onTouchEnd: (e) => {
-          e.preventDefault();
-          end();
-        },
+        onTouchStart: (e) => { const t = e.changedTouches[0]; begin(t.clientX, t.clientY); },
+        onTouchMove: (e) => { const t = e.changedTouches[0]; move(t.clientX, t.clientY); },
+        onTouchEnd: end,
         onTouchCancel: end,
       };
 
   return (
-    <div
-      className="ccStickZone"
-      style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
-      {...handlers}
-    >
+    <div className="ccStickZone" {...handlers}>
       <div
         className={"ccStick" + (base ? " ccStickOn" : "")}
         style={base ? { left: base.x, top: base.y, bottom: "auto", transform: "translate(-50%,-50%)" } : undefined}
@@ -1155,14 +1132,26 @@ function Town({ me, setMe, onKick }) {
   }, []);
 
   /* 대사를 차례로 띄웁니다. 끝나면 done 을 부릅니다 */
-  const runTalk = useCallback((script, delay, done) => {
+  const runTalk = useCallback((script, delay, done, syncRoom = "") => {
     talkTimers.current.forEach(clearTimeout);
     talkTimers.current = [];
     if (!script.length) return;
     talking.current = true;
     const gap = 2300;
     script.forEach((line, i) => {
-      talkTimers.current.push(setTimeout(() => setTalk(line), delay + i * gap));
+      talkTimers.current.push(
+        setTimeout(() => {
+          setTalk(line);
+
+          /* 카페 자동대화만 다른 접속자에게도 같은 순서로 보여줍니다.
+             일반 채팅과 구분되는 내부 표식을 붙여 보냅니다. */
+          if (syncRoom) {
+            const who = line?.who === "m" ? "m" : "s";
+            const msg = `${CAFE_TALK_PREFIX}${who}|${line?.text || ""}`;
+            chanRef.current?.chat(msg, syncRoom);
+          }
+        }, delay + i * gap)
+      );
     });
     talkTimers.current.push(
       setTimeout(() => {
@@ -1193,7 +1182,7 @@ function Town({ me, setMe, onKick }) {
     }
     runTalk(script, delay, () => {
       if (home) staffTo.current = { ...home };   // 끝나면 자리로 돌아가요
-    });
+    }, roomId);
   }, [runTalk]);
 
   /* 한 테이블에 둘이 앉으면 저희끼리 스몰토크 */
@@ -1956,6 +1945,19 @@ function Town({ me, setMe, onKick }) {
         }
       },
       onChat: (msg) => {
+        /* 카페 자동대화 수신 — 일반 채팅 기록에는 넣지 않고
+           현재 같은 방에 있을 때만 말풍선으로 보여줍니다. */
+        if (typeof msg?.text === "string" && msg.text.startsWith(CAFE_TALK_PREFIX)) {
+          const raw = msg.text.slice(CAFE_TALK_PREFIX.length);
+          const cut = raw.indexOf("|");
+          if (cut >= 0 && (msg.r || "") === (sceneRef.current || "")) {
+            const who = raw.slice(0, cut) === "m" ? "m" : "s";
+            const text = raw.slice(cut + 1);
+            if (text) setTalk({ who, text });
+          }
+          return;
+        }
+
         const at = Date.now();
         setHistory((h) => [...h.slice(-199), { ...msg, at }]);
         if ((msg.r || "") === (sceneRef.current || "")) return;
