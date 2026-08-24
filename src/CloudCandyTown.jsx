@@ -2105,6 +2105,11 @@ function Town({ me, setMe, onKick }) {
             <div className="ccRoomLayer">
               {scene === "movie" && movie && (
                 <div className="ccScreenWrap">
+                     style={{
+                       width: 520,
+                       height: 300,
+                     }}
+                >
                   <video
                     ref={vidRef}
                     className="ccScreenVid"
@@ -3101,9 +3106,9 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccStarWord b{color:#ffd45e;font-size:13px}
 
 /* 🎬 스크린 위 영상 */
-.ccScreenWrap{position:absolute;left:220px;top:24px;width:560px;height:300px;pointer-events:auto;
+.ccScreenWrap{position:absolute;left:168px;top:38px;width:664px;height:228px;pointer-events:auto;
   background:#000;overflow:hidden}
-.ccScreenVid{width:100%;height:100%;object-fit:cover;display:block;background:#000}
+.ccScreenVid{width:100%;height:100%;object-fit:contain;display:block;background:#000}
 .ccScreenBar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:8px;
   padding:6px 9px;background:rgba(14,12,24,.72)}
 .ccScreenTitle{flex:1;font-size:13px;font-weight:800;color:#ffe9a8;overflow:hidden;
