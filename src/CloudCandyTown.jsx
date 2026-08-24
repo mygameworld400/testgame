@@ -15,9 +15,6 @@ import { Pix } from "./pix.jsx";
 
 const WORLD = { w: 1900, h: 2820 };
 
-/* 카페 자동대화만 실시간으로 공유하기 위한 내부 채팅 표식.
-   일반 유저 채팅에는 표시되지 않습니다. */
-const CAFE_TALK_PREFIX = "__ccct__";
 
 /* 걸어다닐 수 있는 구역들 — 윗동네 · 가운데섬 · 아랫섬.
    이 사각형들 밖으로는 못 나갑니다. 섬끼리는 미끄럼틀로만 오갑니다.
@@ -1143,12 +1140,13 @@ function Town({ me, setMe, onKick }) {
         setTimeout(() => {
           setTalk(line);
 
-          /* 카페 자동대화만 다른 접속자에게도 같은 순서로 보여줍니다.
-             일반 채팅과 구분되는 내부 표식을 붙여 보냅니다. */
+          /* 카페 자동대화는 일반 채팅과 분리된 Realtime 이벤트로 공유합니다. */
           if (syncRoom) {
-            const who = line?.who === "m" ? "m" : "s";
-            const msg = `${CAFE_TALK_PREFIX}${who}|${line?.text || ""}`;
-            chanRef.current?.chat(msg, syncRoom);
+            chanRef.current?.cafeTalk({
+              who: line?.who === "m" ? "m" : "s",
+              text: line?.text || "",
+              room: syncRoom,
+            });
           }
         }, delay + i * gap)
       );
@@ -1185,17 +1183,20 @@ function Town({ me, setMe, onKick }) {
     }, roomId);
   }, [runTalk]);
 
-  /* 한 테이블에 둘이 앉으면 저희끼리 스몰토크 */
+  /* 한 테이블에 둘이 앉으면 스몰토크 — 직원 대화를 즉시 끊고 시작합니다. */
   const startPairTalk = useCallback((myChair, mateChair) => {
-    if (talking.current) return;
-    /* 직원은 자리로 돌려보내고 둘이 이야기합니다 */
+    /* 직원 대화가 남아 있으면 즉시 취소합니다. */
+    if (talking.current) clearSeatTalk();
+
     const home = ROOMS.cafe?.staff;
     if (home) staffTo.current = { ...home };
-    /* 두 사람 화면이 같은 대사를 고르도록 의자 번호로만 정합니다 */
+
+    /* 두 사람 화면이 같은 대사를 고르도록 의자 번호로만 정합니다. */
     const lo = Math.min(myChair, mateChair);
     const t = SMALL_TALK[(myChair + mateChair * 3 + lo) % SMALL_TALK.length];
     const first = lo === myChair ? "m" : mateChair;
     const second = lo === myChair ? mateChair : "m";
+
     runTalk(
       [
         { who: first, text: t.a },
@@ -1203,9 +1204,11 @@ function Town({ me, setMe, onKick }) {
         { who: first, text: t.c },
         { who: second, text: t.d },
       ],
-      900
+      900,
+      undefined,
+      myChair === lo ? "cafe" : ""
     );
-  }, [runTalk]);
+  }, [runTalk, clearSeatTalk]);
 
   /* 미끄럼틀 타기 — up 이면 아랫섬에서 윗섬으로 */
   const startRide = useCallback((sl, up) => {
@@ -1398,10 +1401,18 @@ function Town({ me, setMe, onKick }) {
       return;
     }
     if (pairRef.current === key) return;   // 이 사람과는 이미 했어요
-    if (talking.current) return;           // 직원이 말하는 중 — 끝나면 다시 옵니다
+
+    /* 다른 사람이 앉는 순간, 진행 중인 직원 대화를 즉시 취소하고
+       둘의 스몰토크로 전환합니다. */
+    if (talking.current) {
+      clearSeatTalk();
+      const home = ROOMS.cafe?.staff;
+      if (home) staffTo.current = { ...home };
+    }
+
     pairRef.current = key;
     startPairTalk(sit, key);
-  }, [scene, sit, peerView, startPairTalk]);
+  }, [scene, sit, peerView, startPairTalk, clearSeatTalk]);
 
   const openBuilding = useCallback((id) => {
     const b = BUILDINGS.find((x) => x.id === id);
@@ -1889,7 +1900,7 @@ function Town({ me, setMe, onKick }) {
     if (!hasServer || me.role === "solo" || !me.round) return undefined;
     const chan = joinChannel({
       round: me.round,
-      me: { id: deviceId(), name: me.name, slot: me.slot },
+      me: { id: deviceId(), name: me.name, slot: me.slot, st: sitRef.current == null ? -1 : sitRef.current },
       getPose: () => ({
         x: Math.round(posRef.current.x),
         y: Math.round(posRef.current.y),
@@ -1944,20 +1955,14 @@ function Town({ me, setMe, onKick }) {
           setResults((r) => [...r.filter((x) => x.id !== e.id), { id: e.id, name: e.name, ok: e.ok, done: e.done }]);
         }
       },
+      onCafeTalk: (msg) => {
+        /* 자동대화는 일반 채팅과 완전히 분리합니다.
+           sender가 "m"인 줄은 보낸 사람의 캐릭터, 숫자 줄은 상대방 의자입니다. */
+        if ((msg?.room || "") !== (sceneRef.current || "")) return;
+        const who = msg?.who === "s" ? "s" : (msg?.senderChair === sitRef.current ? "m" : msg?.senderChair);
+        if (msg?.text) setTalk({ who: who ?? "m", text: msg.text });
+      },
       onChat: (msg) => {
-        /* 카페 자동대화 수신 — 일반 채팅 기록에는 넣지 않고
-           현재 같은 방에 있을 때만 말풍선으로 보여줍니다. */
-        if (typeof msg?.text === "string" && msg.text.startsWith(CAFE_TALK_PREFIX)) {
-          const raw = msg.text.slice(CAFE_TALK_PREFIX.length);
-          const cut = raw.indexOf("|");
-          if (cut >= 0 && (msg.r || "") === (sceneRef.current || "")) {
-            const who = raw.slice(0, cut) === "m" ? "m" : "s";
-            const text = raw.slice(cut + 1);
-            if (text) setTalk({ who, text });
-          }
-          return;
-        }
-
         const at = Date.now();
         setHistory((h) => [...h.slice(-199), { ...msg, at }]);
         if ((msg.r || "") === (sceneRef.current || "")) return;
