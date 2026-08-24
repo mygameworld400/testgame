@@ -1884,6 +1884,7 @@ function Town({ me, setMe, onKick }) {
         w: waitRef.current,
         hd: holdRef.current,
         lk: lookRef.current,
+        b: bounceRef.current ? 1 : 0,
       }),
       onPeers: setPeers,
       onLive: setLive,
@@ -2188,6 +2189,7 @@ function Town({ me, setMe, onKick }) {
                     hold={q.hd >= 0 ? MENU[q.hd]?.emoji : null}
                     look={q.lk}
                     skin={skinImg(q.lk)}
+                    bounce={!!q.b}
                   />
                 );
               })}
@@ -2306,6 +2308,7 @@ function Town({ me, setMe, onKick }) {
             hold={p.hd >= 0 ? MENU[p.hd]?.emoji : null}
             look={p.lk}
             skin={skinImg(p.lk)}
+            bounce={!!p.b}
           />
             ))}
 
