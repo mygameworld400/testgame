@@ -2105,6 +2105,11 @@ function Town({ me, setMe, onKick }) {
             <div className="ccRoomLayer">
               {scene === "movie" && movie && (
                 <div className="ccScreenWrap">
+                     style={{
+                       width: 520,
+                       height: 300,
+                     }}
+                >
                   <video
                     ref={vidRef}
                     className="ccScreenVid"
