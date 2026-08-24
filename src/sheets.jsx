@@ -1646,43 +1646,38 @@ const TYPE_WORDS = [
   "구름옷가게", "타건음", "물갈이", "우체통", "리본", "왕관", "마들렌", "쿠키",
 ];
 
-/* 💨 방구게임 — 오래 참을수록 점수, 터지면 0 */
+/* 💨 방구게임 — 최대한 오래 꾹 누르고 버티기 */
 function FartGame({ onDone, send }) {
-  const [gauge, setGauge] = useState(0);
-  const [state, setState] = useState("ready");   // ready · hold · done · pop
+  const [elapsed, setElapsed] = useState(0);
+  const [state, setState] = useState("ready");   // ready · hold · done
   const [score, setScore] = useState(0);
-  const limit = useRef(70 + Math.random() * 28);
   const timer = useRef(null);
+  const startedAt = useRef(0);
 
   const stop = () => {
     clearInterval(timer.current);
     timer.current = null;
   };
-  useEffect(() => stop, []);
+  useEffect(() => () => stop(), []);
 
   const start = () => {
     if (state === "hold") return;
-    setState("hold");
-    setGauge(0);
-    limit.current = 70 + Math.random() * 28;
-    let g = 0;
     stop();
+    startedAt.current = performance.now();
+    setElapsed(0);
+    setScore(0);
+    setState("hold");
     timer.current = setInterval(() => {
-      g += 1.6 + Math.random() * 1.6;
-      setGauge(g);
-      if (g >= limit.current) {
-        stop();
-        setState("pop");
-        setScore(0);
-        buzz();
-      }
-    }, 60);
+      setElapsed(performance.now() - startedAt.current);
+    }, 50);
   };
 
   const release = () => {
     if (state !== "hold") return;
+    const ms = Math.max(0, performance.now() - startedAt.current);
     stop();
-    const s = Math.round(gauge);
+    setElapsed(ms);
+    const s = Math.round(ms / 10) / 100;
     setScore(s);
     setState("done");
     ding();
@@ -1691,17 +1686,17 @@ function FartGame({ onDone, send }) {
     onDone?.(s);
   };
 
-  const pct = Math.min(100, gauge);
+  const seconds = (elapsed / 1000).toFixed(2);
   return (
     <div className="ccGame">
       <p className="ccGameAsk">
-        참을 수 있을 때까지 누르고 있다가
+        💨 최대한 오래 꾹 누르고 버티세요!
         <br />
-        터지기 직전에 떼세요!
+        손을 떼는 순간 기록이 확정됩니다.
       </p>
       <div className="ccGauge">
-        <i style={{ width: pct + "%", background: pct > 78 ? "#e0685f" : pct > 55 ? "#f0a13f" : "#8fe3c9" }} />
-        <span className="ccGaugeNum">{Math.round(pct)}</span>
+        <i style={{ width: Math.min(100, (elapsed / 30000) * 100) + "%", background: "#8fe3c9" }} />
+        <span className="ccGaugeNum">{seconds}s</span>
       </div>
       <button
         className={"ccBtn ccGameBig" + (state === "hold" ? " ccGameHold" : "")}
@@ -1711,12 +1706,11 @@ function FartGame({ onDone, send }) {
         onTouchStart={(e) => { e.preventDefault(); start(); }}
         onTouchEnd={(e) => { e.preventDefault(); release(); }}
       >
-        {state === "hold" ? "참는 중… 💨" : state === "pop" ? "뿌웅! 다시" : "꾹 누르기"}
+        {state === "hold" ? `버티는 중… 💨 ${seconds}초` : state === "done" ? `기록 ${score.toFixed(2)}초 — 다시 도전` : "최대한 오래 꾹 누르기"}
       </button>
       <p className="ccGameOut">
-        {state === "pop" && "터졌어요… 0점"}
-        {state === "done" && `${score}점! 아슬아슬했네요`}
-        {state === "ready" && "누르고 있으면 게이지가 차올라요"}
+        {state === "done" && `${score.toFixed(2)}초! 가장 오래 버틴 사람이 1등 🏆`}
+        {state === "ready" && "오래 누를수록 높은 기록이에요."}
       </p>
     </div>
   );
