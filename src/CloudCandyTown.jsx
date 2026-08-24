@@ -515,21 +515,48 @@ function Stick({ onMove }) {
   /* 포인터가 되면 포인터로, 안 되면 터치로 — 둘 다 달면 두 번 처리됩니다 */
   const handlers = HAS_POINTER
     ? {
-        onPointerDown: (e) => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 무시 */ } begin(e.clientX, e.clientY); },
-        onPointerMove: (e) => move(e.clientX, e.clientY),
-        onPointerUp: end,
+        onPointerDown: (e) => {
+          if (e.pointerType === "mouse" && e.button !== 0) return;
+          e.preventDefault();
+          try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 무시 */ }
+          begin(e.clientX, e.clientY);
+        },
+        onPointerMove: (e) => {
+          if (!active.current) return;
+          e.preventDefault();
+          move(e.clientX, e.clientY);
+        },
+        onPointerUp: (e) => {
+          e.preventDefault();
+          end();
+        },
         onPointerCancel: end,
-        onPointerLeave: end,
       }
     : {
-        onTouchStart: (e) => { const t = e.changedTouches[0]; begin(t.clientX, t.clientY); },
-        onTouchMove: (e) => { const t = e.changedTouches[0]; move(t.clientX, t.clientY); },
-        onTouchEnd: end,
+        onTouchStart: (e) => {
+          e.preventDefault();
+          const t = e.changedTouches[0];
+          if (t) begin(t.clientX, t.clientY);
+        },
+        onTouchMove: (e) => {
+          if (!active.current) return;
+          e.preventDefault();
+          const t = e.changedTouches[0];
+          if (t) move(t.clientX, t.clientY);
+        },
+        onTouchEnd: (e) => {
+          e.preventDefault();
+          end();
+        },
         onTouchCancel: end,
       };
 
   return (
-    <div className="ccStickZone" {...handlers}>
+    <div
+      className="ccStickZone"
+      style={{ touchAction: "none", WebkitUserSelect: "none", userSelect: "none" }}
+      {...handlers}
+    >
       <div
         className={"ccStick" + (base ? " ccStickOn" : "")}
         style={base ? { left: base.x, top: base.y, bottom: "auto", transform: "translate(-50%,-50%)" } : undefined}
