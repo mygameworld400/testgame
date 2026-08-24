@@ -825,7 +825,6 @@ function Town({ me, setMe, onKick }) {
   const [nearId, setNearId] = useState(null);
   const [stars, setStars] = useState(() => unbits(SAVED?.stars, STAR_SPOTS.length));
   const [toast, setToast] = useState("");
-  const [entryNotice, setEntryNotice] = useState("");
   const [room, setRoom] = useState(null);
   const [peers, setPeers] = useState([]);
   const [peerView, setPeerView] = useState([]);   // 화면에 그릴 위치(보간됨)
@@ -1392,9 +1391,9 @@ function Town({ me, setMe, onKick }) {
     const b = BUILDINGS.find((x) => x.id === id);
     if (!b) return;
 
-    /* 노래방·방탈출은 아직 준비 중 — 건물 앞에서 SPACE를 눌러도 입장하지 않습니다. */
+    /* 🚧 노래방·방탈출은 아직 준비중 — 입장하지 않습니다. */
     if (id === "sing" || id === "escape") {
-      setEntryNotice(id === "sing" ? "🎤 구름노래방은 아직 준비중이에요!" : "🔐 방탈출은 아직 준비중이에요!");
+      setToast(`${b.name}은(는) 준비중이에요! 조금만 기다려 주세요 😊`);
       blip(520);
       return;
     }
@@ -2114,6 +2113,11 @@ function Town({ me, setMe, onKick }) {
             <div className="ccRoomLayer">
               {scene === "movie" && movie && (
                 <div className="ccScreenWrap">
+                     style={{
+                       width: 520,
+                       height: 300,
+                     }}
+                >
                   <video
                     ref={vidRef}
                     className="ccScreenVid"
@@ -2426,16 +2430,6 @@ function Town({ me, setMe, onKick }) {
       )}
 
       {toast && <div className="ccToast">{toast}</div>}
-
-      {entryNotice && (
-        <div className="ccEntryNoticeWrap" onClick={() => setEntryNotice("")}>
-          <div className="ccEntryNotice" onClick={(e) => e.stopPropagation()}>
-            <div className="ccEntryNoticeTitle">준비중..</div>
-            <div className="ccEntryNoticeText">{entryNotice}</div>
-            <button className="ccEntryNoticeBtn" onClick={() => setEntryNotice("")}>확인</button>
-          </div>
-        </div>
-      )}
 
       {/* 우측 세로 스택 — 호스트 도구 + 뉴비 가이드 */}
       <div className="ccSide">
@@ -3120,7 +3114,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccStarWord b{color:#ffd45e;font-size:13px}
 
 /* 🎬 스크린 위 영상 */
-.ccScreenWrap{position:absolute;left:200px;top:32px;width:600px;height:220px;pointer-events:auto;
+.ccScreenWrap{position:absolute;left:218px;top:30px;width:570px;height:224px;pointer-events:auto;
   background:#000;overflow:hidden}
 .ccScreenVid{width:100%;height:100%;object-fit:cover;display:block;background:#000}
 .ccScreenBar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:8px;
@@ -3179,12 +3173,6 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
   color:${C.ink};background:rgba(255,255,255,.9);border:2px solid ${C.line};padding:5px 10px;white-space:nowrap}
 .ccToast{position:absolute;left:50%;top:74px;transform:translateX(-50%);background:#fff;border:4px solid ${C.line};
   padding:9px 16px;font-weight:700;font-size:13px;box-shadow:4px 4px 0 rgba(91,74,99,.3);white-space:nowrap}
- .ccEntryNoticeWrap{position:fixed;inset:0;z-index:80;background:rgba(20,16,32,.42);display:flex;align-items:center;justify-content:center;padding:20px}
-.ccEntryNotice{width:min(360px,90vw);background:#fff;border:5px solid ${C.line};box-shadow:8px 8px 0 rgba(91,74,99,.35);padding:22px 20px;text-align:center}
-.ccEntryNoticeTitle{font-size:24px;font-weight:900;color:${C.ink};margin-bottom:12px}
-.ccEntryNoticeText{font-size:14px;font-weight:800;line-height:1.7;color:${C.inkSoft};margin-bottom:18px}
-.ccEntryNoticeBtn{border:4px solid ${C.line};background:#ffd45e;color:${C.ink};font-family:inherit;font-weight:900;font-size:13px;padding:8px 20px;cursor:pointer;box-shadow:3px 3px 0 rgba(91,74,99,.25)}
-.ccEntryNoticeBtn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(91,74,99,.25)}
 
 .ccHostBtn{cursor:pointer;align-self:flex-end}
 .ccHostPanel{width:100%;padding:14px}
