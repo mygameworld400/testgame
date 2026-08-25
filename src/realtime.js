@@ -26,10 +26,12 @@ export function joinChannel({
       stop: () => {},
       chat: () => false,
       cafeTalk: () => false,
+      fx: () => false,
     };
   }
 
   const peers = new Map();
+
   let dead = false;
   let live = false;
   let retry = 0;
@@ -45,71 +47,100 @@ export function joinChannel({
 
   const push = () => onPeers([...peers.values()]);
 
-  /* ---------- 다른 사람 위치 ---------- */
+  /* =========================================================
+     다른 사람 위치
+     ========================================================= */
 
-  ch.on("broadcast", { event: "pose" }, ({ payload }) => {
-    if (!payload?.id || payload.id === me.id) return;
+  ch.on(
+    "broadcast",
+    { event: "pose" },
+    ({ payload }) => {
+      if (!payload?.id || payload.id === me.id) return;
 
-    const prev = peers.get(payload.id);
+      const prev = peers.get(payload.id);
 
-    peers.set(payload.id, {
-      ...prev,
-      ...payload,
-      at: Date.now(),
-    });
+      peers.set(payload.id, {
+        ...prev,
+        ...payload,
+        at: Date.now(),
+      });
 
-    push();
-  });
-
-  /* ---------- 일반 채팅 ---------- */
-
-  ch.on("broadcast", { event: "chat" }, ({ payload }) => {
-    if (!payload?.id || payload.id === me.id) return;
-
-    const prev =
-      peers.get(payload.id) || {
-        id: payload.id,
-        name: payload.name,
-        slot: payload.slot,
-        x: -999,
-        y: -999,
-      };
-
-    peers.set(payload.id, {
-      ...prev,
-      msg: payload.text,
-      msgAt: Date.now(),
-      at: Date.now(),
-    });
-
-    onChat?.(payload);
-    push();
-  });
-
-  /* ---------- 카페 자동대화 ----------
-     일반 채팅과 별도 이벤트라 채팅창에 섞이지 않습니다. */
-
-  ch.on("broadcast", { event: "cafe_talk" }, ({ payload }) => {
-    if (!payload || payload.id === me.id) return;
-
-    onCafeTalk?.(payload);
-  });
-
-  /* ---------- 효과 ---------- */
-
-  ch.on("broadcast", { event: "fx" }, ({ payload }) => {
-    if (!payload || payload.id === me.id) return;
-
-    onFx?.(payload);
-  });
-
-  /* ---------- 퇴장 ---------- */
-
-  ch.on("broadcast", { event: "bye" }, ({ payload }) => {
-    if (payload?.id && peers.delete(payload.id)) {
       push();
     }
-  });
+  );
+
+  /* =========================================================
+     일반 채팅
+     ========================================================= */
+
+  ch.on(
+    "broadcast",
+    { event: "chat" },
+    ({ payload }) => {
+      if (!payload?.id || payload.id === me.id) return;
+
+      const prev =
+        peers.get(payload.id) || {
+          id: payload.id,
+          name: payload.name,
+          slot: payload.slot,
+          x: -999,
+          y: -999,
+        };
+
+      peers.set(payload.id, {
+        ...prev,
+        msg: payload.text,
+        msgAt: Date.now(),
+        at: Date.now(),
+      });
+
+      onChat?.(payload);
+      push();
+    }
+  );
+
+  /* =========================================================
+     카페 자동대화
+     ========================================================= */
+
+  ch.on(
+    "broadcast",
+    { event: "cafe_talk" },
+    ({ payload }) => {
+      if (!payload || payload.id === me.id) return;
+
+      onCafeTalk?.(payload);
+    }
+  );
+
+  /* =========================================================
+     효과
+     ========================================================= */
+
+  ch.on(
+    "broadcast",
+    { event: "fx" },
+    ({ payload }) => {
+      if (!payload || payload.id === me.id) return;
+
+      onFx?.(payload);
+    }
+  );
+
+  /* =========================================================
+     퇴장
+     ========================================================= */
+
+  ch.on(
+    "broadcast",
+    { event: "bye" },
+    ({ payload }) => {
+      if (payload?.id && peers.delete(payload.id)) {
+        push();
+      }
+    }
+  );
 
   let sendTimer = null;
   let pruneTimer = null;
@@ -121,7 +152,9 @@ export function joinChannel({
     onLive?.(v);
   };
 
-  /* ---------- 재접속 ---------- */
+  /* =========================================================
+     재접속
+     ========================================================= */
 
   const rejoin = () => {
     if (dead || live) return;
@@ -165,7 +198,9 @@ export function joinChannel({
     clearInterval(sendTimer);
     clearInterval(pruneTimer);
 
-    /* ---------- 위치 전송 ---------- */
+    /* =======================================================
+       위치 + 방 BGM 상태 전송
+       ======================================================= */
 
     let lastSig = "";
     let lastAt = 0;
@@ -177,6 +212,14 @@ export function joinChannel({
 
       const sig = JSON.stringify(pose);
       const now = Date.now();
+
+      /*
+       * 위치가 바뀌지 않았더라도
+       * 최대 3초마다 한 번씩은 전송합니다.
+       *
+       * 호스트의 bgmMap도 pose 안에 들어가기 때문에
+       * 새로 들어온 게스트가 현재 방 BGM을 받을 수 있습니다.
+       */
 
       if (
         sig === lastSig &&
@@ -207,7 +250,9 @@ export function joinChannel({
       SEND_MS
     );
 
-    /* ---------- 오래된 접속자 / 말풍선 정리 ---------- */
+    /* =======================================================
+       오래된 접속자 / 말풍선 정리
+       ======================================================= */
 
     pruneTimer = setInterval(() => {
       const now = Date.now();
@@ -238,7 +283,9 @@ export function joinChannel({
 
   ch.subscribe(onStatus);
 
-  /* ---------- 탭 복귀 / 인터넷 복구 ---------- */
+  /* =========================================================
+     탭 복귀 / 인터넷 복구
+     ========================================================= */
 
   const wake = () => {
     if (dead || live) return;
@@ -268,7 +315,9 @@ export function joinChannel({
     wake
   );
 
-  /* ---------- 퇴장 알림 ---------- */
+  /* =========================================================
+     퇴장 알림
+     ========================================================= */
 
   const bye = () => {
     try {
@@ -300,7 +349,9 @@ export function joinChannel({
      ========================================================= */
 
   return {
-    /* ---------- 일반 채팅 ---------- */
+    /* =======================================================
+       일반 채팅
+       ======================================================= */
 
     chat(text, room) {
       const t = (text || "")
@@ -324,7 +375,9 @@ export function joinChannel({
       return true;
     },
 
-    /* ---------- 카페 자동대화 ---------- */
+    /* =======================================================
+       카페 자동대화
+       ======================================================= */
 
     cafeTalk({ who, text, room }) {
       const t = (text || "")
@@ -341,11 +394,9 @@ export function joinChannel({
         payload: {
           id: me.id,
 
-          /* 현재 앉아 있는 의자 */
           senderChair:
             getPose()?.st ?? -1,
 
-          /* s = 직원 / m = 내 캐릭터 */
           who:
             who === "s"
               ? "s"
@@ -353,7 +404,6 @@ export function joinChannel({
 
           text: t,
 
-          /* 카페 방 */
           room,
         },
       });
@@ -361,9 +411,13 @@ export function joinChannel({
       return true;
     },
 
-    /* ---------- 효과 ---------- */
+    /* =======================================================
+       효과
+       ======================================================= */
 
     fx(data) {
+      if (!data || dead || !live) return false;
+
       ch.send({
         type: "broadcast",
         event: "fx",
@@ -372,13 +426,19 @@ export function joinChannel({
           ...data,
         },
       });
+
+      return true;
     },
 
-    /* ---------- 연결 상태 ---------- */
+    /* =======================================================
+       연결 상태
+       ======================================================= */
 
     live: () => live,
 
-    /* ---------- 종료 ---------- */
+    /* =======================================================
+       종료
+       ======================================================= */
 
     stop() {
       dead = true;
