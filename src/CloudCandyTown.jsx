@@ -141,11 +141,15 @@ const QUESTS = [
   { id: "gacha", icon: "🍜", name: "떵개방에서 메뉴 추천 받기", desc: "가운데에서 하루 한 번 오늘의 메뉴를 뽑아요." },
   { id: "slide", icon: "💨", name: "미끄럼틀 타기", desc: "마을 오른쪽 끝 발판에 서면 슝 하고 반대편 섬으로 미끄러져요." },
   { id: "buy", icon: "☕", name: "카페 가서 음료 구매해보기", desc: "미끄럼틀로 내려가면 아랫섬에 구름카페가 있어요. 모은 별로 삽니다." },
+  { id: "cafeTalk", icon: "🪑", name: "카페 테이블에 앉아 대화 나누기", desc: "구름카페 테이블에 앉아 다른 사람이나 직원과 대화를 나눠보세요." },
   { id: "dress", icon: "👗", name: "구름옷가게에서 꾸미기", desc: "카페 옆 옷가게 전신거울 앞에서 얼굴·머리·옷 색을 바꿔보세요." },
-  { id: "wish", icon: "💌", name: "우체통에 캐릭터 적어넣기", desc: "옷가게 오른쪽 우체통에 생겼으면 하는 캐릭터를 적어주세요." },
   { id: "feedback", icon: "📮", name: "피드백 남기기", desc: "오른쪽 아래 📮 를 눌러 아무 말이나 남겨주세요. 익명이에요." },
-  { id: "idea", icon: "🪧", name: "윗동네 팻말에 적기", desc: "왼쪽 민트 미끄럼틀로 윗동네에 올라가, 가운데 팻말에 뭘 만들지 적어주세요." },
-  { id: "up", icon: "🤸", name: "윗동네 새 건물 구경하기", desc: "방방·노래방·미니게임장·방탈출·영화관·천문대 중 아무 데나 들어가 보세요." },
+  { id: "up", icon: "🏘️", name: "윗동네 새 건물 구경하기", desc: "윗동네에 새로 생긴 건물들을 하나씩 구경해보세요." },
+  { id: "jump", icon: "🤸", name: "방방 뛰어보기", desc: "윗동네 방방에 올라가 신나게 뛰어보세요." },
+  { id: "movie", icon: "🎬", name: "영화관에서 영화보기", desc: "윗동네 영화관에 들어가 상영 중인 영화를 감상해보세요." },
+  { id: "karaoke", icon: "🎤", name: "노래방에서 선곡 후 마이크 잡고 노래하기", desc: "노래방에서 노래를 선곡한 뒤 마이크를 잡아보세요." },
+  { id: "arcade", icon: "🕹️", name: "미니게임장에서 게임 참여하기", desc: "윗동네 미니게임장에 들어가 게임에 참여해보세요." },
+  { id: "stargaze", icon: "🔭", name: "천문대에서 별멍하기", desc: "천문대에 가서 편하게 누워 별을 바라보세요." },
 ];
 
 /* 윗동네에 새로 생긴 방들 */
@@ -1337,6 +1341,8 @@ function Town({ me, setMe, onKick }) {
     setSheet(null);
     setToast(`${ROOMS[id].emoji} ${ROOMS[id].name} — ${ROOMS[id].hint}`);
     if (UP_ROOMS.includes(id)) doQuestRef.current?.("up");
+    if (id === "movie") doQuestRef.current?.("movie");
+    if (id === "arcade") doQuestRef.current?.("arcade");
   }, []);
 
   /* 마을로 */
@@ -1386,6 +1392,7 @@ function Town({ me, setMe, onKick }) {
     if (id === "dress") loadSkins();
     if (id === "arcade" || id === "starview" || id === "showtime" || id === "songs") { setSheet(id); return; }
     if (id === "lie") {
+      if (sceneRef.current === "star") doQuest("stargaze");
       /* 지금 선 자리에 그대로 눕습니다. 한 번 더 누르면 일어나요 */
       const on = !lyingRef.current;
       lyingRef.current = on;
@@ -1410,6 +1417,7 @@ function Town({ me, setMe, onKick }) {
       blip(760);
       startSeatTalk(sceneRef.current, i);
       if (sceneRef.current === "cake") doQuest("sit");
+      if (sceneRef.current === "cafe") doQuest("cafeTalk");
       return;
     }
     setSheet(id);
@@ -1760,6 +1768,7 @@ function Town({ me, setMe, onKick }) {
           );
           if (on !== bounceRef.current) {
             bounceRef.current = on;
+            if (on && room.id === "jump") doQuest("jump");
             setBouncing(on);
           }
           if (on && now - bounceAt.current > 520) {
@@ -2112,7 +2121,8 @@ function Town({ me, setMe, onKick }) {
     }
 
     setKaraokeMic(slot);
-  }, [karaokeMic, peerView]);
+    if (karaoke) doQuest("karaoke");
+  }, [karaokeMic, peerView, karaoke, doQuest]);
 
   /* 노래방에서 나가면 마이크를 자동으로 내려놓습니다. */
   useEffect(() => {
