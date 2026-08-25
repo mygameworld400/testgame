@@ -100,6 +100,9 @@ const BUILDINGS = [
   { id: "star", name: "천문대", emoji: "🔭", tag: "별", x: 1262, y: 760, scale: 8,
     lines: ["망원경으로 보면 별이 더 커요.", "바닥에 누워서 봐도 좋아요."] },
 
+  { id: "spa", name: "구름찜질스파", emoji: "🧖", tag: "찜질스파", x: 2180, y: 520, scale: 11,
+    lines: ["1층은 목욕·샤워·사우나, 2층은 온천, 3층은 찜질과 휴식이에요.", "수건 하나 챙기고 천천히 둘러보세요."] },
+
   { id: "sign", name: "여기 뭐 만들지..?", emoji: "🪧", tag: "윗동네", x: 1420, y: 640, scale: 5, sheet: "idea",
     lines: [
       "여기 뭘 만들면 좋을까요?",
@@ -157,6 +160,7 @@ const QUESTS = [
   { id: "dress", icon: "👗", name: "구름옷가게에서 꾸미기", desc: "카페 옆 옷가게 전신거울 앞에서 얼굴·머리·옷 색을 바꿔보세요." },
   { id: "feedback", icon: "📮", name: "피드백 남기기", desc: "오른쪽 아래 📮 를 눌러 아무 말이나 남겨주세요. 익명이에요." },
   { id: "up", icon: "🏘️", name: "윗동네 새 건물 구경하기", desc: "윗동네에 새로 생긴 건물들을 하나씩 구경해보세요." },
+  { id: "spa", icon: "🧖", name: "찜질스파 둘러보기", desc: "윗동네의 구름찜질스파에 들어가 1·2·3층을 구경해보세요." },
   { id: "jump", icon: "🤸", name: "방방 뛰어보기", desc: "윗동네 방방에 올라가 신나게 뛰어보세요." },
   { id: "movie", icon: "🎬", name: "영화관에서 영화보기", desc: "윗동네 영화관에 들어가 상영 중인 영화를 감상해보세요." },
   { id: "karaoke", icon: "🎤", name: "노래방에서 선곡 후 마이크 잡고 노래하기", desc: "노래방에서 노래를 선곡한 뒤 마이크를 잡아보세요." },
@@ -165,7 +169,7 @@ const QUESTS = [
 ];
 
 /* 윗동네에 새로 생긴 방들 */
-const UP_ROOMS = ["jump", "sing", "arcade", "escape", "movie", "star"];
+const UP_ROOMS = ["jump", "sing", "arcade", "escape", "movie", "star", "spa1"];
 
 /* 투두를 다 깨면 주는 별 */
 const CLEAR_BONUS = 100;
@@ -489,7 +493,105 @@ const COTTON_ROOM = {
   blocks: [{x1:40,x2:960,y1:50,y2:78},{x1:40,x2:960,y1:652,y2:680},{x1:40,x2:68,y1:50,y2:680},{x1:932,x2:960,y1:50,y2:680}],
   zones: [{id:"cotton-machine",x:350,y:300,r:150,label:"솜사탕 기계 열기"},{id:"cotton-shelf",x:735,y:330,r:145,label:"진열대 보기"}],
 };
-const roomFor = (id) => id === "cotton" ? COTTON_ROOM : ROOMS[id];
+
+/* ============================ 찜질스파 대형 맵 ============================ */
+const SPA_W = 1800;
+const SPA_H = 1200;
+const SPA_ROOMS = ["spa1", "spa2", "spa3"];
+const SPA_ROOM = (floor) => ({
+  id: `spa${floor}`,
+  name: `구름찜질스파 ${floor}F`,
+  emoji: "🧖",
+  hint: floor === 1 ? "목욕·샤워·사우나를 즐겨보세요." : floor === 2 ? "따뜻한 온천에서 쉬어가세요." : "찜질하고 식혜도 한 잔 해보세요.",
+  wallDark: floor === 1 ? "#dce8ec" : floor === 2 ? "#dbeaf0" : "#eadfcf",
+  play: { x0: 70, x1: SPA_W - 70, y0: 100, y1: SPA_H - 70 },
+  start: floor === 1 ? {x: 160, y: 1050} : floor === 2 ? {x: 160, y: 1050} : {x: 160, y: 1050},
+  blocks: [
+    {x1:20,x2:SPA_W-20,y1:20,y2:70}, {x1:20,x2:SPA_W-20,y1:SPA_H-45,y2:SPA_H-10},
+    {x1:20,x2:70,y1:20,y2:SPA_H-10}, {x1:SPA_W-70,x2:SPA_W-20,y1:20,y2:SPA_H-10},
+  ],
+  zones: floor === 1 ? [
+    {id:"spa2",x:1700,y:180,r:90,label:"2층으로"},
+    {id:"exit",x:120,y:180,r:80,label:"스파 나가기"},
+  ] : floor === 2 ? [
+    {id:"spa1",x:1700,y:180,r:90,label:"1층으로"},
+    {id:"spa3",x:1700,y:360,r:90,label:"3층으로"},
+  ] : [
+    {id:"spa2",x:1700,y:180,r:90,label:"2층으로"},
+    {id:"exit",x:120,y:180,r:80,label:"스파 나가기"},
+  ],
+});
+const SPA_ROOMS_MAP = { spa1: SPA_ROOM(1), spa2: SPA_ROOM(2), spa3: SPA_ROOM(3) };
+
+const roomFor = (id) => id === "cotton" ? COTTON_ROOM : (SPA_ROOMS_MAP[id] || ROOMS[id]);
+
+
+function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction }) {
+  const floor = Number((scene || "spa1").replace("spa", "")) || 1;
+  const hour = new Date().getHours();
+  const night = hour >= 19 || hour < 6;
+  const camX = clamp(player.x - 480, 0, SPA_W - 960);
+  const camY = clamp(player.y - 340, 0, SPA_H - 680);
+  const p = (x,y,w,h,cls,onClick,label,children) => (
+    <button className={`ccSpaObj ${cls}`} style={{left:x,top:y,width:w,height:h}} onClick={onClick}>
+      {children || <><b>{label}</b></>}
+    </button>
+  );
+  const lockerCols = Array.from({length:12});
+  const showerCols = Array.from({length:8});
+  const hot = floor === 1 ? 41 : floor === 2 ? 40.5 : 38;
+  const clouds = floor === 2 ? Array.from({length:10},(_,i)=>({x:400+(i*137)%980,y:330+(i*83)%430})) : [];
+  const npcByFloor = floor === 1
+    ? [{x:430,y:520,s:0},{x:900,y:470,s:1},{x:1180,y:730,s:2},{x:1470,y:710,s:3}]
+    : floor === 2
+      ? [{x:420,y:650,s:4},{x:900,y:720,s:1},{x:1320,y:430,s:5},{x:1480,y:780,s:2}]
+      : [{x:340,y:610,s:3},{x:620,y:720,s:1},{x:1180,y:690,s:4},{x:1500,y:700,s:0},{x:820,y:470,s:5}];
+  return <div className={"ccSpaRoom"+(night?" night":"")}>
+    <div className="ccSpaHud">
+      <div><b>🧖 구름찜질스파</b><span>{floor}층 · {floor===1?"목욕 / 샤워 / 사우나":floor===2?"온천 / 스파":"찜질 / 휴식 / 매점"}</span></div>
+      <div className="ccSpaFloors"><button className={floor===1?"on":""} onClick={()=>onFloor("spa1")}>1F</button><button className={floor===2?"on":""} onClick={()=>onFloor("spa2")}>2F</button><button className={floor===3?"on":""} onClick={()=>onFloor("spa3")}>3F</button><button onClick={onExit}>나가기</button></div>
+    </div>
+    <div className="ccSpaViewport">
+      <div className="ccSpaMap" style={{width:SPA_W,height:SPA_H,transform:`translate(${-camX}px,${-camY}px)`}}>
+        <div className="ccSpaCeiling" />
+        <div className="ccSpaTitle">CLOUD JIMJIL SPA · {floor}F</div>
+        <div className="ccSpaMapLabel ccSpaEntrance">ENTRANCE / 신발장</div>
+
+        {floor===1 && <>
+          <div className="ccSpaArea lockerArea"><h3>👟 탈의실 / 사물함</h3><div className="ccLockerGrid">{lockerCols.map((_,i)=><div key={i} className="ccLocker">{String(i+1).padStart(2,"0")}</div>)}</div><div className="ccBench">나무 벤치 · 거울 · 체중계 · 드라이어</div></div>
+          <div className="ccSpaArea showerArea"><h3>🚿 샤워실</h3><div className="ccShowerGrid">{showerCols.map((_,i)=><div key={i} className="ccShower"><span>🚿</span><small>샴푸 · 바디워시</small></div>)}</div><div className="ccDrain">배수구　•　•　•　•　•</div></div>
+          <div className="ccSpaArea bathArea"><h3>🛁 대욕장</h3><button className="ccBath bigBath" onClick={()=>onAction("♨️ 온탕에 몸을 담갔어요. 물 온도 41°C.")}><div className="ccWater"><span>♨</span><span>♨</span><span>♨</span></div><b>{hot}°C 온탕</b></button><button className="ccBath smallBath cold" onClick={()=>onAction("❄ 냉탕은 생각보다 훨씬 차가워요!")}><b>❄ 냉탕<br/>17°C</b></button><button className="ccBath smallBath bubble" onClick={()=>onAction("🫧 거품이 보글보글 올라와요.")}><b>🫧 거품탕<br/>39°C</b></button><div className="ccBath smallBath med"><b>🌿 약탕<br/>40°C</b></div><div className="ccBath smallBath electric"><b>⚡ 전기탕<br/>38°C</b></div><div className="ccTowelRack">수건 · 바가지 · 물 온도계</div></div>
+          <div className="ccSpaArea saunaArea"><h3>🔥 사우나 구역</h3><div className="ccSauna dry"><b>건식 사우나</b><span>86°C</span><div className="ccSaunaBench"/></div><div className="ccSauna kiln"><b>🔥 불가마</b><span>90°C</span><div className="ccFire"/></div><div className="ccSauna salt"><b>🧂 소금방</b><span>소금 결정 벽</span></div><div className="ccSauna clay"><b>🟤 황토방</b><span>따뜻한 황토 벽</span></div></div>
+          {p(1120,1030,170,90,"ccSpaStairs",()=>onFloor("spa2"),"2층 온천으로")}
+        </>}
+
+        {floor===2 && <>
+          <div className="ccSpaArea onsenMain" onClick={()=>onAction("♨️ 온천에 들어가니 몸이 따뜻하게 풀리는 느낌이에요.")}><h3>♨️ 대형 온천</h3><div className="ccOnsenWater">{clouds.map((c,i)=><i key={i} style={{left:c.x,top:c.y,animationDelay:`${i*.3}s`}}/>)}<b>40.5°C</b><span>돌계단 · 손잡이 · 온천석</span></div></div>
+          <div className="ccSpaArea privateBath"><h3>🪨 개인 온천탕</h3>{[1,2,3].map(i=><div className="ccPrivateTub" key={i}><span>♨</span><small>{39+i/2}°C</small></div>)}</div>
+          <div className="ccSpaArea carbonBath"><h3>🫧 탄산탕</h3><div className="ccBubbles">{Array.from({length:24},(_,i)=><i key={i} style={{left:`${5+(i*17)%90}%`,top:`${10+(i*29)%80}%`,animationDelay:`${(i%8)*.25}s`}}/>)}</div></div>
+          <div className="ccSpaArea viewBath"><h3>🌙 유리창 온천</h3><div className="ccWindowScene"><span>☾</span><i>🌳</i><i>🌳</i><i>🌳</i></div><p>밤에는 달빛이 물에 비쳐요.</p></div>
+          <div className="ccSpaArea waterStation"><h3>💧 온천수 마시는 곳</h3><div className="ccWaterCup">🥛 🥛 🥛</div><small>종이컵 · 정수기 · 수분 보충</small></div>
+          {p(1120,1030,170,90,"ccSpaStairs",()=>onFloor("spa3"),"3층 찜질로")}
+        </>}
+
+        {floor===3 && <>
+          <div className="ccSpaArea jjimMain"><h3>🧖 공용 찜질 휴게실</h3><div className="ccMatGrid">{Array.from({length:16},(_,i)=><div key={i} className="ccMat">{i%4===0?"🧖":""}</div>)}</div><div className="ccTV">📺　뉴스 / 예능　　🔊</div></div>
+          <div className="ccSpaArea rooms3"><h3>🔥 찜질방</h3><div className="ccHeatRooms"><div>🟤<b>황토방</b></div><div>🧂<b>소금방</b></div><div>🧊<b>아이스방<br/>-5°C</b></div><div>⚫<b>숯방</b></div><div>🔥<b>불가마</b></div></div></div>
+          <div className="ccSpaArea snackBar"><h3>🍳 매점</h3><div className="ccFoodShelf"><span>🥛 식혜</span><span>🥚 구운 계란</span><span>🍜 컵라면</span><span>🥤 이온음료</span><span>🍦 아이스크림</span><span>☕ 커피</span></div></div>
+          <div className="ccSpaArea vending"><h3>🥤 자판기</h3><div className="ccVendingGrid">{["🥤","🧃","💧","☕","🍦","🥛"].map((x,i)=><button key={i} onClick={()=>onAction(`${x} 음료를 하나 골랐어요.`)}>{x}<small>1,500원</small></button>)}</div></div>
+          <div className="ccSpaArea sleepArea"><h3>🛏️ 수면실</h3><div className="ccSleepBeds">{Array.from({length:8},(_,i)=><div key={i}>🛏️<small>{i<4?"남자":"여자"}</small></div>)}</div></div>
+          <div className="ccSpaArea massage"><h3>💆 마사지 의자</h3><div className="ccMassageChairs">💺 💺 💺</div><button onClick={()=>onAction("마사지 의자에 앉았습니다. 지잉—")}>마사지 받기</button></div>
+          <div className="ccSpaArea teaCorner"><h3>🥚 구운 계란 / 식혜</h3><button onClick={()=>onAction("식혜 한 컵과 구운 계란을 챙겼어요.")}>식혜 + 계란 먹기</button></div>
+          {p(1120,1030,170,90,"ccSpaStairs",()=>onFloor("spa1"),"1층으로 내려가기")}
+        </>}
+
+        <div className="ccSpaInfo">{floor===1?"샤워 → 탕 → 사우나 순서로 천천히 즐겨보세요.":floor===2?"온천석에 앉아 쉬거나 개인탕에서 조용히 쉬어가세요.":"수건 머리에 두르고 식혜 하나 들고 편하게 쉬어보세요."}</div>
+        <div className="ccSpaNpcLayer">{npcByFloor.map((n,i)=><div key={i} className="ccSpaNpc" style={{left:n.x,top:n.y}}><span>{["🧖","🧖‍♀️","🥤","😴","🧖","🥚"][n.s]}</span></div>)}</div>
+        <div className="ccSpaPlayerLayer"><Avatar name={me.name} slot={me.slot} x={player.x} y={player.y} facing={1} moving={false} me look={me.look} skin={null}/>{peers.map(q=><Avatar key={q.id} name={q.name} slot={q.slot} x={q.x} y={q.y} facing={q.f||1} moving={!!q.m} me={false} look={q.lk} skin={null}/>)}</div>
+      </div>
+    </div>
+  </div>;
+}
 
 function CottonShopRoom({step,color,powered,tufts,decor,shelf,onMachine,onColor,onPower,onStroke,onFinish,onDecor,onDone,confirm,onConfirm,onBack}) {
   const draw = useRef(false), ring = useRef(null);
@@ -554,6 +656,13 @@ function Building({ b, near }) {
             <div className="ccCottonWindow" />
             <div className="ccCottonDoor" />
           </div>
+        </div>
+      ) : b.id === "spa" ? (
+        <div className={"ccSpaExterior" + (near ? " ccNear" : "")}>
+          <div className="ccSpaExtRoof">🧖 구름찜질스파</div>
+          <div className="ccSpaExtWindows"><i/><i/><i/><i/></div>
+          <div className="ccSpaExtDoor">자동문</div>
+          <div className="ccSpaExtSign">24H · 1F 목욕 · 2F 온천 · 3F 찜질</div>
         </div>
       ) : (
         <Pix map={sp.map} palette={sp.palette} scale={b.scale} cacheKey={"b-" + (b.sprite || b.id)} className={near ? "ccNear" : ""} />
@@ -1514,13 +1623,26 @@ function Town({ me, setMe, onKick }) {
     staffRef.current = st;
     staffTo.current = st;
     setStaffPos(st);
-    const start = id === "cotton" ? { x: 500, y: 600 } : { x: ROOM.w / 2, y: ROOM.d - 60 };
+    const start = id === "cotton" ? { x: 500, y: 600 } : (SPA_ROOMS.includes(id) ? roomDef.start : { x: ROOM.w / 2, y: ROOM.d - 60 });
     posRef.current = start;
     setPos(start);
     setScene(id);
     setSheet(null);
     setToast(`${roomDef.emoji} ${roomDef.name} — ${roomDef.hint}`);
     if (UP_ROOMS.includes(id)) doQuestRef.current?.("up");
+  }, []);
+
+  const changeSpaFloor = useCallback((id) => {
+    if (!SPA_ROOMS.includes(id)) return;
+    const roomDef = roomFor(id);
+    sceneRef.current = id;
+    zoneRef.current = null;
+    setZoneId(null);
+    posRef.current = { ...roomDef.start };
+    setPos({ ...roomDef.start });
+    setScene(id);
+    setToast(`${roomDef.emoji} ${roomDef.name}에 도착했어요.`);
+    if (id === "spa1") doQuestRef.current?.("spa");
   }, []);
 
   /* 마을로 */
@@ -1569,6 +1691,7 @@ function Town({ me, setMe, onKick }) {
     if (id === "exit") { exitRoom(); return; }
     if (id === "cotton-machine") { setCottonStep("machine"); setCottonPowered(false); setCottonTufts([]); setCottonDecor([]); blip(760); return; }
     if (id === "cotton-shelf") { setToast(`🍭 진열대에 ${cottonShelf.length}개의 솜사탕이 있어요.`); return; }
+    if (id === "spa1" || id === "spa2" || id === "spa3") { changeSpaFloor(id); return; }
     if (id === "dress") loadSkins();
     if (id === "arcade" || id === "starview" || id === "showtime" || id === "songs") {
       if (id === "arcade") doQuest("arcade");
@@ -1606,7 +1729,7 @@ function Town({ me, setMe, onKick }) {
       return;
     }
     setSheet(id);
-  }, [exitRoom, doQuest, startSeatTalk, clearSeatTalk, loadSkins, cottonShelf.length]);
+  }, [exitRoom, doQuest, startSeatTalk, clearSeatTalk, loadSkins, cottonShelf.length, changeSpaFloor]);
 
   /* 같은 테이블에 둘이 앉으면 스몰토크를 시작합니다 */
   useEffect(() => {
@@ -2661,7 +2784,10 @@ function Town({ me, setMe, onKick }) {
             className="ccRoomWrap"
             style={{ width: SCREEN.w, height: SCREEN.h, transform: `translate(-50%,-50%) scale(${roomZoom})` }}
           >
-            {scene === "cotton" ? <CottonShopRoom
+            {scene && scene.startsWith("spa") ? <SpaFloor
+              scene={scene} player={pos} peers={roomPeers} me={me}
+              onFloor={changeSpaFloor} onExit={exitRoom} onAction={setToast}
+            /> : scene === "cotton" ? <CottonShopRoom
               step={cottonStep} color={cottonColor} powered={cottonPowered} tufts={cottonTufts} decor={cottonDecor} shelf={cottonShelf}
               onMachine={cottonStartMachine} onColor={setCottonColor}
               onPower={() => { setCottonPowered(v => !v); blip(cottonPowered ? 420 : 860); }}
@@ -4555,5 +4681,26 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccHistSystem .ccHistWho,.ccHistSystem .ccLogRoom,.ccHistSystem .ccHistText{color:#7d5cc6!important}
 .ccFeedSystem{color:#7d5cc6!important;font-weight:900;background:rgba(243,239,255,.92)!important}
 .ccFeedSystem b{color:#7d5cc6!important}
+/* ============================ 찜질스파 대형 맵 ============================ */
+.ccSpaRoom{position:absolute;inset:0;background:#d9e5e8;color:#4e4652;overflow:hidden;z-index:30;font-family:inherit}
+.ccSpaHud{height:72px;display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#fff;border-bottom:4px solid #5b4a63;position:relative;z-index:20;box-shadow:0 4px 0 #7774}
+.ccSpaHud b{font-size:18px}.ccSpaHud span{display:block;font-size:10px;color:#8c7b8d;font-weight:800;margin-top:3px}
+.ccSpaFloors{display:flex;gap:5px}.ccSpaFloors button{border:3px solid #5b4a63;background:#fff7df;padding:7px 10px;font-family:inherit;font-weight:900;cursor:pointer}.ccSpaFloors button.on{background:#ffd45e}.ccSpaViewport{position:absolute;left:0;right:0;top:72px;bottom:0;overflow:hidden;background:#cbd7d9}
+.ccSpaMap{position:absolute;left:0;top:0;background:#f5f1e8;transition:transform .12s linear;image-rendering:auto}
+.ccSpaCeiling{position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.42) 1px,transparent 1px),linear-gradient(rgba(120,120,120,.10) 1px,transparent 1px);background-size:60px 60px;pointer-events:none}
+.ccSpaTitle{position:absolute;left:90px;top:45px;font-size:17px;font-weight:900;letter-spacing:2px;color:#8a6e7c;opacity:.75}
+.ccSpaMapLabel{position:absolute;background:#fff;border:3px solid #5b4a63;padding:5px 10px;font-size:11px;font-weight:900;z-index:5}.ccSpaEntrance{left:90px;top:105px}
+.ccSpaArea{position:absolute;border:5px solid #5b4a63;background:#fffdf7;box-shadow:8px 8px 0 rgba(91,74,99,.14);overflow:hidden}.ccSpaArea h3{margin:0;padding:9px 12px;background:#ffe9c6;border-bottom:4px solid #5b4a63;font-size:15px}
+.lockerArea{left:90px;top:170px;width:600px;height:330px}.ccLockerGrid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;padding:16px}.ccLocker{height:60px;background:linear-gradient(90deg,#dca86d,#f1c489,#d49b60);border:3px solid #6e543f;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#5b4a63}.ccBench{margin:0 16px;padding:10px;background:#e5bd7d;border:3px solid #6e543f;text-align:center;font-size:10px;font-weight:900}
+.showerArea{left:730px;top:170px;width:500px;height:330px;background:#dfeff2}.ccShowerGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:15px}.ccShower{height:75px;border:3px solid #70838a;background:#f8ffff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}.ccShower span{font-size:25px}.ccShower small{font-size:8px;font-weight:800;color:#71858b}.ccDrain{margin:0 15px;border-top:5px dotted #7f9da4;padding-top:8px;text-align:center;font-size:9px;color:#719098;font-weight:900}
+.bathArea{left:90px;top:535px;width:1140px;height:540px;background:#e7eef0}.ccBath{position:absolute;cursor:pointer;font-family:inherit;color:#4e4652;border:7px solid #687c83;border-radius:35px;background:linear-gradient(135deg,#c6f0ff,#73cbed);box-shadow:inset 0 0 0 5px #e8fbff,inset 0 0 30px rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;text-align:center}.bigBath{left:30px;top:80px;width:540px;height:340px}.smallBath{width:210px;height:130px;border-radius:24px}.cold{left:600px;top:85px;background:linear-gradient(#b8e9ff,#69b7ed)}.bubble{left:830px;top:85px}.med{left:600px;top:245px;background:linear-gradient(#cbe7bd,#8ac88d)}.electric{left:830px;top:245px;background:linear-gradient(#c8e8ff,#78bfe7)}.ccWater{display:flex;gap:30px;font-size:32px;animation:ccSpaSteam 2s steps(3,end) infinite}.ccBath b{position:absolute;bottom:20px;font-size:12px}.ccTowelRack{position:absolute;right:25px;bottom:18px;background:#fff;border:3px solid #5b4a63;padding:8px;font-size:9px;font-weight:900}
+.saunaArea{left:1260px;top:170px;width:450px;height:905px;background:#e9d7bb}.ccSauna{position:relative;margin:14px;border:4px solid #6b5548;background:#c99461;padding:14px;text-align:center;min-height:150px}.ccSauna b,.ccSauna span{display:block}.ccSauna span{font-size:10px;margin-top:8px}.ccSaunaBench{height:30px;background:#9c673f;border:3px solid #5c3f30;margin-top:35px}.ccSauna.kiln{background:#7d5a4b;color:#fff0dc}.ccFire{width:65px;height:45px;margin:20px auto 0;background:radial-gradient(circle,#ffe77a 0 25%,#ff9d32 26% 55%,#c84729 56%);border-radius:50%;animation:ccFire .55s steps(2,end) infinite}.ccSauna.salt{background:#f6f4ed}.ccSauna.clay{background:#bd8b6a}
+.ccSpaStairs{border:4px solid #5b4a63;background:#ffd45e;box-shadow:4px 4px 0 #7775;font-family:inherit;font-weight:900;cursor:pointer}.ccSpaInfo{position:absolute;left:90px;bottom:45px;background:#fff9e8;border:3px solid #5b4a63;padding:8px 12px;font-size:10px;font-weight:900;z-index:7}
+.onsenMain{left:90px;top:170px;width:980px;height:700px;background:#e7ece9}.ccOnsenWater{position:absolute;left:30px;top:70px;width:920px;height:570px;border:10px solid #687b82;border-radius:55px;background:linear-gradient(145deg,#d2f5ff,#5ab9dc);overflow:hidden;box-shadow:inset 0 0 40px #fff8}.ccOnsenWater b{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);font-size:28px;color:#fff;text-shadow:3px 3px 0 #628b98}.ccOnsenWater span{position:absolute;left:30px;bottom:18px;background:#fff;border:3px solid #5b4a63;padding:7px;font-size:9px;font-weight:900}.ccOnsenWater i{position:absolute;width:90px;height:32px;border-radius:50%;background:rgba(255,255,255,.65);filter:blur(8px);animation:ccSpaSteam 2.4s ease-in-out infinite}.privateBath{left:1110px;top:170px;width:600px;height:330px;background:#e8dcc8}.ccPrivateTub{display:inline-flex;width:145px;height:190px;margin:15px 8px;border-radius:50%;background:radial-gradient(circle,#b9eaff 0 55%,#7c939b 56% 66%,#d9c6a7 67%);align-items:center;justify-content:center;flex-direction:column;border:5px solid #5b4a63}.carbonBath{left:1110px;top:530px;width:600px;height:340px;background:#dff6fb}.ccBubbles{height:250px;position:relative}.ccBubbles i{position:absolute;width:9px;height:9px;border:2px solid #fff;border-radius:50%;animation:ccBubble 2s linear infinite}.viewBath{left:90px;top:900px;width:650px;height:200px;background:#e9e4d5}.ccWindowScene{height:105px;margin:12px;background:linear-gradient(#203b68 0 55%,#375f47 56%);border:5px solid #5b4a63;position:relative;overflow:hidden}.ccWindowScene span{position:absolute;right:30px;top:12px;font-size:30px;color:#fff}.ccWindowScene i{position:relative;margin-left:60px;top:45px;font-size:25px}.waterStation{left:770px;top:900px;width:300px;height:200px;background:#f9fff9}.ccWaterCup{font-size:35px;text-align:center;padding:28px 0 10px}.waterStation small{display:block;text-align:center;font-size:9px;font-weight:900}
+.jjimMain{left:90px;top:170px;width:900px;height:700px;background:#eadfce}.ccMatGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:25px}.ccMat{height:110px;background:#e7b87d;border:4px solid #8a644b;display:flex;align-items:center;justify-content:center;font-size:35px}.ccTV{position:absolute;right:30px;bottom:30px;width:250px;height:100px;background:#24242b;color:#fff;border:8px solid #6a584e;display:flex;align-items:center;justify-content:center;font-size:12px}.rooms3{left:1020px;top:170px;width:690px;height:360px;background:#e9d7bb}.ccHeatRooms{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:18px}.ccHeatRooms div{height:115px;border:4px solid #6c584d;background:#c98d66;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:28px}.ccHeatRooms b{font-size:10px;margin-top:7px}.ccHeatRooms div:nth-child(2){background:#f2f1e8}.ccHeatRooms div:nth-child(3){background:#cbeaff}.ccHeatRooms div:nth-child(4){background:#333;color:#fff}.ccHeatRooms div:nth-child(5){background:#a95b39;color:#fff}.snackBar{left:1020px;top:565px;width:690px;height:300px;background:#fff5dc}.ccFoodShelf{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:20px}.ccFoodShelf span{background:#fff;border:3px solid #6c584d;padding:12px;text-align:center;font-size:10px;font-weight:900}.vending{left:90px;top:900px;width:430px;height:200px}.ccVendingGrid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;padding:16px}.ccVendingGrid button{height:90px;border:3px solid #5b4a63;background:#e7f8ff;font-family:inherit;cursor:pointer}.ccVendingGrid small{display:block;font-size:7px;margin-top:8px}.sleepArea{left:550px;top:900px;width:500px;height:200px;background:#ddd2e8}.ccSleepBeds{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:15px}.ccSleepBeds div{height:100px;background:#fff;border:3px solid #69566f;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:25px}.ccSleepBeds small{font-size:8px}.massage{left:1080px;top:900px;width:300px;height:200px;background:#eee1ce;text-align:center}.ccMassageChairs{font-size:32px;padding:20px 0}.massage button,.teaCorner button{border:3px solid #5b4a63;background:#ffd45e;padding:7px;font-family:inherit;font-weight:900;cursor:pointer}.teaCorner{left:1410px;top:900px;width:300px;height:200px;background:#fff5df;text-align:center}.teaCorner button{margin-top:40px}
+.ccSpaObj{position:absolute;z-index:9;border:4px solid #5b4a63;background:#ffd45e;font-family:inherit;font-weight:900;cursor:pointer}.ccSpaObj:hover{transform:translateY(-2px)}.ccSpaPlayerLayer{position:absolute;inset:0;pointer-events:none;z-index:30}.ccSpaPlayerLayer .ccAvatar{pointer-events:none}.ccSpaPlayerLayer .ccAvatar{pointer-events:none}.ccSpaNpcLayer{position:absolute;inset:0;z-index:22;pointer-events:none}.ccSpaNpc{position:absolute;transform:translate(-50%,-100%);font-size:34px;filter:drop-shadow(2px 3px 0 rgba(91,74,99,.18));animation:ccSpaNpcBob 2.8s steps(2,end) infinite}.ccSpaRoom.night .ccSpaMap{background:#eee9df}.ccSpaRoom.night .ccSpaCeiling{background-color:rgba(60,65,90,.14)}.ccSpaRoom.night .ccSpaHud{background:#f5f2ff}.ccSpaRoom.night .ccWindowScene{filter:brightness(.78)}@keyframes ccSpaNpcBob{0%,100%{transform:translate(-50%,-100%)}50%{transform:translate(-50%,calc(-100% - 3px))}}
+.ccSpaExterior{position:relative;width:290px;height:245px;background:#f9e7c5;border:6px solid #5b4a63;box-shadow:10px 10px 0 rgba(91,74,99,.22);overflow:hidden}.ccSpaExterior.ccNear{transform:translateY(-5px)}.ccSpaExtRoof{height:58px;background:#d67f6f;color:#fff;padding:12px;text-align:center;font-size:17px;font-weight:900;border-bottom:5px solid #5b4a63}.ccSpaExtWindows{display:flex;gap:10px;padding:24px 15px}.ccSpaExtWindows i{width:48px;height:62px;background:linear-gradient(#9dddf1 0 55%,#6b8c98 56%);border:4px solid #5b4a63}.ccSpaExtDoor{position:absolute;bottom:25px;left:115px;width:60px;height:82px;background:#8cc5d1;border:5px solid #5b4a63;text-align:center;font-size:8px;padding-top:25px}.ccSpaExtSign{position:absolute;bottom:4px;left:10px;right:10px;background:#fff9df;border:3px solid #5b4a63;text-align:center;font-size:8px;font-weight:900;padding:4px}
+@keyframes ccSpaSteam{0%,100%{transform:translateY(8px);opacity:.25}50%{transform:translateY(-10px);opacity:.8}}@keyframes ccBubble{0%{transform:translateY(30px);opacity:0}30%{opacity:.9}100%{transform:translateY(-180px);opacity:0}}@keyframes ccFire{0%,100%{transform:scale(.9)}50%{transform:scale(1.08)}}
+
 `;
 
