@@ -2126,6 +2126,36 @@ function Town({ me, setMe, onKick }) {
               skin={scene === "candy" ? QUIZ_SKIN[quizMode] : null}
             />
             <div className="ccRoomLayer">
+              {scene === "sing" && karaoke && youtubeId(karaoke.url) && (
+                <div className="ccKaraokeRoomScreen">
+                  <div className="ccKaraokeRoomFrame">
+                    <div className="ccKaraokeRoomTop">
+                      <span>🎤 구름노래방</span>
+                      <b>{karaoke.title}</b>
+                    </div>
+                    <div className="ccKaraokeRoomVideo">
+                      <iframe
+                        src={`https://www.youtube.com/embed/${youtubeId(karaoke.url)}?autoplay=1&playsinline=1&rel=0`}
+                        title={karaoke.title}
+                        allow="autoplay; encrypted-media; picture-in-picture; web-share"
+                        referrerPolicy="strict-origin-when-cross-origin"
+                        allowFullScreen
+                      />
+                    </div>
+                    <div className="ccKaraokeRoomWho">🎤 {karaoke.by}님이 선곡했어요</div>
+                  </div>
+                </div>
+              )}
+
+              {scene === "sing" && (
+                <div className="ccKaraokeCushions" aria-hidden="true">
+                  <span className="ccKaraokeCushion c1" />
+                  <span className="ccKaraokeCushion c2" />
+                  <span className="ccKaraokeCushion c3" />
+                  <span className="ccKaraokeCushion c4" />
+                </div>
+              )}
+
               {scene === "movie" && movie && (
                 <div className="ccScreenWrap" style={{ width: 520, height: 300 }}>
                   <video
@@ -2775,26 +2805,6 @@ function Town({ me, setMe, onKick }) {
               onClose={() => setSheet(null)}
             />
           )}
-          {karaoke && (
-            <div className="ccKaraokeOverlay" onClick={(e) => e.stopPropagation()}>
-              <div className="ccKaraokeBox">
-                <div className="ccKaraokeHead">
-                  <b>🎤 {karaoke.title}</b>
-                  <button className="ccX" onClick={() => setKaraoke(null)}>✕</button>
-                </div>
-                <div className="ccKaraokeVideo">
-                  <iframe
-                    src={`https://www.youtube.com/embed/${youtubeId(karaoke.url)}?autoplay=1&playsinline=1&rel=0`}
-                    title={karaoke.title}
-                    allow="autoplay; encrypted-media; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-                <div className="ccKaraokeWho">🎤 {karaoke.by}님이 선곡했어요</div>
-              </div>
-            </div>
-          )}
-
           {sheet === "songs" && (
             <SongbookSheet
               hostCode={me.hostCode}
@@ -3233,12 +3243,21 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccHostToggleBody{padding:4px 2px}
 .ccHostLocationRow{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;font-size:12px;font-weight:700}
 .ccHostLocationRow b{font-weight:900}
-.ccKaraokeOverlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(30,20,40,.72);pointer-events:auto}
-.ccKaraokeBox{width:min(900px,94vw);background:#fff8ef;border:4px solid ${C.line};border-radius:18px;overflow:hidden;box-shadow:0 14px 50px rgba(0,0,0,.35)}
-.ccKaraokeHead{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;font-weight:900}
-.ccKaraokeVideo{width:100%;aspect-ratio:16/9;background:#000}
-.ccKaraokeVideo iframe{width:100%;height:100%;border:0}
-.ccKaraokeWho{padding:8px 14px;text-align:center;font-size:12px;font-weight:700}
+.ccKaraokeRoomScreen{position:absolute;left:168px;top:24px;width:664px;height:270px;z-index:30;pointer-events:auto}
+.ccKaraokeRoomFrame{width:100%;height:100%;box-sizing:border-box;background:#171327;border:8px solid #ff9fc9;border-radius:14px;box-shadow:0 8px 0 #5b4a63,0 12px 22px rgba(0,0,0,.28);overflow:hidden}
+.ccKaraokeRoomTop{height:34px;box-sizing:border-box;padding:5px 10px;display:flex;align-items:center;gap:12px;background:#302454;color:#ffe8a9;font-size:12px;font-weight:900;border-bottom:3px solid #5b4a63}
+.ccKaraokeRoomTop span{font-size:14px;white-space:nowrap}
+.ccKaraokeRoomTop b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+.ccKaraokeRoomVideo{width:100%;height:calc(100% - 60px);background:#000}
+.ccKaraokeRoomVideo iframe{display:block;width:100%;height:100%;border:0}
+.ccKaraokeRoomWho{height:26px;box-sizing:border-box;padding:4px 8px;text-align:center;background:#201a35;color:#ffe9a8;font-size:11px;font-weight:800}
+.ccKaraokeCushions{position:absolute;left:110px;right:110px;bottom:92px;height:110px;z-index:18;pointer-events:none}
+.ccKaraokeCushion{position:absolute;width:105px;height:42px;border-radius:22px 22px 16px 16px;background:#ffb5d4;border:4px solid #5b4a63;box-shadow:inset 0 -8px 0 rgba(91,74,99,.22),0 5px 0 rgba(0,0,0,.16)}
+.ccKaraokeCushion::after{content:"";position:absolute;left:14px;right:14px;top:8px;height:5px;border-radius:8px;background:rgba(255,255,255,.35)}
+.ccKaraokeCushion.c1{left:0;top:42px;transform:rotate(-3deg)}
+.ccKaraokeCushion.c2{left:175px;top:50px;background:#b9a9f2;transform:rotate(2deg)}
+.ccKaraokeCushion.c3{right:175px;top:50px;background:#a9e6d2;transform:rotate(-2deg)}
+.ccKaraokeCushion.c4{right:0;top:42px;background:#ffd77d;transform:rotate(3deg)}
 .ccYoutubeAdd{display:grid;grid-template-columns:1fr 1fr auto;gap:7px;align-items:center;margin:8px 0}
 @media (max-width:700px){.ccYoutubeAdd{grid-template-columns:1fr}.ccYoutubeAdd .ccBtn{width:100%}}
 
