@@ -436,7 +436,7 @@ function Building({ b, near }) {
 
 /* ============================ 캐릭터 ============================ */
 
-function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false, hold = null, slide = false, look = null, skin = null, lie = false, bounce = false }) {
+function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = false, waiting = false, hold = null, slide = false, look = null, skin = null, lie = false, bounce = false, mic = false, singing = false }) {
   const ch = look ? lookSprite(look) : charForSlot(slot);
   return (
     <div
@@ -448,7 +448,7 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = f
         transform: `translate(-50%,-100%) scale(${scale})`,
       }}
     >
-      {msg && <div className="ccBubble">{msg}</div>}
+      {msg && <div className={"ccBubble" + (singing ? " ccBubbleSinging" : "")}>{msg}</div>}
       {!msg && waiting && <div className="ccWaitTag">팀전 대기중…</div>}
       {swim && <div className="ccTube ccTubeBack" />}
       <div className={"ccTag" + (me ? " ccTagMe" : "")}>
@@ -470,6 +470,7 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = f
         />
       )}
       {swim && <div className="ccTube ccTubeFront" />}
+      {mic && <div className="ccHeldMic" aria-hidden="true">🎤</div>}
     </div>
   );
 }
@@ -916,7 +917,8 @@ function Town({ me, setMe, onKick }) {
   const [live, setLive] = useState(true);          // 실시간 연결 상태
   const [movie, setMovie] = useState(null);        // 지금 상영 중인 것
   const [muted2, setMuted2] = useState(true);
-  const [karaoke, setKaraoke] = useState(null);   // 모두에게 보이는 YouTube 노래방      // 영화 소리 (자동재생 때문에 처음엔 꺼둠)
+  const [karaoke, setKaraoke] = useState(null);   // 모두에게 보이는 YouTube 노래방
+  const [karaokeMic, setKaraokeMic] = useState(null); // 내가 잡은 마이크 번호(0/1)
   const [roomBgmMap, setRoomBgmMap] = useState(() => {
     try {
       const v = JSON.parse(localStorage.getItem("ccRoomBgm") || "{}");
@@ -1008,6 +1010,7 @@ function Town({ me, setMe, onKick }) {
   const skinsAt = useRef(0);
   const vidRef = useRef(null);
   const lookRef = useRef(look);
+  const karaokeMicRef = useRef(null);
   const myMsgTimer = useRef(null);
 
   useEffect(() => { openRef.current = !!sheet; sheetRef.current = sheet; }, [sheet]);
@@ -1018,6 +1021,7 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { pressedRef.current = pressed; }, [pressed]);
   useEffect(() => { welcomeRef.current = welcome; }, [welcome]);
   useEffect(() => { lookRef.current = look; }, [look]);
+  useEffect(() => { karaokeMicRef.current = karaokeMic; }, [karaokeMic]);
   useEffect(() => {
     roomBgmRef.current = roomBgmMap;
     try { localStorage.setItem("ccRoomBgm", JSON.stringify(roomBgmMap)); } catch { /* 무시 */ }
@@ -1909,6 +1913,7 @@ function Town({ me, setMe, onKick }) {
         hd: holdRef.current,
         lk: lookRef.current,
         role: me.role,
+        km: sceneRef.current === "sing" ? karaokeMicRef.current : null,
         bgmMap: me.role === "host" ? roomBgmRef.current : undefined,
       }),
       onPeers: (list) => {
@@ -1928,6 +1933,32 @@ function Town({ me, setMe, onKick }) {
           if (e.url && youtubeId(e.url)) {
             setKaraoke({ title: e.title || "노래방", url: e.url, by: e.by || "손님" });
           }
+          return;
+        }
+        if (e.t === "karaokeStart") {
+          const at = Date.now();
+          setHistory((h) => [
+            ...h.slice(-199),
+            {
+              id: e.announcementId || ("karaoke-" + at),
+              name: "전체 알림",
+              text: `${e.name || "누군가"}님이 노래를 시작합니다 ♬`,
+              r: "",
+              at,
+              system: true,
+            },
+          ]);
+          setChatLog((l) => [
+            ...l.slice(-3),
+            {
+              id: e.announcementId || ("karaoke-" + at),
+              name: "전체 알림",
+              text: `${e.name || "누군가"}님이 노래를 시작합니다 ♬`,
+              r: "",
+              at,
+              system: true,
+            },
+          ]);
           return;
         }
         if (e.t === "karaokeStop") { setKaraoke(null); return; }
@@ -1986,6 +2017,11 @@ function Town({ me, setMe, onKick }) {
       },
       onChat: (msg) => {
         const at = Date.now();
+
+        /* 마이크를 든 사람의 노래 채팅은 전체 기록에 남기지 않습니다.
+           대신 Realtime에서 peer 말풍선으로만 보여줍니다. */
+        if (msg.singing) return;
+
         setHistory((h) => [...h.slice(-199), { ...msg, at }]);
         if ((msg.r || "") === (sceneRef.current || "")) return;
         setChatLog((l) => [...l.slice(-3), { ...msg, at }]);
@@ -1998,22 +2034,65 @@ function Town({ me, setMe, onKick }) {
     };
   }, [me]);
 
-  /* 채팅 보내기 — 내 머리 위에도 3초간 띄웁니다 */
+  /* 채팅 보내기 — 마이크를 들고 있으면 노래 채팅으로 처리합니다. */
   const sendChat = useCallback(() => {
-    const t = chatText.trim().slice(0, 60);
+    const raw = chatText.trim().slice(0, 60);
     setChatText("");
-    chatBox.current?.blur();          // 폰에서 키보드가 조이스틱을 가리지 않게
-    if (!t) return;
-    chanRef.current?.chat(t, sceneRef.current || "");
-    setHistory((h) => [
-      ...h.slice(-199),
-      { id: "me", name: me.name, text: t, r: sceneRef.current || "", at: Date.now(), mine: true },
-    ]);
-    setMyMsg(t);
+    chatBox.current?.blur();
+    if (!raw) return;
+
+    const singing = karaokeMic != null && sceneRef.current === "sing";
+    const text = singing ? `${raw} ♬` : raw;
+
+    chanRef.current?.chat(
+      text,
+      sceneRef.current || "",
+      { singing }
+    );
+
+    /* 노래 채팅은 전체 기록/왼쪽 채팅 피드에 남기지 않습니다. */
+    if (!singing) {
+      setHistory((h) => [
+        ...h.slice(-199),
+        { id: "me", name: me.name, text, r: sceneRef.current || "", at: Date.now(), mine: true },
+      ]);
+    }
+
+    setMyMsg(text);
     clearTimeout(myMsgTimer.current);
     myMsgTimer.current = setTimeout(() => setMyMsg(null), CHAT_MS);
-    doQuest("chat");
-  }, [chatText, me, doQuest]);
+
+    if (!singing) doQuest("chat");
+  }, [chatText, me, doQuest, karaokeMic]);
+
+  /* 노래방 마이크 — 두 자리 중 하나를 잡습니다.
+     다른 사람이 이미 잡은 마이크는 빼앗지 않습니다. */
+  const toggleKaraokeMic = useCallback((slot) => {
+    if (sceneRef.current !== "sing") return;
+
+    if (karaokeMic === slot) {
+      setKaraokeMic(null);
+      return;
+    }
+
+    const owner = peerView.find(
+      (p) => p.r === "sing" && p.km === slot
+    );
+
+    if (owner) {
+      setToast(`${owner.name}님이 이 마이크를 사용 중이에요`);
+      return;
+    }
+
+    setKaraokeMic(slot);
+  }, [karaokeMic, peerView]);
+
+  /* 노래방에서 나가면 마이크를 자동으로 내려놓습니다. */
+  useEffect(() => {
+    if (scene !== "sing" && karaokeMic != null) {
+      setKaraokeMic(null);
+    }
+  }, [scene, karaokeMic]);
 
   /* 기록을 열거나 새 말이 오면 맨 아래로 내려줍니다 */
   useEffect(() => {
@@ -2259,24 +2338,14 @@ function Town({ me, setMe, onKick }) {
             )}
             <div className="ccRoomLayer">
               {scene === "sing" && karaoke && youtubeId(karaoke.url) && (
-                <div className="ccKaraokeRoomScreen">
-                  <div className="ccKaraokeRoomFrame">
-                    <div className="ccKaraokeRoomTop">
-                      <span>🎤 구름노래방</span>
-                      <b>{karaoke.title}</b>
-                    </div>
-                    <div className="ccKaraokeRoomVideo">
-                      <iframe
-                        src={`https://www.youtube.com/embed/${youtubeId(karaoke.url)}?autoplay=1&playsinline=1&rel=0`}
-                        title={karaoke.title}
-                        allow="autoplay; encrypted-media; picture-in-picture; web-share"
-                        referrerPolicy="strict-origin-when-cross-origin"
-                        allowFullScreen
-                      />
-                    </div>
-                    <div className="ccKaraokeRoomWho">🎤 {karaoke.by}님이 선곡했어요</div>
-                  </div>
-                </div>
+                /* 화면은 없애고 소리만 유지합니다. */
+                <iframe
+                  className="ccKaraokeAudioFrame"
+                  src={`https://www.youtube.com/embed/${youtubeId(karaoke.url)}?autoplay=1&playsinline=1&rel=0`}
+                  title={karaoke.title}
+                  allow="autoplay; encrypted-media; picture-in-picture; web-share"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
               )}
 
               {scene === "sing" && (
@@ -2287,6 +2356,31 @@ function Town({ me, setMe, onKick }) {
                   <span className="ccKaraokeCushion c4" />
                 </div>
               )}
+              {scene === "sing" && (
+                <div className="ccKaraokeMics" aria-label="노래방 마이크">
+                  {[0, 1].map((slot) => {
+                    const mine = karaokeMic === slot;
+                    const owner = peerView.find((p) => p.r === "sing" && p.km === slot);
+                    const busy = !!owner && !mine;
+                    return (
+                      <button
+                        key={slot}
+                        type="button"
+                        className={"ccKaraokeMicBtn" + (mine ? " on" : "") + (busy ? " busy" : "")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleKaraokeMic(slot);
+                        }}
+                        title={mine ? "마이크 내려놓기" : busy ? `${owner.name}님이 사용 중` : "마이크 들기"}
+                      >
+                        <span className="ccKaraokeMicIcon">🎤</span>
+                        <span className="ccKaraokeMicLabel">{mine ? "내 마이크" : busy ? owner.name : "마이크"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {scene === "sing" && (
                 <div
                   className="ccKaraokeRemote"
@@ -2319,9 +2413,6 @@ function Town({ me, setMe, onKick }) {
                     <span className="ccKaraokeRemoteNum ccKaraokeRemoteBlue">취소</span>
                     <span className="ccKaraokeRemoteNum">0</span>
                     <span className="ccKaraokeRemoteNum ccKaraokeRemoteBlue">시작</span>
-                  </div>
-                  <div className="ccKaraokeRemoteNav">
-                    <i className="l">◀</i><i className="r">▶</i><i className="d">▼</i>
                   </div>
                   <div className="ccKaraokeRemoteHint">선곡표</div>
                 </div>
@@ -2398,6 +2489,8 @@ function Town({ me, setMe, onKick }) {
                     facing={q.f}
                     moving={!!q.m}
                     msg={q.msg || (talk?.who === q.st ? talk.text : null)}
+                    mic={scene === "sing" && q.km != null}
+                    singing={scene === "sing" && q.km != null && !!q.msg}
                     scale={pr.k}
                     swim={inWater(R, q.x, q.y)}
                     waiting={!!q.w}
@@ -2539,6 +2632,8 @@ function Town({ me, setMe, onKick }) {
           slide={riding}
           look={look}
           skin={skinImg(look)}
+          mic={scene === "sing" && karaokeMic != null}
+          singing={scene === "sing" && karaokeMic != null && !!myMsg}
         />
           </div>
         </>
@@ -2594,7 +2689,7 @@ function Town({ me, setMe, onKick }) {
             <div className="ccHistoryBody" ref={histBox}>
               {history.length === 0 && <p className="ccSheetNote">아직 대화가 없어요.</p>}
               {history.map((m, i) => (
-                <div key={m.at + "-" + i} className={"ccHistLine" + (m.mine ? " ccHistMine" : "")}>
+                <div key={m.at + "-" + i} className={"ccHistLine" + (m.mine ? " ccHistMine" : "") + (m.system ? " ccHistSystem" : "")}>
                   <span className="ccHistWho">{m.name}</span>
                   <span className="ccLogRoom">{m.r ? ROOMS[m.r]?.name : "마을"}</span>
                   <span className="ccHistText">{m.text}</span>
@@ -2607,7 +2702,7 @@ function Town({ me, setMe, onKick }) {
         {!logOpen && history.length > 0 && (
           <div className="ccFeed" onClick={() => setLogOpen(true)} title="눌러서 전체 기록 보기">
             {history.slice(-5).map((m, i) => (
-              <div key={m.at + "-" + i} className={"ccFeedLine" + (m.mine ? " ccFeedMine" : "")}>
+              <div key={m.at + "-" + i} className={"ccFeedLine" + (m.mine ? " ccFeedMine" : "") + (m.system ? " ccFeedSystem" : "")}>
                 <b>{m.name}</b>
                 {(m.r || "") !== (scene || "") && (
                   <span className="ccLogRoom">{m.r ? ROOMS[m.r]?.name : "마을"}</span>
@@ -3033,8 +3128,37 @@ function Town({ me, setMe, onKick }) {
                 const id = youtubeId(url);
                 if (id) {
                   const data = { title: selected?.title || "노래방", url, by: me.name };
+                  const announcementId = `${deviceId()}-${Date.now()}`;
                   setKaraoke(data);
                   chanRef.current?.fx({ t: "karaoke", ...data });
+                  const at = Date.now();
+                  setHistory((h) => [
+                    ...h.slice(-199),
+                    {
+                      id: announcementId,
+                      name: "전체 알림",
+                      text: `${me.name}님이 노래를 시작합니다 ♬`,
+                      r: "",
+                      at,
+                      system: true,
+                    },
+                  ]);
+                  setChatLog((l) => [
+                    ...l.slice(-3),
+                    {
+                      id: announcementId,
+                      name: "전체 알림",
+                      text: `${me.name}님이 노래를 시작합니다 ♬`,
+                      r: "",
+                      at,
+                      system: true,
+                    },
+                  ]);
+                  chanRef.current?.fx({
+                    t: "karaokeStart",
+                    name: me.name,
+                    announcementId,
+                  });
                   setSheet(null);
                 }
               }}
@@ -3285,6 +3409,10 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccBubble:before{content:"";position:absolute;left:50%;top:calc(100% - 3px);margin-left:-5px;z-index:1;
   width:0;height:0;border-style:solid;border-width:14px 5px 0 5px;
   border-color:#fff transparent transparent transparent}
+.ccBubbleSinging{background:#c8efff;border-color:#6aaac4;box-shadow:3px 3px 0 rgba(78,146,181,.22)}
+.ccBubbleSinging:after{border-color:#6aaac4 transparent transparent transparent}
+.ccBubbleSinging:before{border-color:#c8efff transparent transparent transparent}
+.ccHeldMic{position:absolute;right:-13px;bottom:7px;font-size:22px;line-height:1;z-index:4;transform:rotate(-12deg);filter:drop-shadow(2px 2px 0 rgba(91,74,99,.25));pointer-events:none}
 @keyframes ccPop{from{transform:translateY(6px)}to{transform:translateY(0)}}
 
 .ccChatBar{position:absolute;left:16px;bottom:calc(16px + var(--kb, 0px));display:flex;gap:6px;
@@ -3457,14 +3585,14 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccHostToggleBody{padding:4px 2px}
 .ccHostLocationRow{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;font-size:12px;font-weight:700}
 .ccHostLocationRow b{font-weight:900}
-.ccKaraokeRoomScreen{position:absolute;left:100px;top:18px;width:800px;height:360px;z-index:30;pointer-events:auto}
-.ccKaraokeRoomFrame{width:100%;height:100%;box-sizing:border-box;background:#171327;border:8px solid #ff9fc9;border-radius:14px;box-shadow:0 8px 0 #5b4a63,0 12px 22px rgba(0,0,0,.28);overflow:hidden}
-.ccKaraokeRoomTop{height:38px;box-sizing:border-box;padding:5px 10px;display:flex;align-items:center;gap:12px;background:#302454;color:#ffe8a9;font-size:12px;font-weight:900;border-bottom:3px solid #5b4a63}
-.ccKaraokeRoomTop span{font-size:14px;white-space:nowrap}
-.ccKaraokeRoomTop b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
-.ccKaraokeRoomVideo{width:100%;height:calc(100% - 66px);background:#000}
-.ccKaraokeRoomVideo iframe{display:block;width:100%;height:100%;border:0}
-.ccKaraokeRoomWho{height:28px;box-sizing:border-box;padding:4px 8px;text-align:center;background:#201a35;color:#ffe9a8;font-size:11px;font-weight:800}
+.ccKaraokeAudioFrame{position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;border:0;opacity:0;pointer-events:none}
+.ccKaraokeMics{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);display:flex;align-items:flex-end;justify-content:center;gap:24px;z-index:28;pointer-events:auto}
+.ccKaraokeMicBtn{width:78px;height:78px;border:4px solid #5b4a63;border-radius:18px;background:#fff6dc;box-shadow:4px 5px 0 rgba(91,74,99,.28);cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:4px}
+.ccKaraokeMicBtn:active{transform:translate(2px,2px);box-shadow:2px 3px 0 rgba(91,74,99,.22)}
+.ccKaraokeMicBtn.on{background:#bfeeff;border-color:#4e92b5;box-shadow:4px 5px 0 rgba(78,146,181,.28),inset 0 0 0 3px #e8fbff}
+.ccKaraokeMicBtn.busy{background:#eeeaf1;opacity:.72;cursor:not-allowed}
+.ccKaraokeMicIcon{font-size:34px;line-height:1}
+.ccKaraokeMicLabel{max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;font-weight:900;color:#5b4a63}
 .ccKaraokeCushions{position:absolute;left:80px;right:80px;bottom:78px;height:110px;z-index:18;pointer-events:none}
 .ccKaraokeCushion{position:absolute;width:105px;height:42px;border-radius:22px 22px 16px 16px;background:#ffb5d4;border:4px solid #5b4a63;box-shadow:inset 0 -8px 0 rgba(91,74,99,.22),0 5px 0 rgba(0,0,0,.16)}
 .ccKaraokeCushion::after{content:"";position:absolute;left:14px;right:14px;top:8px;height:5px;border-radius:8px;background:rgba(255,255,255,.35)}
@@ -3493,11 +3621,6 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccKaraokeRemoteMain{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:6px}
 .ccKaraokeRemoteNum{height:20px;border:2px solid #5d5862;border-radius:5px;background:#f8f8fb;box-shadow:inset 0 -2px 0 #d8d6df;font-size:10px;font-weight:900;color:#3e3945;display:flex;align-items:center;justify-content:center}
 .ccKaraokeRemoteBlue{background:#a9dcff;color:#3b5970}
-.ccKaraokeRemoteNav{position:absolute;left:10px;bottom:35px;width:43px;height:43px;border:3px solid #5b5562;border-radius:50%;background:#55505c;box-shadow:inset 0 0 0 4px #dddde4}
-.ccKaraokeRemoteNav::before{content:'▲';position:absolute;left:50%;top:2px;transform:translateX(-50%);font-size:8px;color:#fff}
-.ccKaraokeRemoteNav::after{display:none}
-.ccKaraokeRemoteNav i{position:absolute;font-style:normal;font-size:8px;color:#fff}
-.ccKaraokeRemoteNav .l{left:4px;top:16px}.ccKaraokeRemoteNav .r{right:4px;top:16px}.ccKaraokeRemoteNav .d{left:17px;bottom:2px}
 .ccKaraokeRemoteAction{position:absolute;right:9px;bottom:38px;display:grid;grid-template-columns:1fr 1fr;gap:4px;width:52px}
 .ccKaraokeRemoteAction span{height:20px;border:2px solid #6b6470;border-radius:5px;background:#fff;font-size:7px;font-weight:900;display:flex;align-items:center;justify-content:center;color:#4b4650}
 .ccKaraokeRemoteAction .start{background:#8ed9f5}.ccKaraokeRemoteAction .cancel{background:#9bd9f4}
@@ -4046,3 +4169,8 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccGateBtn{width:100%;margin-top:12px}
 .ccGateNote{margin:11px 0 0;font-size:10.5px;line-height:1.6;color:${C.inkSoft};font-weight:700}
 `;
+
+.ccHistSystem{color:#7d5cc6!important;font-weight:900;background:#f3efff!important}
+.ccHistSystem .ccHistWho,.ccHistSystem .ccLogRoom,.ccHistSystem .ccHistText{color:#7d5cc6!important}
+.ccFeedSystem{color:#7d5cc6!important;font-weight:900;background:rgba(243,239,255,.92)!important}
+.ccFeedSystem b{color:#7d5cc6!important}
