@@ -2429,8 +2429,21 @@ function Town({ me, setMe, onKick }) {
       const z = v.z || 1;
       const vw = v.w / z;
       const vh = v.h / z;
-      const tx = clamp(p.x - vw / 2, 0, Math.max(0, WORLD.w - vw));
-      const ty = clamp(p.y - vh / 2 - 40 / z, 0, Math.max(0, WORLD.h - vh));
+
+      // 🚌 버스 탑승 중에는 플레이어의 고정된 위치가 아니라
+      // 실제 버스의 현재 위치를 카메라 중심으로 사용합니다.
+      // 그래서 버스가 출발하면 화면도 버스를 따라 부드럽게 이동합니다.
+      let cameraTarget = p;
+      const ridingBusId = ridingBusRef.current;
+      if (!roomId && ridingBusId && BUS_ROUTES[ridingBusId]) {
+        const r = BUS_ROUTES[ridingBusId];
+        const bs = busStateRef.current[ridingBusId];
+        if (bs && (bs.status === "toDest" || bs.status === "return")) {
+          cameraTarget = busPosition(r, bs, now);
+        }
+      }
+      const tx = clamp(cameraTarget.x - vw / 2, 0, Math.max(0, WORLD.w - vw));
+      const ty = clamp(cameraTarget.y - vh / 2 - 40 / z, 0, Math.max(0, WORLD.h - vh));
       const c = camRef.current;
       const nc = { x: c.x + (tx - c.x) * 0.14, y: c.y + (ty - c.y) * 0.14 };
       camRef.current = nc;
