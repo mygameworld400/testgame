@@ -2240,6 +2240,49 @@ function Town({ me, setMe, onKick }) {
                   <span className="ccKaraokeCushion c4" />
                 </div>
               )}
+              {scene === "sing" && (
+                <div
+                  className="ccKaraokeRemote"
+                  role="button"
+                  tabIndex={0}
+                  aria-label="노래방 선곡표 열기"
+                  onClick={(e) => { e.stopPropagation(); setSheet("songs"); blip(760); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setSheet("songs"); blip(760); } }}
+                >
+                  <div className="ccKaraokeRemoteHead">
+                    <span className="ccKaraokeRemoteLogo">KY KARAOKE</span>
+                    <span className="ccKaraokeRemoteLed" />
+                  </div>
+                  <div className="ccKaraokeRemoteMiniRow">
+                    <span className="ccKaraokeRemoteMini">한국곡</span>
+                    <span className="ccKaraokeRemoteMini">아이돌</span>
+                    <span className="ccKaraokeRemoteMini">여자</span>
+                  </div>
+                  <div className="ccKaraokeRemoteMiniRow">
+                    <span className="ccKaraokeRemoteMini">남자</span>
+                    <span className="ccKaraokeRemoteMini">인기곡</span>
+                    <span className="ccKaraokeRemoteMini">장르</span>
+                  </div>
+                  <div className="ccKaraokeRemoteMiniRow">
+                    <span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">예약</span>
+                    <span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">신곡</span>
+                    <span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">검색</span>
+                  </div>
+                  <div className="ccKaraokeRemoteMain">
+                    {['1','2','3','4','5','6','7','8','9'].map((n) => <span key={n} className="ccKaraokeRemoteNum">{n}</span>)}
+                    <span className="ccKaraokeRemoteNum ccKaraokeRemoteBlue">취소</span>
+                    <span className="ccKaraokeRemoteNum">0</span>
+                    <span className="ccKaraokeRemoteNum ccKaraokeRemoteBlue">시작</span>
+                  </div>
+                  <div className="ccKaraokeRemoteNav">
+                    <i className="l">◀</i><i className="r">▶</i><i className="d">▼</i>
+                  </div>
+                  <div className="ccKaraokeRemoteAction">
+                    <span className="cancel">선택</span><span className="start">예약</span>
+                  </div>
+                  <div className="ccKaraokeRemoteHint">선곡표</div>
+                </div>
+              )}
 
               {scene === "movie" && movie && (
                 <div className="ccScreenWrap" style={{ width: 520, height: 300 }}>
@@ -3368,6 +3411,36 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccKaraokeCushion.c2{left:175px;top:50px;background:#b9a9f2;transform:rotate(2deg)}
 .ccKaraokeCushion.c3{right:175px;top:50px;background:#a9e6d2;transform:rotate(-2deg)}
 .ccKaraokeCushion.c4{right:0;top:42px;background:#ffd77d;transform:rotate(3deg)}
+
+/* 🎛️ 노래방 선곡 리모컨 — 기존 선곡표 아이콘을 실제 리모컨처럼 보이게 */
+.ccKaraokeRemote{
+  position:absolute;left:50%;top:66%;transform:translate(-50%,-50%);
+  width:128px;height:194px;z-index:24;pointer-events:auto;cursor:pointer;
+  border:4px solid #342b43;border-radius:12px 12px 16px 16px;
+  background:linear-gradient(135deg,#ffffff 0%,#f5f4f8 58%,#dedde5 100%);
+  box-shadow:5px 6px 0 rgba(35,27,48,.45),inset -5px -7px 0 rgba(91,74,99,.12),inset 3px 3px 0 rgba(255,255,255,.95);
+  padding:10px 8px 8px;box-sizing:border-box;
+  image-rendering:auto;
+}
+.ccKaraokeRemote:active{transform:translate(calc(-50% + 3px),calc(-50% + 3px));box-shadow:2px 3px 0 rgba(35,27,48,.4),inset -4px -5px 0 rgba(91,74,99,.12)}
+.ccKaraokeRemoteHead{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:6px}
+.ccKaraokeRemoteLogo{font-size:7px;font-weight:900;color:#6b6470;letter-spacing:-.04em}
+.ccKaraokeRemoteLed{width:8px;height:5px;border-radius:3px;background:#ffdb57;border:2px solid #554c5d;box-sizing:border-box}
+.ccKaraokeRemoteMiniRow{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:4px}
+.ccKaraokeRemoteMini{height:13px;border:2px solid #6b6470;border-radius:4px;background:#fff;font-size:6px;font-weight:900;color:#5b4a63;display:flex;align-items:center;justify-content:center;line-height:1}
+.ccKaraokeRemoteYellow{background:#ffe76f;border-color:#675c3d}
+.ccKaraokeRemoteMain{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:6px}
+.ccKaraokeRemoteNum{height:20px;border:2px solid #5d5862;border-radius:5px;background:#f8f8fb;box-shadow:inset 0 -2px 0 #d8d6df;font-size:10px;font-weight:900;color:#3e3945;display:flex;align-items:center;justify-content:center}
+.ccKaraokeRemoteBlue{background:#a9dcff;color:#3b5970}
+.ccKaraokeRemoteNav{position:absolute;left:10px;bottom:35px;width:43px;height:43px;border:3px solid #5b5562;border-radius:50%;background:#55505c;box-shadow:inset 0 0 0 4px #dddde4}
+.ccKaraokeRemoteNav::before{content:'▲';position:absolute;left:50%;top:2px;transform:translateX(-50%);font-size:8px;color:#fff}
+.ccKaraokeRemoteNav::after{content:'OK';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;background:#f5f5f7;color:#55505c;font-size:7px;font-weight:900;display:flex;align-items:center;justify-content:center}
+.ccKaraokeRemoteNav i{position:absolute;font-style:normal;font-size:8px;color:#fff}
+.ccKaraokeRemoteNav .l{left:4px;top:16px}.ccKaraokeRemoteNav .r{right:4px;top:16px}.ccKaraokeRemoteNav .d{left:17px;bottom:2px}
+.ccKaraokeRemoteAction{position:absolute;right:9px;bottom:38px;display:grid;grid-template-columns:1fr 1fr;gap:4px;width:52px}
+.ccKaraokeRemoteAction span{height:20px;border:2px solid #6b6470;border-radius:5px;background:#fff;font-size:7px;font-weight:900;display:flex;align-items:center;justify-content:center;color:#4b4650}
+.ccKaraokeRemoteAction .start{background:#8ed9f5}.ccKaraokeRemoteAction .cancel{background:#9bd9f4}
+.ccKaraokeRemoteHint{position:absolute;left:50%;bottom:-28px;transform:translateX(-50%);white-space:nowrap;font-size:9px;font-weight:900;color:#fff6dc;text-shadow:2px 2px 0 #5b4a63;opacity:.9}
 .ccYoutubeAdd{display:grid;grid-template-columns:1fr 1fr auto;gap:7px;align-items:center;margin:8px 0}
 @media (max-width:700px){.ccYoutubeAdd{grid-template-columns:1fr}.ccYoutubeAdd .ccBtn{width:100%}}
 
