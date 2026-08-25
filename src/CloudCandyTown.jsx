@@ -1,4 +1,4 @@
-/* CloudCandyTown v10 — park road style + two-lane shuttle buses */
+/* CloudCandyTown v12 — shuttle bus camera follows the bus in real time */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
@@ -2430,22 +2430,30 @@ function Town({ me, setMe, onKick }) {
       const vw = v.w / z;
       const vh = v.h / z;
 
-      // 🚌 버스 탑승 중에는 플레이어의 고정된 위치가 아니라
-      // 실제 버스의 현재 위치를 카메라 중심으로 사용합니다.
-      // 그래서 버스가 출발하면 화면도 버스를 따라 부드럽게 이동합니다.
+      // 🚌 버스 탑승 중에는 플레이어 좌표 자체를 버스 좌표와 동기화합니다.
+      // 이렇게 하면 카메라가 별도의 목표값을 놓치지 않고 기존 플레이어 추적 방식 그대로 버스를 따라갑니다.
       let cameraTarget = p;
       const ridingBusId = ridingBusRef.current;
       if (!roomId && ridingBusId && BUS_ROUTES[ridingBusId]) {
         const r = BUS_ROUTES[ridingBusId];
         const bs = busStateRef.current[ridingBusId];
         if (bs && (bs.status === "toDest" || bs.status === "return")) {
-          cameraTarget = busPosition(r, bs, now);
+          const bp = busPosition(r, bs, now);
+          cameraTarget = bp;
+          // 탑승 중에는 캐릭터가 보이지 않아도 내부 좌표는 버스와 함께 이동시킵니다.
+          // 다음 프레임부터 카메라/충돌/하차 위치가 모두 같은 좌표를 사용합니다.
+          posRef.current = { x: bp.x, y: bp.y };
+          if (Math.abs(p.x - bp.x) > 0.5 || Math.abs(p.y - bp.y) > 0.5) setPos({ x: bp.x, y: bp.y });
         }
       }
       const tx = clamp(cameraTarget.x - vw / 2, 0, Math.max(0, WORLD.w - vw));
       const ty = clamp(cameraTarget.y - vh / 2 - 40 / z, 0, Math.max(0, WORLD.h - vh));
       const c = camRef.current;
-      const nc = { x: c.x + (tx - c.x) * 0.14, y: c.y + (ty - c.y) * 0.14 };
+      const ridingNow = !!ridingBusRef.current;
+      // 버스 탑승 중에는 화면도 버스에 즉시 붙여서 이동감이 확실하게 보이도록 합니다.
+      const nc = ridingNow
+        ? { x: tx, y: ty }
+        : { x: c.x + (tx - c.x) * 0.14, y: c.y + (ty - c.y) * 0.14 };
       camRef.current = nc;
       setCam(nc);
 
