@@ -470,7 +470,7 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = f
         />
       )}
       {swim && <div className="ccTube ccTubeFront" />}
-      {mic && <div className="ccHeldMic" aria-hidden="true">🎤</div>}
+      {mic && <div className="ccHeldMic" aria-hidden="true"><span className="ccHeldMicCloud" /><span className="ccHeldMicStem" /></div>}
     </div>
   );
 }
@@ -919,6 +919,11 @@ function Town({ me, setMe, onKick }) {
   const [muted2, setMuted2] = useState(true);
   const [karaoke, setKaraoke] = useState(null);   // 모두에게 보이는 YouTube 노래방
   const [karaokeMic, setKaraokeMic] = useState(null); // 내가 잡은 마이크 번호(0/1)
+  const [karaokeRemoteLayout, setKaraokeRemoteLayout] = useState({ x: 50, y: 62, w: 128, h: 194 });
+  const [karaokeMicLayout, setKaraokeMicLayout] = useState([
+    { x: 43, y: 91, s: 1 },
+    { x: 57, y: 91, s: 1 },
+  ]);
   const [roomBgmMap, setRoomBgmMap] = useState(() => {
     try {
       const v = JSON.parse(localStorage.getItem("ccRoomBgm") || "{}");
@@ -1011,6 +1016,11 @@ function Town({ me, setMe, onKick }) {
   const vidRef = useRef(null);
   const lookRef = useRef(look);
   const karaokeMicRef = useRef(null);
+  const karaokeRemoteRef = useRef(karaokeRemoteLayout);
+  const karaokeMicLayoutRef = useRef(karaokeMicLayout);
+  const karaokeLayerRef = useRef(null);
+  const karaokeDragRef = useRef(null);
+  const karaokeSuppressClickRef = useRef(false);
   const myMsgTimer = useRef(null);
 
   useEffect(() => { openRef.current = !!sheet; sheetRef.current = sheet; }, [sheet]);
@@ -1022,6 +1032,8 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { welcomeRef.current = welcome; }, [welcome]);
   useEffect(() => { lookRef.current = look; }, [look]);
   useEffect(() => { karaokeMicRef.current = karaokeMic; }, [karaokeMic]);
+  useEffect(() => { karaokeRemoteRef.current = karaokeRemoteLayout; }, [karaokeRemoteLayout]);
+  useEffect(() => { karaokeMicLayoutRef.current = karaokeMicLayout; }, [karaokeMicLayout]);
   useEffect(() => {
     roomBgmRef.current = roomBgmMap;
     try { localStorage.setItem("ccRoomBgm", JSON.stringify(roomBgmMap)); } catch { /* 무시 */ }
@@ -1914,6 +1926,8 @@ function Town({ me, setMe, onKick }) {
         lk: lookRef.current,
         role: me.role,
         km: sceneRef.current === "sing" ? karaokeMicRef.current : null,
+        kr: sceneRef.current === "sing" && me.role === "host" ? karaokeRemoteRef.current : undefined,
+        kml: sceneRef.current === "sing" && me.role === "host" ? karaokeMicLayoutRef.current : undefined,
         bgmMap: me.role === "host" ? roomBgmRef.current : undefined,
       }),
       onPeers: (list) => {
@@ -2098,6 +2112,60 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => {
     if (logOpen && histBox.current) histBox.current.scrollTop = histBox.current.scrollHeight;
   }, [logOpen, history]);
+
+  /* 노래방 호스트 전용 배치/크기 조절 */
+  const beginKaraokeDrag = useCallback((kind, index, e) => {
+    if (me.role !== "host" || sceneRef.current !== "sing") return;
+    const layer = karaokeLayerRef.current;
+    if (!layer) return;
+    const rect = layer.getBoundingClientRect();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const current = kind === "remote" ? { ...karaokeRemoteRef.current } : { ...karaokeMicLayoutRef.current[index] };
+    karaokeDragRef.current = { kind, index, startX, startY, rect, current, moved: false };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    e.stopPropagation();
+  }, [me.role]);
+
+  const beginKaraokeResize = useCallback((kind, index, e) => {
+    if (me.role !== "host" || sceneRef.current !== "sing") return;
+    const layer = karaokeLayerRef.current;
+    if (!layer) return;
+    const rect = layer.getBoundingClientRect();
+    const current = kind === "remote" ? { ...karaokeRemoteRef.current } : { ...karaokeMicLayoutRef.current[index] };
+    karaokeDragRef.current = { kind: "resize-" + kind, index, startX: e.clientX, startY: e.clientY, rect, current, moved: false };
+    e.stopPropagation();
+  }, [me.role]);
+
+  useEffect(() => {
+    const move = (e) => {
+      const d = karaokeDragRef.current;
+      if (!d) return;
+      const dx = e.clientX - d.startX;
+      const dy = e.clientY - d.startY;
+      if (Math.abs(dx) + Math.abs(dy) > 3) { d.moved = true; karaokeSuppressClickRef.current = true; }
+      if (d.kind === "remote") {
+        setKaraokeRemoteLayout({
+          ...d.current,
+          x: clamp(d.current.x + dx / d.rect.width * 100, 5, 95),
+          y: clamp(d.current.y + dy / d.rect.height * 100, 8, 92),
+        });
+      } else if (d.kind === "resize-remote") {
+        const w = clamp(d.current.w + dx, 86, 230);
+        const h = clamp(d.current.h + dy, 120, 320);
+        setKaraokeRemoteLayout({ ...d.current, w, h });
+      } else if (d.kind === "mic") {
+        setKaraokeMicLayout((arr) => arr.map((m, i) => i === d.index ? { ...d.current, x: clamp(d.current.x + dx / d.rect.width * 100, 5, 95), y: clamp(d.current.y + dy / d.rect.height * 100, 65, 96) } : m));
+      } else if (d.kind === "resize-mic") {
+        const s = clamp(d.current.s + dx / 90, 0.65, 1.8);
+        setKaraokeMicLayout((arr) => arr.map((m, i) => i === d.index ? { ...d.current, s } : m));
+      }
+    };
+    const up = () => { karaokeDragRef.current = null; if (karaokeSuppressClickRef.current) setTimeout(() => { karaokeSuppressClickRef.current = false; }, 0); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+  }, []);
 
   /* =========================================================
      방 BGM
@@ -2336,87 +2404,72 @@ function Town({ me, setMe, onKick }) {
             {currentBgm && (
               <div className="ccRoomBgmNow">🎵 {currentBgm.title}</div>
             )}
-            <div className="ccRoomLayer">
+            <div className="ccRoomLayer" ref={karaokeLayerRef}>
               {scene === "sing" && karaoke && youtubeId(karaoke.url) && (
-                /* 화면은 없애고 소리만 유지합니다. */
-                <iframe
-                  className="ccKaraokeAudioFrame"
-                  src={`https://www.youtube.com/embed/${youtubeId(karaoke.url)}?autoplay=1&playsinline=1&rel=0`}
-                  title={karaoke.title}
-                  allow="autoplay; encrypted-media; picture-in-picture; web-share"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                />
-              )}
-
-              {scene === "sing" && (
-                <div className="ccKaraokeCushions" aria-hidden="true">
-                  <span className="ccKaraokeCushion c1" />
-                  <span className="ccKaraokeCushion c2" />
-                  <span className="ccKaraokeCushion c3" />
-                  <span className="ccKaraokeCushion c4" />
-                </div>
-              )}
-              {scene === "sing" && (
-                <div className="ccKaraokeMics" aria-label="노래방 마이크">
-                  {[0, 1].map((slot) => {
-                    const mine = karaokeMic === slot;
-                    const owner = peerView.find((p) => p.r === "sing" && p.km === slot);
-                    const busy = !!owner && !mine;
-                    return (
-                      <button
-                        key={slot}
-                        type="button"
-                        className={"ccKaraokeMicBtn" + (mine ? " on" : "") + (busy ? " busy" : "")}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleKaraokeMic(slot);
-                        }}
-                        title={mine ? "마이크 내려놓기" : busy ? `${owner.name}님이 사용 중` : "마이크 들기"}
-                      >
-                        <span className="ccKaraokeMicIcon">🎤</span>
-                        <span className="ccKaraokeMicLabel">{mine ? "내 마이크" : busy ? owner.name : "마이크"}</span>
-                      </button>
-                    );
-                  })}
+                <div className="ccKaraokeVideoFull" aria-label={karaoke.title}>
+                  <iframe
+                    src={`https://www.youtube.com/embed/${youtubeId(karaoke.url)}?autoplay=1&playsinline=1&rel=0&controls=1`}
+                    title={karaoke.title}
+                    allow="autoplay; encrypted-media; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                  />
                 </div>
               )}
 
-              {scene === "sing" && (
-                <div
-                  className="ccKaraokeRemote"
-                  role="button"
-                  tabIndex={0}
-                  aria-label="노래방 선곡표 열기"
-                  onClick={(e) => { e.stopPropagation(); setSheet("songs"); blip(760); }}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setSheet("songs"); blip(760); } }}
-                >
-                  <div className="ccKaraokeRemoteHead">
-                    <span className="ccKaraokeRemoteLogo">KY KARAOKE</span>
-                    <span className="ccKaraokeRemoteLed" />
-                  </div>
-                  <div className="ccKaraokeRemoteMiniRow">
-                    <span className="ccKaraokeRemoteMini">한국곡</span>
-                    <span className="ccKaraokeRemoteMini">아이돌</span>
-                    <span className="ccKaraokeRemoteMini">여자</span>
-                  </div>
-                  <div className="ccKaraokeRemoteMiniRow">
-                    <span className="ccKaraokeRemoteMini">남자</span>
-                    <span className="ccKaraokeRemoteMini">인기곡</span>
-                    <span className="ccKaraokeRemoteMini">장르</span>
-                  </div>
-                  <div className="ccKaraokeRemoteMiniRow">
-                    <span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">신곡</span>
-                    <span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">검색</span>
-                  </div>
-                  <div className="ccKaraokeRemoteMain">
-                    {['1','2','3','4','5','6','7','8','9'].map((n) => <span key={n} className="ccKaraokeRemoteNum">{n}</span>)}
-                    <span className="ccKaraokeRemoteNum ccKaraokeRemoteBlue">취소</span>
-                    <span className="ccKaraokeRemoteNum">0</span>
-                    <span className="ccKaraokeRemoteNum ccKaraokeRemoteBlue">시작</span>
-                  </div>
-                  <div className="ccKaraokeRemoteHint">선곡표</div>
-                </div>
-              )}
+              {scene === "sing" && (() => {
+                const host = roomPeers.find((p) => p.role === "host");
+                const remote = me.role === "host" ? karaokeRemoteLayout : (host?.kr || karaokeRemoteLayout);
+                const micLayout = me.role === "host" ? karaokeMicLayout : (host?.kml || karaokeMicLayout);
+                return (
+                  <>
+                    <div
+                      className="ccKaraokeRemote"
+                      role="button"
+                      tabIndex={0}
+                      aria-label="노래방 선곡표 열기"
+                      style={{ left: `${remote.x}%`, top: `${remote.y}%`, width: remote.w, height: remote.h }}
+                      onPointerDown={(e) => { if (me.role === "host") beginKaraokeDrag("remote", 0, e); }}
+                      onClick={(e) => { if (karaokeSuppressClickRef.current) return; e.stopPropagation(); setSheet("songs"); blip(760); }}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setSheet("songs"); blip(760); } }}
+                    >
+                      <div className="ccKaraokeRemoteHead"><span className="ccKaraokeRemoteLogo">KY KARAOKE</span><span className="ccKaraokeRemoteLed" /></div>
+                      <div className="ccKaraokeRemoteMiniRow"><span className="ccKaraokeRemoteMini">한국곡</span><span className="ccKaraokeRemoteMini">아이돌</span><span className="ccKaraokeRemoteMini">여자</span></div>
+                      <div className="ccKaraokeRemoteMiniRow"><span className="ccKaraokeRemoteMini">남자</span><span className="ccKaraokeRemoteMini">인기곡</span><span className="ccKaraokeRemoteMini">장르</span></div>
+                      <div className="ccKaraokeRemoteMiniRow"><span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">신곡</span><span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">검색</span></div>
+                      <div className="ccKaraokeRemoteMain">{['1','2','3','4','5','6','7','8','9'].map((n) => <span key={n} className="ccKaraokeRemoteNum">{n}</span>)}<span className="ccKaraokeRemoteNum ccKaraokeRemoteBlue">취소</span><span className="ccKaraokeRemoteNum">0</span><span className="ccKaraokeRemoteNum ccKaraokeRemoteBlue">시작</span></div>
+                      {me.role === "host" && <span className="ccKaraokeResizeHandle" onPointerDown={(e) => beginKaraokeResize("remote", 0, e)} />}
+                      <div className="ccKaraokeRemoteHint">선곡표</div>
+                    </div>
+
+                    <div className="ccKaraokeMics" aria-label="노래방 스탠딩 마이크">
+                      {[0, 1].map((slot) => {
+                        const mine = karaokeMic === slot;
+                        const owner = peerView.find((p) => p.r === "sing" && p.km === slot);
+                        const busy = !!owner && !mine;
+                        const ml = micLayout[slot] || { x: slot ? 57 : 43, y: 91, s: 1 };
+                        return (
+                          <div
+                            key={slot}
+                            className={"ccStandingMic" + (mine ? " on" : "") + (busy ? " busy" : "")}
+                            style={{ left: `${ml.x}%`, top: `${ml.y}%`, transform: `translate(-50%,-50%) scale(${ml.s})` }}
+                            onPointerDown={(e) => { if (me.role === "host") beginKaraokeDrag("mic", slot, e); }}
+                            onClick={(e) => { if (karaokeSuppressClickRef.current) return; e.stopPropagation(); toggleKaraokeMic(slot); }}
+                            title={mine ? "마이크 내려놓기" : busy ? `${owner.name}님이 사용 중` : "마이크 들기"}
+                          >
+                            <span className="ccStandingMicCloud" />
+                            <span className="ccStandingMicHead" />
+                            <span className="ccStandingMicStem" />
+                            <span className="ccStandingMicBase" />
+                            {busy && <span className="ccStandingMicName">{owner.name}</span>}
+                            {me.role === "host" && <span className="ccMicResizeHandle" onPointerDown={(e) => beginKaraokeResize("mic", slot, e)} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
 
               {scene === "movie" && movie && (
                 <div className="ccScreenWrap" style={{ width: 520, height: 300 }}>
@@ -3124,7 +3177,7 @@ function Town({ me, setMe, onKick }) {
                 setQueue(items || []);
                 setQi(index || 0);
                 setPlName(name || "");
-                const url = selected?.url || selected?.path || "";
+                const url = selected?.url || (selected?.path ? trackUrl(selected.path) : "");
                 const id = youtubeId(url);
                 if (id) {
                   const data = { title: selected?.title || "노래방", url, by: me.name };
@@ -3401,7 +3454,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccTagMe{color:#c05a86}
 .ccBubble{position:relative;max-width:170px;margin:0 auto 14px;white-space:pre-wrap;word-break:break-all;
   text-align:center;font-size:12px;font-weight:700;line-height:1.4;background:#fff;border:3px solid ${C.line};
-  padding:9px 15px;border-radius:999px;box-shadow:3px 3px 0 rgba(91,74,99,.2);animation:ccPop .12s steps(2,end)}
+  padding:9px 15px;border-radius:42% 58% 50% 48% / 55% 45% 55% 45%;box-shadow:3px 3px 0 rgba(91,74,99,.2);animation:ccPop .12s steps(2,end)}
 /* 캐릭터를 가리키는 뾰족한 꼬리 — 진한 삼각형 위에 흰 삼각형을 덮어 테두리를 만듭니다 */
 .ccBubble:after{content:"";position:absolute;left:50%;top:100%;margin-left:-8px;z-index:0;
   width:0;height:0;border-style:solid;border-width:17px 8px 0 8px;
@@ -3409,10 +3462,12 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccBubble:before{content:"";position:absolute;left:50%;top:calc(100% - 3px);margin-left:-5px;z-index:1;
   width:0;height:0;border-style:solid;border-width:14px 5px 0 5px;
   border-color:#fff transparent transparent transparent}
-.ccBubbleSinging{background:#c8efff;border-color:#6aaac4;box-shadow:3px 3px 0 rgba(78,146,181,.22)}
-.ccBubbleSinging:after{border-color:#6aaac4 transparent transparent transparent}
-.ccBubbleSinging:before{border-color:#c8efff transparent transparent transparent}
-.ccHeldMic{position:absolute;right:-13px;bottom:7px;font-size:22px;line-height:1;z-index:4;transform:rotate(-12deg);filter:drop-shadow(2px 2px 0 rgba(91,74,99,.25));pointer-events:none}
+.ccBubbleSinging{background:#bfe8ff;border-color:#82b8d6;box-shadow:3px 3px 0 rgba(93,157,190,.22);border-radius:46% 54% 49% 51% / 54% 45% 55% 46%}
+.ccBubbleSinging:after{border-color:#82b8d6 transparent transparent transparent}
+.ccBubbleSinging:before{border-color:#bfe8ff transparent transparent transparent}
+.ccHeldMic{position:absolute;right:-14px;bottom:6px;width:25px;height:38px;z-index:4;pointer-events:none;transform:rotate(-12deg)}
+.ccHeldMicCloud{position:absolute;left:2px;top:0;width:21px;height:16px;background:#bfe8ff;border:2px solid #5b4a63;border-radius:55% 45% 50% 50%;box-shadow:inset 3px 2px 0 rgba(255,255,255,.5)}
+.ccHeldMicStem{position:absolute;left:10px;top:14px;width:4px;height:20px;background:#5b4a63;border-radius:3px}
 @keyframes ccPop{from{transform:translateY(6px)}to{transform:translateY(0)}}
 
 .ccChatBar{position:absolute;left:16px;bottom:calc(16px + var(--kb, 0px));display:flex;gap:6px;
@@ -3585,46 +3640,25 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccHostToggleBody{padding:4px 2px}
 .ccHostLocationRow{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;font-size:12px;font-weight:700}
 .ccHostLocationRow b{font-weight:900}
-.ccKaraokeAudioFrame{position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;border:0;opacity:0;pointer-events:none}
-.ccKaraokeMics{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);display:flex;align-items:flex-end;justify-content:center;gap:24px;z-index:28;pointer-events:auto}
-.ccKaraokeMicBtn{width:78px;height:78px;border:4px solid #5b4a63;border-radius:18px;background:#fff6dc;box-shadow:4px 5px 0 rgba(91,74,99,.28);cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:4px}
-.ccKaraokeMicBtn:active{transform:translate(2px,2px);box-shadow:2px 3px 0 rgba(91,74,99,.22)}
-.ccKaraokeMicBtn.on{background:#bfeeff;border-color:#4e92b5;box-shadow:4px 5px 0 rgba(78,146,181,.28),inset 0 0 0 3px #e8fbff}
-.ccKaraokeMicBtn.busy{background:#eeeaf1;opacity:.72;cursor:not-allowed}
-.ccKaraokeMicIcon{font-size:34px;line-height:1}
-.ccKaraokeMicLabel{max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;font-weight:900;color:#5b4a63}
-.ccKaraokeCushions{position:absolute;left:80px;right:80px;bottom:78px;height:110px;z-index:18;pointer-events:none}
-.ccKaraokeCushion{position:absolute;width:105px;height:42px;border-radius:22px 22px 16px 16px;background:#ffb5d4;border:4px solid #5b4a63;box-shadow:inset 0 -8px 0 rgba(91,74,99,.22),0 5px 0 rgba(0,0,0,.16)}
-.ccKaraokeCushion::after{content:"";position:absolute;left:14px;right:14px;top:8px;height:5px;border-radius:8px;background:rgba(255,255,255,.35)}
-.ccKaraokeCushion.c1{left:0;top:42px;transform:rotate(-3deg)}
-.ccKaraokeCushion.c2{left:175px;top:50px;background:#b9a9f2;transform:rotate(2deg)}
-.ccKaraokeCushion.c3{right:175px;top:50px;background:#a9e6d2;transform:rotate(-2deg)}
-.ccKaraokeCushion.c4{right:0;top:42px;background:#ffd77d;transform:rotate(3deg)}
-
-/* 🎛️ 노래방 선곡 리모컨 — 기존 선곡표 아이콘을 실제 리모컨처럼 보이게 */
-.ccKaraokeRemote{
-  position:absolute;left:50%;top:66%;transform:translate(-50%,-50%);
-  width:128px;height:194px;z-index:24;pointer-events:auto;cursor:pointer;
-  border:4px solid #342b43;border-radius:12px 12px 16px 16px;
-  background:linear-gradient(135deg,#ffffff 0%,#f5f4f8 58%,#dedde5 100%);
-  box-shadow:5px 6px 0 rgba(35,27,48,.45),inset -5px -7px 0 rgba(91,74,99,.12),inset 3px 3px 0 rgba(255,255,255,.95);
-  padding:10px 8px 8px;box-sizing:border-box;
-  image-rendering:auto;
-}
-.ccKaraokeRemote:active{transform:translate(calc(-50% + 3px),calc(-50% + 3px));box-shadow:2px 3px 0 rgba(35,27,48,.4),inset -4px -5px 0 rgba(91,74,99,.12)}
-.ccKaraokeRemoteHead{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:6px}
-.ccKaraokeRemoteLogo{font-size:7px;font-weight:900;color:#6b6470;letter-spacing:-.04em}
-.ccKaraokeRemoteLed{width:8px;height:5px;border-radius:3px;background:#ffdb57;border:2px solid #554c5d;box-sizing:border-box}
-.ccKaraokeRemoteMiniRow{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:4px}
-.ccKaraokeRemoteMini{height:13px;border:2px solid #6b6470;border-radius:4px;background:#fff;font-size:6px;font-weight:900;color:#5b4a63;display:flex;align-items:center;justify-content:center;line-height:1}
-.ccKaraokeRemoteYellow{background:#ffe76f;border-color:#675c3d}
-.ccKaraokeRemoteMain{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:6px}
-.ccKaraokeRemoteNum{height:20px;border:2px solid #5d5862;border-radius:5px;background:#f8f8fb;box-shadow:inset 0 -2px 0 #d8d6df;font-size:10px;font-weight:900;color:#3e3945;display:flex;align-items:center;justify-content:center}
-.ccKaraokeRemoteBlue{background:#a9dcff;color:#3b5970}
-.ccKaraokeRemoteAction{position:absolute;right:9px;bottom:38px;display:grid;grid-template-columns:1fr 1fr;gap:4px;width:52px}
-.ccKaraokeRemoteAction span{height:20px;border:2px solid #6b6470;border-radius:5px;background:#fff;font-size:7px;font-weight:900;display:flex;align-items:center;justify-content:center;color:#4b4650}
-.ccKaraokeRemoteAction .start{background:#8ed9f5}.ccKaraokeRemoteAction .cancel{background:#9bd9f4}
-.ccKaraokeRemoteHint{position:absolute;left:50%;bottom:-28px;transform:translateX(-50%);white-space:nowrap;font-size:9px;font-weight:900;color:#fff6dc;text-shadow:2px 2px 0 #5b4a63;opacity:.9}
+.ccKaraokeVideoFull{position:absolute;inset:0;z-index:1;pointer-events:none;background:#000}
+.ccKaraokeVideoFull iframe{width:100%;height:100%;border:0;display:block}
+.ccKaraokeMics{position:absolute;inset:0;z-index:28;pointer-events:none}
+.ccStandingMic{position:absolute;width:72px;height:150px;pointer-events:auto;cursor:pointer;transform-origin:center center}
+.ccStandingMicCloud{position:absolute;left:13px;top:4px;width:46px;height:34px;background:#bfe8ff;border:4px solid #5b4a63;border-radius:55% 45% 48% 52% / 60% 42% 58% 40%;box-shadow:inset 6px 4px 0 rgba(255,255,255,.42),4px 4px 0 rgba(91,74,99,.18)}
+.ccStandingMicHead{position:absolute;left:24px;top:31px;width:24px;height:25px;background:#d9f3ff;border:4px solid #5b4a63;border-radius:12px}
+.ccStandingMicStem{position:absolute;left:33px;top:55px;width:7px;height:72px;background:#6b6470;border:3px solid #5b4a63;border-radius:5px}
+.ccStandingMicBase{position:absolute;left:9px;bottom:4px;width:54px;height:13px;background:#b8b1bf;border:4px solid #5b4a63;border-radius:50%;box-shadow:0 4px 0 rgba(91,74,99,.2)}
+.ccStandingMic.on .ccStandingMicCloud{background:#aee1ff;box-shadow:inset 6px 4px 0 rgba(255,255,255,.52),0 0 0 4px rgba(174,225,255,.35),4px 4px 0 rgba(91,74,99,.18)}
+.ccStandingMic.busy{opacity:.72}
+.ccStandingMicName{position:absolute;left:50%;top:-23px;transform:translateX(-50%);white-space:nowrap;background:#fff;border:3px solid #5b4a63;padding:3px 7px;font-size:9px;font-weight:900;color:#5b4a63}
+.ccMicResizeHandle,.ccKaraokeResizeHandle{position:absolute;width:13px;height:13px;background:#ffd45e;border:3px solid #5b4a63;border-radius:2px;right:-7px;bottom:-7px;cursor:nwse-resize;z-index:10;box-shadow:2px 2px 0 rgba(91,74,99,.2)}
+.ccKaraokeRemote{position:absolute;transform:translate(-50%,-50%);z-index:24;pointer-events:auto;cursor:grab;border:4px solid #342b43;border-radius:12px 12px 16px 16px;background:linear-gradient(135deg,#fff 0%,#f5f4f8 58%,#dedde5 100%);box-shadow:5px 6px 0 rgba(35,27,48,.45),inset -5px -7px 0 rgba(91,74,99,.12),inset 3px 3px 0 rgba(255,255,255,.95);padding:10px 8px 8px;box-sizing:border-box;image-rendering:auto}
+.ccKaraokeRemote:active{cursor:grabbing}
+.ccKaraokeRemoteHead{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:6px}.ccKaraokeRemoteLogo{font-size:7px;font-weight:900;color:#6b6470;letter-spacing:-.04em}.ccKaraokeRemoteLed{width:8px;height:5px;border-radius:3px;background:#ffdb57;border:2px solid #554c5d;box-sizing:border-box}.ccKaraokeRemoteMiniRow{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:4px}.ccKaraokeRemoteMini{height:13px;border:2px solid #6b6470;border-radius:4px;background:#fff;font-size:6px;font-weight:900;color:#5b4a63;display:flex;align-items:center;justify-content:center;line-height:1}.ccKaraokeRemoteYellow{background:#ffe76f;border-color:#675c3d}.ccKaraokeRemoteMain{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:6px}.ccKaraokeRemoteNum{height:20px;border:2px solid #5d5862;border-radius:5px;background:#f8f8fb;box-shadow:inset 0 -2px 0 #d8d6df;font-size:10px;font-weight:900;color:#3e3945;display:flex;align-items:center;justify-content:center}.ccKaraokeRemoteBlue{background:#a9dcff;color:#3b5970}.ccKaraokeRemoteHint{position:absolute;left:50%;bottom:-28px;transform:translateX(-50%);white-space:nowrap;font-size:9px;font-weight:900;color:#fff6dc;text-shadow:2px 2px 0 #5b4a63;opacity:.9}
+.ccKaraokeRemoteAction{display:none}
+.ccKaraokeCushions{display:none}
+.ccKaraokeCushion{display:none}
+.ccKaraokeRoomScreen,.ccKaraokeRoomFrame,.ccKaraokeRoomTop,.ccKaraokeRoomVideo,.ccKaraokeRoomWho{display:none!important}
 .ccYoutubeAdd{display:grid;grid-template-columns:1fr 1fr auto;gap:7px;align-items:center;margin:8px 0}
 @media (max-width:700px){.ccYoutubeAdd{grid-template-columns:1fr}.ccYoutubeAdd .ccBtn{width:100%}}
 
