@@ -2210,6 +2210,21 @@ function youtubeSongName(t) {
   return (t?.title || "").slice("kar:yt:".length);
 }
 
+function KaraokeRemoteIcon() {
+  return (
+    <svg viewBox="0 0 48 62" width="30" height="38" aria-hidden="true" style={{ flex: "0 0 auto", filter: "drop-shadow(0 2px 0 rgba(91,74,99,.18))" }}>
+      <rect x="2" y="1" width="44" height="60" rx="8" fill="#f7f7f2" stroke="#5b4a63" strokeWidth="3"/>
+      <rect x="7" y="6" width="34" height="22" rx="5" fill="#252033"/>
+      <circle cx="13" cy="13" r="2" fill="#ffe05f"/><circle cx="20" cy="13" r="2" fill="#ffe05f"/><circle cx="27" cy="13" r="2" fill="#ffe05f"/><circle cx="34" cy="13" r="2" fill="#ffe05f"/>
+      <circle cx="13" cy="20" r="2" fill="#ff9fc9"/><circle cx="20" cy="20" r="2" fill="#ff9fc9"/><circle cx="27" cy="20" r="2" fill="#ff9fc9"/><circle cx="34" cy="20" r="2" fill="#ff9fc9"/>
+      <circle cx="13" cy="38" r="4" fill="#ffd84d" stroke="#5b4a63" strokeWidth="1.5"/>
+      <circle cx="20" cy="34" r="2.5" fill="#8f78df"/><circle cx="28" cy="34" r="2.5" fill="#8f78df"/><circle cx="35" cy="34" r="2.5" fill="#8f78df"/>
+      <circle cx="20" cy="42" r="2.5" fill="#8f78df"/><circle cx="28" cy="42" r="2.5" fill="#8f78df"/><circle cx="35" cy="42" r="2.5" fill="#8f78df"/>
+      <rect x="8" y="50" width="13" height="5" rx="2" fill="#ffcf5b"/><rect x="25" y="50" width="13" height="5" rx="2" fill="#ff9fc9"/>
+    </svg>
+  );
+}
+
 export function SongbookSheet({ hostCode, isHost, off = false, playingId, onPlay, onClose }) {
   const [list, setList] = useState(null);
   const [err, setErr] = useState("");
@@ -2323,7 +2338,7 @@ export function SongbookSheet({ hostCode, isHost, off = false, playingId, onPlay
   return (
     <div className="ccPanel ccModal ccBook" onClick={(e) => e.stopPropagation()}>
       <div className="ccSheetHead">
-        <h2 className="ccSheetTitle">🎤 선곡표</h2>
+        <h2 className="ccSheetTitle" style={{ display: "flex", alignItems: "center", gap: 8 }}><KaraokeRemoteIcon /><span>구름노래방 선곡표</span></h2>
         <button className="ccX" onClick={onClose}>✕</button>
       </div>
 
