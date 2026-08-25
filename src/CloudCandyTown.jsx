@@ -23,7 +23,7 @@ import { Pix } from "./pix.jsx";
    방향키(또는 WASD)로 걷고, 건물 앞에서 Space, Enter 로 채팅해요.
    =========================================================== */
 
-const WORLD = { w: 1900, h: 2820 };
+const WORLD = { w: 3000, h: 2820 };
 
 /* 걸어다닐 수 있는 구역들 — 윗동네 · 가운데섬 · 아랫섬.
    이 사각형들 밖으로는 못 나갑니다. 섬끼리는 미끄럼틀로만 오갑니다.
@@ -32,6 +32,10 @@ const AREAS = [
   { x0: 250, y0: 250, x1: 1500, y1: 810 },       // 윗동네
   { x0: 190, y0: 1080, x1: 1520, y1: 1680 },     // 가운데섬
   { x0: 250, y0: 2100, x1: 1450, y1: 2640 },     // 아랫섬
+  { x0: 1480, y0: 450, x1: 1700, y1: 610 },      // 윗동네 ↔ 오른쪽 섬 연결길
+  { x0: 1430, y0: 2290, x1: 1700, y1: 2490 },    // 아랫섬 ↔ 오른쪽 섬 연결길
+  { x0: 1600, y0: 250, x1: 2820, y1: 810 },      // 오른쪽 윗섬
+  { x0: 1600, y0: 2100, x1: 2820, y1: 2640 },     // 오른쪽 아랫섬
 ];
 const PLAY = { x0: 190, y0: 320, x1: 1520, y1: 2640 };
 const inArea = (x, y) => AREAS.some((a) => x >= a.x0 && x <= a.x1 && y >= a.y0 && y <= a.y1);
@@ -124,6 +128,14 @@ const BUILDINGS = [
       "지금 라이브 켜져 있어요! 뒤에서 손 흔들면 화면에 나와요.",
       "오늘 메뉴는 구름국수예요. 후루룩 소리가 제일 중요하대요.",
       "한 바퀴 돌면서 먹으면 두 배로 맛있다는 게 여기 규칙입니다.",
+    ] },
+
+  /* 오른쪽 아랫섬 — 새로 만든 솜사탕 가게 */
+  { id: "cotton", name: "구름솜사탕", emoji: "🍭", tag: "솜사탕", x: 2190, y: 2440, scale: 9, sprite: "cotton",
+    lines: [
+      "솜사탕 하나 말아드릴까요? 구름처럼 폭신하게 만들어드려요.",
+      "분홍·하늘·레몬 맛이 있어요. 오늘은 어떤 색으로 드릴까요?",
+      "여기 솜사탕은 먹고 나면 입안에서 살짝 구름 맛이 나요.",
     ] },
 ];
 
@@ -236,6 +248,10 @@ const STAR_SPOTS = [
   [400, 2400], [1260, 2300], [980, 2200], [520, 2620], [1340, 2520],
   /* 윗동네 */
   [300, 300], [1440, 300], [866, 250], [420, 620], [1310, 620], [866, 640],
+  /* 오른쪽 윗섬 */
+  [1740, 330], [2050, 680], [2400, 360], [2700, 650],
+  /* 오른쪽 아랫섬 */
+  [1720, 2250], [1980, 2580], [2420, 2240], [2680, 2560],
 ];
 
 const CLOUDS = [
@@ -253,6 +269,10 @@ const TREES = [
   /* 윗동네 */
   [268, 380, "#8fe3c9"], [1470, 380, "#ff9ec4"], [268, 700, "#ffd45e"],
   [1470, 700, "#b6a6f0"], [866, 200, "#8fe3c9"],
+  /* 오른쪽 윗섬 */
+  [1690, 330, "#ff9ec4"], [2060, 270, "#8fe3c9"], [2480, 700, "#ffd45e"], [2760, 380, "#b6a6f0"],
+  /* 오른쪽 아랫섬 */
+  [1660, 2260, "#8fe3c9"], [1920, 2550, "#ff9ec4"], [2510, 2180, "#ffd45e"], [2760, 2520, "#b6a6f0"],
 ];
 
 /* 섬 — 계단식 사각형으로 쌓아 픽셀 느낌을 냅니다 */
@@ -317,6 +337,48 @@ const PATHS3 = [
   { x: 280, y: 770, w: 1200, h: 44 },
   { x: 620, y: 530, w: 56, h: 240 },
   { x: 1080, y: 530, w: 56, h: 240 },
+];
+
+/* 오른쪽 윗섬 */
+const ISLAND4 = [
+  { x: 1660, y: 166, w: 1140, h: 20 },
+  { x: 1618, y: 186, w: 1224, h: 20 },
+  { x: 1586, y: 206, w: 1288, h: 604 },
+  { x: 1618, y: 810, w: 1224, h: 20 },
+  { x: 1660, y: 830, w: 1140, h: 20 },
+];
+const SOIL4 = [
+  { x: 1710, y: 850, w: 1040, h: 34 },
+  { x: 1810, y: 884, w: 840, h: 30 },
+  { x: 1930, y: 914, w: 600, h: 24 },
+  { x: 2070, y: 938, w: 320, h: 20 },
+];
+const PATHS4 = [
+  { x: 1630, y: 470, w: 1190, h: 60 },
+  { x: 1760, y: 530, w: 56, h: 240 },
+  { x: 2240, y: 530, w: 56, h: 240 },
+  { x: 2680, y: 530, w: 56, h: 240 },
+];
+
+/* 오른쪽 아랫섬 */
+const ISLAND5 = [
+  { x: 1660, y: 2080, w: 1140, h: 22 },
+  { x: 1618, y: 2102, w: 1224, h: 22 },
+  { x: 1586, y: 2124, w: 1288, h: 520 },
+  { x: 1618, y: 2644, w: 1224, h: 22 },
+  { x: 1660, y: 2666, w: 1140, h: 22 },
+];
+const SOIL5 = [
+  { x: 1710, y: 2688, w: 1040, h: 38 },
+  { x: 1810, y: 2726, w: 840, h: 34 },
+  { x: 1930, y: 2760, w: 600, h: 28 },
+  { x: 2070, y: 2788, w: 320, h: 22 },
+];
+const PATHS5 = [
+  { x: 1630, y: 2280, w: 1190, h: 60 },
+  { x: 1860, y: 2340, w: 64, h: 200 },
+  { x: 2280, y: 2340, w: 64, h: 200 },
+  { x: 2700, y: 2340, w: 64, h: 200 },
 ];
 
 const POND = [
@@ -429,7 +491,19 @@ function Building({ b, near }) {
   const h = 22 * b.scale;
   return (
     <div className="ccBuilding" style={{ left: b.x - w / 2, top: b.y - h, width: w }}>
-      <Pix map={sp.map} palette={sp.palette} scale={b.scale} cacheKey={"b-" + (b.sprite || b.id)} className={near ? "ccNear" : ""} />
+      {b.id === "cotton" ? (
+        <div className={"ccCottonShop" + (near ? " ccNear" : "")}>
+          <div className="ccCottonRoof">🍭</div>
+          <div className="ccCottonAwning"><i /><i /><i /><i /><i /></div>
+          <div className="ccCottonBody">
+            <div className="ccCottonWindow" />
+            <div className="ccCottonDoor" />
+          </div>
+          <div className="ccCottonCloud">☁️</div>
+        </div>
+      ) : (
+        <Pix map={sp.map} palette={sp.palette} scale={b.scale} cacheKey={"b-" + (b.sprite || b.id)} className={near ? "ccNear" : ""} />
+      )}
       <div className="ccSign">
         {b.emoji} {b.name}
       </div>
@@ -603,6 +677,37 @@ function Ground() {
       {PATHS2.map((r, i) =>
         slab(r, "p2" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" })
       )}
+
+      {/* 오른쪽 윗섬 */}
+      {SOIL4.map((r, i) => slab(r, "s4" + i, { background: i % 2 ? C.soilDark : C.soil }))}
+      {ISLAND4.map((r, i) => slab(r, "i4" + i, { background: C.edge }))}
+      {ISLAND4.map((r, i) =>
+        slab({ x: r.x, y: r.y, w: r.w, h: Math.max(0, r.h - 8) }, "g4" + i, {
+          backgroundImage: `url(${grass})`,
+          backgroundSize: "48px 48px",
+        })
+      )}
+      {PATHS4.map((r, i) =>
+        slab(r, "p4" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" })
+      )}
+
+      {/* 오른쪽 아랫섬 */}
+      {SOIL5.map((r, i) => slab(r, "s5" + i, { background: i % 2 ? C.soilDark : C.soil }))}
+      {ISLAND5.map((r, i) => slab(r, "i5" + i, { background: C.edge }))}
+      {ISLAND5.map((r, i) =>
+        slab({ x: r.x, y: r.y, w: r.w, h: Math.max(0, r.h - 8) }, "g5" + i, {
+          backgroundImage: `url(${grass})`,
+          backgroundSize: "48px 48px",
+        })
+      )}
+      {PATHS5.map((r, i) =>
+        slab(r, "p5" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" })
+      )}
+
+      {/* 기존 섬과 오른쪽 새 섬을 잇는 다리 */}
+      <div className="ccBridge" style={{ left: 1450, top: 485, width: 190, height: 42 }} />
+      <div className="ccBridge" style={{ left: 1400, top: 2310, width: 240, height: 42 }} />
+
       {POND.map((r, i) => slab(r, "w" + i, { background: i === 1 ? C.pond : C.pondDark }))}
       <div className="ccSlab" style={{ left: 1372, top: 816, width: 48, height: 12, background: "#ffffff", opacity: 0.7 }} />
     </div>
@@ -3582,6 +3687,18 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccBuilding{position:absolute;pointer-events:auto;cursor:pointer}
 .ccBuilding .ccPix{transition:transform .1s steps(2,end)}
 .ccBuilding .ccNear{transform:translateY(-6px)}
+.ccBridge{position:absolute;border:3px solid ${C.line};background:repeating-linear-gradient(90deg,#ffe9a8 0 18px,#fff4d8 18px 36px);box-shadow:0 4px 0 rgba(91,74,99,.18);z-index:2}
+.ccCottonShop{position:relative;width:216px;height:198px;transition:transform .1s steps(2,end)}
+.ccCottonShop.ccNear{transform:translateY(-6px)}
+.ccCottonRoof{position:absolute;left:46px;top:0;width:124px;height:58px;display:flex;align-items:center;justify-content:center;font-size:42px;background:#ffb9d6;border:5px solid ${C.line};border-radius:58px 58px 12px 12px;box-shadow:0 6px 0 #e996bd}
+.ccCottonAwning{position:absolute;left:18px;top:48px;width:180px;height:28px;display:flex;overflow:hidden;border:4px solid ${C.line};background:#fff}
+.ccCottonAwning i{flex:1;border-right:2px solid ${C.line};background:#ffd9ea}
+.ccCottonAwning i:nth-child(even){background:#bfe8ff}
+.ccCottonBody{position:absolute;left:20px;top:70px;width:176px;height:110px;background:#fff7fb;border:5px solid ${C.line};border-radius:10px 10px 4px 4px;box-shadow:6px 6px 0 rgba(91,74,99,.18)}
+.ccCottonWindow{position:absolute;left:16px;top:18px;width:82px;height:58px;background:#bfe8ff;border:4px solid ${C.line};border-radius:8px}
+.ccCottonWindow:after{content:"🍭";position:absolute;left:23px;top:6px;font-size:25px}
+.ccCottonDoor{position:absolute;right:14px;bottom:0;width:50px;height:78px;background:#ffd9ea;border:4px solid ${C.line};border-bottom:0;border-radius:24px 24px 0 0}
+.ccCottonCloud{position:absolute;right:4px;top:80px;font-size:27px;filter:drop-shadow(2px 2px 0 rgba(91,74,99,.2))}
 .ccSign{margin-top:4px;text-align:center;white-space:nowrap;font-size:12px;font-weight:700;
   background:#fff;border:3px solid ${C.line};padding:3px 8px;display:inline-block;
   position:relative;left:50%;transform:translateX(-50%);box-shadow:3px 3px 0 rgba(91,74,99,.25)}
