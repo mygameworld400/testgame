@@ -5,6 +5,16 @@ import { CAFE_CHAIRS, CAFE_TABLES, CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomSta
 import { blip, boing, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
 import { ArcadeSheet, DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, IDEA_BOX, MenuSheet, MovieSheet, MusicSheet, QuizSheet, SkinSheet, SongbookSheet, StarViewSheet, TeamLobby, WISH_BOX, WishSheet } from "./sheets.jsx";
 import { findSfx, movieNow, quizPacks, skinList, trackList, trackUrl } from "./content.js";
+
+function youtubeId(url) {
+  const u = (url || "").trim();
+  const m =
+    u.match(/[?&]v=([A-Za-z0-9_-]{11})/) ||
+    u.match(/youtu\.be\/([A-Za-z0-9_-]{11})/) ||
+    u.match(/youtube\.com\/shorts\/([A-Za-z0-9_-]{11})/) ||
+    u.match(/youtube\.com\/embed\/([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
 import { BUILDING_SPRITES, CHARACTERS, DECO, DEFAULT_LOOK, charForSlot, cursorUrls, grassTile, lookSprite, pathTile } from "./sprites.js";
 import { Pix } from "./pix.jsx";
 
@@ -14,7 +24,6 @@ import { Pix } from "./pix.jsx";
    =========================================================== */
 
 const WORLD = { w: 1900, h: 2820 };
-
 
 /* 걸어다닐 수 있는 구역들 — 윗동네 · 가운데섬 · 아랫섬.
    이 사각형들 밖으로는 못 나갑니다. 섬끼리는 미끄럼틀로만 오갑니다.
@@ -654,7 +663,6 @@ function JoinGate({ onJoined, notice }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [solo, setSolo] = useState(false);
-  const [hostSection, setHostSection] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -831,6 +839,7 @@ function Town({ me, setMe, onKick }) {
   const [peers, setPeers] = useState([]);
   const [peerView, setPeerView] = useState([]);   // 화면에 그릴 위치(보간됨)
   const [panel, setPanel] = useState(false);
+  const [hostSection, setHostSection] = useState("");
   const [chatText, setChatText] = useState("");
   const [scene, setScene] = useState(null);      // null = 마을, 아니면 건물 id
   const [zoneId, setZoneId] = useState(null);    // 방 안에서 가까이 있는 설치물
@@ -906,7 +915,8 @@ function Town({ me, setMe, onKick }) {
   const [skins, setSkins] = useState([]);          // 호스트가 올린 캐릭터 이미지
   const [live, setLive] = useState(true);          // 실시간 연결 상태
   const [movie, setMovie] = useState(null);        // 지금 상영 중인 것
-  const [muted2, setMuted2] = useState(true);      // 영화 소리 (자동재생 때문에 처음엔 꺼둠)
+  const [muted2, setMuted2] = useState(true);
+  const [karaoke, setKaraoke] = useState(null);   // 모두에게 보이는 YouTube 노래방      // 영화 소리 (자동재생 때문에 처음엔 꺼둠)
 
   const [starPop, setStarPop] = useState(false);   // 별 개수가 바뀌면 통 튑니다
   /* 꾸미기 — 고른 모습과 사둔 것들 */
@@ -1130,27 +1140,14 @@ function Town({ me, setMe, onKick }) {
   }, []);
 
   /* 대사를 차례로 띄웁니다. 끝나면 done 을 부릅니다 */
-  const runTalk = useCallback((script, delay, done, syncRoom = "") => {
+  const runTalk = useCallback((script, delay, done) => {
     talkTimers.current.forEach(clearTimeout);
     talkTimers.current = [];
     if (!script.length) return;
     talking.current = true;
     const gap = 2300;
     script.forEach((line, i) => {
-      talkTimers.current.push(
-        setTimeout(() => {
-          setTalk(line);
-
-          /* 카페 자동대화는 일반 채팅과 분리된 Realtime 이벤트로 공유합니다. */
-          if (syncRoom) {
-            chanRef.current?.cafeTalk({
-              who: line?.who === "m" ? "m" : "s",
-              text: line?.text || "",
-              room: syncRoom,
-            });
-          }
-        }, delay + i * gap)
-      );
+      talkTimers.current.push(setTimeout(() => setTalk(line), delay + i * gap));
     });
     talkTimers.current.push(
       setTimeout(() => {
@@ -1181,23 +1178,20 @@ function Town({ me, setMe, onKick }) {
     }
     runTalk(script, delay, () => {
       if (home) staffTo.current = { ...home };   // 끝나면 자리로 돌아가요
-    }, roomId);
+    });
   }, [runTalk]);
 
-  /* 한 테이블에 둘이 앉으면 스몰토크 — 직원 대화를 즉시 끊고 시작합니다. */
+  /* 한 테이블에 둘이 앉으면 저희끼리 스몰토크 */
   const startPairTalk = useCallback((myChair, mateChair) => {
-    /* 직원 대화가 남아 있으면 즉시 취소합니다. */
-    if (talking.current) clearSeatTalk();
-
+    if (talking.current) return;
+    /* 직원은 자리로 돌려보내고 둘이 이야기합니다 */
     const home = ROOMS.cafe?.staff;
     if (home) staffTo.current = { ...home };
-
-    /* 두 사람 화면이 같은 대사를 고르도록 의자 번호로만 정합니다. */
+    /* 두 사람 화면이 같은 대사를 고르도록 의자 번호로만 정합니다 */
     const lo = Math.min(myChair, mateChair);
     const t = SMALL_TALK[(myChair + mateChair * 3 + lo) % SMALL_TALK.length];
     const first = lo === myChair ? "m" : mateChair;
     const second = lo === myChair ? mateChair : "m";
-
     runTalk(
       [
         { who: first, text: t.a },
@@ -1205,11 +1199,9 @@ function Town({ me, setMe, onKick }) {
         { who: first, text: t.c },
         { who: second, text: t.d },
       ],
-      900,
-      undefined,
-      myChair === lo ? "cafe" : ""
+      900
     );
-  }, [runTalk, clearSeatTalk]);
+  }, [runTalk]);
 
   /* 미끄럼틀 타기 — up 이면 아랫섬에서 윗섬으로 */
   const startRide = useCallback((sl, up) => {
@@ -1292,6 +1284,10 @@ function Town({ me, setMe, onKick }) {
 
   /* 건물 안으로 */
   const enterRoom = useCallback((id) => {
+    if (id === "escape") {
+      setToast("🔐 방탈출은 준비중이에요!");
+      return;
+    }
     if (!ROOMS[id]) return;
     worldPos.current = { ...posRef.current };
     sceneRef.current = id;
@@ -1402,30 +1398,14 @@ function Town({ me, setMe, onKick }) {
       return;
     }
     if (pairRef.current === key) return;   // 이 사람과는 이미 했어요
-
-    /* 다른 사람이 앉는 순간, 진행 중인 직원 대화를 즉시 취소하고
-       둘의 스몰토크로 전환합니다. */
-    if (talking.current) {
-      clearSeatTalk();
-      const home = ROOMS.cafe?.staff;
-      if (home) staffTo.current = { ...home };
-    }
-
+    if (talking.current) return;           // 직원이 말하는 중 — 끝나면 다시 옵니다
     pairRef.current = key;
     startPairTalk(sit, key);
-  }, [scene, sit, peerView, startPairTalk, clearSeatTalk]);
+  }, [scene, sit, peerView, startPairTalk]);
 
   const openBuilding = useCallback((id) => {
     const b = BUILDINGS.find((x) => x.id === id);
     if (!b) return;
-
-    /* 🚧 노래방·방탈출은 아직 준비중 — 입장하지 않습니다. */
-    if (id === "sing" || id === "escape") {
-      setToast(`${b.name}은(는) 준비중이에요! 조금만 기다려 주세요 😊`);
-      blip(520);
-      return;
-    }
-
     if (b.sheet) { setSheet(b.sheet); return; }   /* 방이 없는 건물은 바로 창을 엽니다 */
     enterRoom(id);
   }, [enterRoom]);
@@ -1901,7 +1881,7 @@ function Town({ me, setMe, onKick }) {
     if (!hasServer || me.role === "solo" || !me.round) return undefined;
     const chan = joinChannel({
       round: me.round,
-      me: { id: deviceId(), name: me.name, slot: me.slot, st: sitRef.current == null ? -1 : sitRef.current },
+      me: { id: deviceId(), name: me.name, slot: me.slot },
       getPose: () => ({
         x: Math.round(posRef.current.x),
         y: Math.round(posRef.current.y),
@@ -1912,7 +1892,6 @@ function Town({ me, setMe, onKick }) {
         w: waitRef.current,
         hd: holdRef.current,
         lk: lookRef.current,
-        b: bounceRef.current ? 1 : 0,
       }),
       onPeers: setPeers,
       onLive: setLive,
@@ -1923,6 +1902,13 @@ function Town({ me, setMe, onKick }) {
           if (sceneRef.current === "flower") popBall(e.i, false);
           return;
         }
+        if (e.t === "karaoke") {
+          if (e.url && youtubeId(e.url)) {
+            setKaraoke({ title: e.title || "노래방", url: e.url, by: e.by || "손님" });
+          }
+          return;
+        }
+        if (e.t === "karaokeStop") { setKaraoke(null); return; }
         if (e.t === "movie") { loadMovie(); return; }
         if (e.t === "key") {
           if (sceneRef.current === "flower") pressKey(e.i, false);
@@ -1955,13 +1941,6 @@ function Town({ me, setMe, onKick }) {
         if (e.t === "score") {
           setResults((r) => [...r.filter((x) => x.id !== e.id), { id: e.id, name: e.name, ok: e.ok, done: e.done }]);
         }
-      },
-      onCafeTalk: (msg) => {
-        /* 자동대화는 일반 채팅과 완전히 분리합니다.
-           sender가 "m"인 줄은 보낸 사람의 캐릭터, 숫자 줄은 상대방 의자입니다. */
-        if ((msg?.room || "") !== (sceneRef.current || "")) return;
-        const who = msg?.who === "s" ? "s" : (msg?.senderChair === sitRef.current ? "m" : msg?.senderChair);
-        if (msg?.text) setTalk({ who: who ?? "m", text: msg.text });
       },
       onChat: (msg) => {
         const at = Date.now();
@@ -2148,7 +2127,7 @@ function Town({ me, setMe, onKick }) {
             />
             <div className="ccRoomLayer">
               {scene === "movie" && movie && (
-                <div className="ccScreenWrap">
+                <div className="ccScreenWrap" style={{ width: 520, height: 300 }}>
                   <video
                     ref={vidRef}
                     className="ccScreenVid"
@@ -2224,7 +2203,6 @@ function Town({ me, setMe, onKick }) {
                     hold={q.hd >= 0 ? MENU[q.hd]?.emoji : null}
                     look={q.lk}
                     skin={skinImg(q.lk)}
-                    bounce={!!q.b}
                   />
                 );
               })}
@@ -2343,7 +2321,6 @@ function Town({ me, setMe, onKick }) {
             hold={p.hd >= 0 ? MENU[p.hd]?.emoji : null}
             look={p.lk}
             skin={skinImg(p.lk)}
-            bounce={!!p.b}
           />
             ))}
 
@@ -2471,141 +2448,65 @@ function Town({ me, setMe, onKick }) {
           <button className="ccChip ccHostBtn" onClick={() => setPanel((v) => !v)}>
             테스트 관리
           </button>
-      <div className="ccHostTitle">{roundNo}번 테스트</div>
+          {panel && (
+            <div className="ccPanel ccHostPanel">
+              <div className="ccHostTitle">{roundNo}번 테스트</div>
 
-      {/* 👥 테스트 접속자 토글 */}
-      <button
-        className="ccHostToggle"
-        onClick={() =>
-          setHostSection((v) => (v === "players" ? "" : "players"))
-        }
-      >
-        <span>👥 테스트 접속자</span>
-        <span>{hostSection === "players" ? "▲" : "▼"}</span>
-      </button>
-
-      {hostSection === "players" && (
-        <div className="ccHostToggleBody">
-          <div className="ccHostCount">
-            게스트 {room?.taken ?? 0}명 · 최근 순
-          </div>
-
-          <ul className="ccHostList">
-            {[...(room?.players || [])]
-              .sort(
-                (a, b) =>
-                  new Date(b.joined || 0) -
-                  new Date(a.joined || 0)
-              )
-              .map((p, i) => (
-                <li key={i}>
-                  <span className="ccHostWho">
-                    {p.role === "host"
-                      ? "왕관"
-                      : charForSlot(p.slot).label} · {p.name}
-                  </span>
-
-                  <span className="ccHostWhen">
-                    {joinedAgo(p.joined)}
-                  </span>
-                </li>
-              ))}
-
-            {!room?.players?.length && (
-              <li className="ccHostEmpty">
-                아직 아무도 안 왔어요
-              </li>
-            )}
-          </ul>
-        </div>
-      )}
-
-      {/* 📍 현재 접속자 위치 토글 */}
-      <button
-        className="ccHostToggle"
-        onClick={() =>
-          setHostSection((v) => (v === "locations" ? "" : "locations"))
-        }
-      >
-        <span>📍 현재 접속자 위치</span>
-        <span>{hostSection === "locations" ? "▲" : "▼"}</span>
-      </button>
-
-      {hostSection === "locations" && (
-        <div className="ccHostToggleBody">
-          {(() => {
-            const locationCounts = {};
-
-            /* 다른 접속자 */
-            (peerView || []).forEach((p) => {
-              const roomId = p.r || "";
-              const roomName = roomId
-                ? ROOMS[roomId]?.name || roomId
-                : "마을";
-
-              locationCounts[roomName] =
-                (locationCounts[roomName] || 0) + 1;
-            });
-
-            /* 호스트 자신의 위치도 포함 */
-            const myLocation = scene
-              ? ROOMS[scene]?.name || scene
-              : "마을";
-
-            locationCounts[myLocation] =
-              (locationCounts[myLocation] || 0) + 1;
-
-            const locations = Object.entries(locationCounts)
-              .filter(([, count]) => count > 0);
-
-            if (!locations.length) {
-              return (
-                <div className="ccHostEmpty">
-                  현재 접속자가 없어요.
+              <button className="ccHostToggle" onClick={() => setHostSection((v) => v === "players" ? "" : "players")}>
+                <span>👥 테스트 접속자</span><span>{hostSection === "players" ? "▲" : "▼"}</span>
+              </button>
+              {hostSection === "players" && (
+                <div className="ccHostToggleBody">
+                  <div className="ccHostCount">게스트 {room?.taken ?? 0}명 · 최근 순</div>
+                  <ul className="ccHostList">
+                    {[...(room?.players || [])]
+                      .sort((a, b) => new Date(b.joined || 0) - new Date(a.joined || 0))
+                      .map((p, i) => (
+                        <li key={i}>
+                          <span className="ccHostWho">{p.role === "host" ? "왕관" : charForSlot(p.slot).label} · {p.name}</span>
+                          <span className="ccHostWhen">{joinedAgo(p.joined)}</span>
+                        </li>
+                      ))}
+                    {!room?.players?.length && <li className="ccHostEmpty">아직 아무도 안 왔어요</li>}
+                  </ul>
                 </div>
-              );
-            }
+              )}
 
-            return locations.map(([name, count]) => (
-              <div
-                className="ccHostLocationRow"
-                key={name}
-              >
-                <span>{name}</span>
-                <b>{count}명</b>
-              </div>
-            ));
-          })()}
-        </div>
-      )}
+              <button className="ccHostToggle" onClick={() => setHostSection((v) => v === "locations" ? "" : "locations")}>
+                <span>📍 현재 접속자 위치</span><span>{hostSection === "locations" ? "▲" : "▼"}</span>
+              </button>
+              {hostSection === "locations" && (
+                <div className="ccHostToggleBody">
+                  {(() => {
+                    const counts = {};
+                    (peerView || []).forEach((p) => {
+                      const id = p.r || "";
+                      const name = id ? (ROOMS[id]?.name || id) : "마을";
+                      counts[name] = (counts[name] || 0) + 1;
+                    });
+                    const mine = scene ? (ROOMS[scene]?.name || scene) : "마을";
+                    counts[mine] = (counts[mine] || 0) + 1;
+                    const rows = Object.entries(counts).filter(([, n]) => n > 0);
+                    return rows.length ? rows.map(([name, n]) => (
+                      <div className="ccHostLocationRow" key={name}>
+                        <span>{name}</span><b>{n}명</b>
+                      </div>
+                    )) : <div className="ccHostEmpty">현재 접속자가 없어요.</div>;
+                  })()}
+                </div>
+              )}
+
               <div className="ccRoundRow">
-                <input
-                  className="ccInput ccRoundInput"
-                  value={roundInput}
-                  inputMode="numeric"
-                  onChange={(e) => setRoundInput(e.target.value.replace(/[^0-9]/g, ""))}
-                />
-                <button
-                  className="ccBtn ccRoundBtn"
-                  onClick={() => doRound(Number(roundInput) || null)}
-                  disabled={resetting}
-                >
+                <input className="ccInput ccRoundInput" value={roundInput} inputMode="numeric" onChange={(e) => setRoundInput(e.target.value.replace(/[^0-9]/g, ""))} />
+                <button className="ccBtn ccRoundBtn" onClick={() => doRound(Number(roundInput) || null)} disabled={resetting}>
                   {resetting ? "…" : "이 번호로 시작"}
                 </button>
               </div>
-              <button className="ccBtn ccHostReset" onClick={() => doRound(null)} disabled={resetting}>
-                다음 회차로 넘기기
-              </button>
-              <button
-                className={"ccBtn ccHostReset" + (room?.closed ? " ccClosedOn" : "")}
-                onClick={toggleClosed}
-              >
+              <button className="ccBtn ccHostReset" onClick={() => doRound(null)} disabled={resetting}>다음 회차로 넘기기</button>
+              <button className={"ccBtn ccHostReset" + (room?.closed ? " ccClosedOn" : "")} onClick={toggleClosed}>
                 {room?.closed ? "비공개 해제하기" : "비공개 모드 켜기"}
               </button>
-              <p className="ccHostNote">
-                시작하면 그 회차 참가자 기록이 지워져요. 이미 들어와 있던 사람은
-                새로고침해야 합니다. 인원 제한은 없고, 비공개 모드로 문을 여닫으면 됩니다.
-              </p>
+              <p className="ccHostNote">시작하면 그 회차 참가자 기록이 지워져요. 이미 들어와 있던 사람은 새로고침해야 합니다.</p>
             </div>
           )}
         </>
@@ -2874,6 +2775,26 @@ function Town({ me, setMe, onKick }) {
               onClose={() => setSheet(null)}
             />
           )}
+          {karaoke && (
+            <div className="ccKaraokeOverlay" onClick={(e) => e.stopPropagation()}>
+              <div className="ccKaraokeBox">
+                <div className="ccKaraokeHead">
+                  <b>🎤 {karaoke.title}</b>
+                  <button className="ccX" onClick={() => setKaraoke(null)}>✕</button>
+                </div>
+                <div className="ccKaraokeVideo">
+                  <iframe
+                    src={`https://www.youtube-nocookie.com/embed/${youtubeId(karaoke.url)}?autoplay=1&playsinline=1&rel=0`}
+                    title={karaoke.title}
+                    allow="autoplay; encrypted-media; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+                <div className="ccKaraokeWho">🎤 {karaoke.by}님이 선곡했어요</div>
+              </div>
+            </div>
+          )}
+
           {sheet === "songs" && (
             <SongbookSheet
               hostCode={me.hostCode}
@@ -2881,9 +2802,18 @@ function Town({ me, setMe, onKick }) {
               off={!hasServer || me.role === "solo"}
               playingId={track?.id}
               onPlay={(items, index, name) => {
-                setQueue(items);
+                const selected = items?.[index || 0];
+                setQueue(items || []);
                 setQi(index || 0);
                 setPlName(name || "");
+                const url = selected?.url || selected?.path || "";
+                const id = youtubeId(url);
+                if (id) {
+                  const data = { title: selected?.title || "노래방", url, by: me.name };
+                  setKaraoke(data);
+                  chanRef.current?.fx({ t: "karaoke", ...data });
+                  setSheet(null);
+                }
               }}
               onClose={() => setSheet(null)}
             />
@@ -3237,9 +3167,9 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccStarWord b{color:#ffd45e;font-size:13px}
 
 /* 🎬 스크린 위 영상 */
-.ccScreenWrap{position:absolute;left:218px;top:30px;width:570px;height:224px;pointer-events:auto;
+.ccScreenWrap{position:absolute;left:168px;top:38px;width:664px;height:228px;pointer-events:auto;
   background:#000;overflow:hidden}
-.ccScreenVid{width:100%;height:100%;object-fit:cover;display:block;background:#000}
+.ccScreenVid{width:100%;height:100%;object-fit:contain;display:block;background:#000}
 .ccScreenBar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:8px;
   padding:6px 9px;background:rgba(14,12,24,.72)}
 .ccScreenTitle{flex:1;font-size:13px;font-weight:800;color:#ffe9a8;overflow:hidden;
@@ -3299,6 +3229,18 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 
 .ccHostBtn{cursor:pointer;align-self:flex-end}
 .ccHostPanel{width:100%;padding:14px}
+.ccHostToggle{width:100%;display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:9px 10px;border:0;border-radius:9px;background:rgba(0,0,0,.08);color:inherit;font:inherit;font-weight:800;cursor:pointer;text-align:left}
+.ccHostToggleBody{padding:4px 2px}
+.ccHostLocationRow{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;font-size:12px;font-weight:700}
+.ccHostLocationRow b{font-weight:900}
+.ccKaraokeOverlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(30,20,40,.72);pointer-events:auto}
+.ccKaraokeBox{width:min(900px,94vw);background:#fff8ef;border:4px solid ${C.line};border-radius:18px;overflow:hidden;box-shadow:0 14px 50px rgba(0,0,0,.35)}
+.ccKaraokeHead{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;font-weight:900}
+.ccKaraokeVideo{width:100%;aspect-ratio:16/9;background:#000}
+.ccKaraokeVideo iframe{width:100%;height:100%;border:0}
+.ccKaraokeWho{padding:8px 14px;text-align:center;font-size:12px;font-weight:700}
+.ccYoutubeAdd{display:grid;grid-template-columns:1fr 1fr auto;gap:7px;align-items:center;margin:8px 0}
+@media (max-width:700px){.ccYoutubeAdd{grid-template-columns:1fr}.ccYoutubeAdd .ccBtn{width:100%}}
 
 /* 우측 세로 스택 — 회차 배지 아래로 호스트 도구와 가이드가 쌓입니다 */
 .ccSide{position:absolute;right:30px;top:98px;width:238px;display:flex;flex-direction:column;
@@ -3830,38 +3772,4 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
   font-weight:700;line-height:1.55;color:#c9524a}
 .ccGateBtn{width:100%;margin-top:12px}
 .ccGateNote{margin:11px 0 0;font-size:10.5px;line-height:1.6;color:${C.inkSoft};font-weight:700}
-
-.ccHostToggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 8px;
-  padding: 9px 10px;
-  border: 0;
-  border-radius: 9px;
-  background: rgba(0, 0, 0, 0.08);
-  color: inherit;
-  font: inherit;
-  font-weight: 800;
-  cursor: pointer;
-  text-align: left;
-}
-
-.ccHostToggleBody {
-  padding: 4px 2px;
-}
-
-.ccHostLocationRow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 5px 7px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.ccHostLocationRow b {
-  font-weight: 900;
-}
 `;
