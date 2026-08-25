@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { blip, buzz, ding } from "./sfx.js";
 import { MENU } from "./rooms.jsx";
 import { Pix } from "./pix.jsx";
+import { supabase } from "./room.js";
 import { FACES, HATS, OUTFITS, lookSprite } from "./sprites.js";
 
 import { DAY, SFX_PREFIX, addVideoLink, fbAdd, fbDel, fbList, ideaAdd, ideaDel, ideaList, isKar, isVid, karName, moviePlay, movieStop, prepSkin, scoreAdd, scoreTop, skinAdd, skinDel, uploadSong, uploadVideo, vidInfo, wishAdd, wishDel, wishList, foodAdd, fortuneAdd, fortuneDel, fortuneEdit, fortuneList, foodDel, foodEdit, foodList, isSfx, lastDraw, plRename, quizAdd, saveDraw, quizCheck, quizDel, quizList, quizPacks, shrinkImage, trackDel, trackList, trackUrl, uploadTrack } from "./content.js";
@@ -1646,38 +1647,43 @@ const TYPE_WORDS = [
   "구름옷가게", "타건음", "물갈이", "우체통", "리본", "왕관", "마들렌", "쿠키",
 ];
 
-/* 💨 방구게임 — 최대한 오래 꾹 누르고 버티기 */
+/* 💨 방구게임 — 오래 참을수록 점수, 터지면 0 */
 function FartGame({ onDone, send }) {
-  const [elapsed, setElapsed] = useState(0);
-  const [state, setState] = useState("ready");   // ready · hold · done
+  const [gauge, setGauge] = useState(0);
+  const [state, setState] = useState("ready");   // ready · hold · done · pop
   const [score, setScore] = useState(0);
+  const limit = useRef(70 + Math.random() * 28);
   const timer = useRef(null);
-  const startedAt = useRef(0);
 
   const stop = () => {
     clearInterval(timer.current);
     timer.current = null;
   };
-  useEffect(() => () => stop(), []);
+  useEffect(() => stop, []);
 
   const start = () => {
     if (state === "hold") return;
-    stop();
-    startedAt.current = performance.now();
-    setElapsed(0);
-    setScore(0);
     setState("hold");
+    setGauge(0);
+    limit.current = 70 + Math.random() * 28;
+    let g = 0;
+    stop();
     timer.current = setInterval(() => {
-      setElapsed(performance.now() - startedAt.current);
-    }, 50);
+      g += 1.6 + Math.random() * 1.6;
+      setGauge(g);
+      if (g >= limit.current) {
+        stop();
+        setState("pop");
+        setScore(0);
+        buzz();
+      }
+    }, 60);
   };
 
   const release = () => {
     if (state !== "hold") return;
-    const ms = Math.max(0, performance.now() - startedAt.current);
     stop();
-    setElapsed(ms);
-    const s = Math.round(ms / 10) / 100;
+    const s = Math.round(gauge);
     setScore(s);
     setState("done");
     ding();
@@ -1686,17 +1692,17 @@ function FartGame({ onDone, send }) {
     onDone?.(s);
   };
 
-  const seconds = (elapsed / 1000).toFixed(2);
+  const pct = Math.min(100, gauge);
   return (
     <div className="ccGame">
       <p className="ccGameAsk">
-        💨 최대한 오래 꾹 누르고 버티세요!
+        참을 수 있을 때까지 누르고 있다가
         <br />
-        손을 떼는 순간 기록이 확정됩니다.
+        터지기 직전에 떼세요!
       </p>
       <div className="ccGauge">
-        <i style={{ width: Math.min(100, (elapsed / 30000) * 100) + "%", background: "#8fe3c9" }} />
-        <span className="ccGaugeNum">{seconds}s</span>
+        <i style={{ width: pct + "%", background: pct > 78 ? "#e0685f" : pct > 55 ? "#f0a13f" : "#8fe3c9" }} />
+        <span className="ccGaugeNum">{Math.round(pct)}</span>
       </div>
       <button
         className={"ccBtn ccGameBig" + (state === "hold" ? " ccGameHold" : "")}
@@ -1706,11 +1712,12 @@ function FartGame({ onDone, send }) {
         onTouchStart={(e) => { e.preventDefault(); start(); }}
         onTouchEnd={(e) => { e.preventDefault(); release(); }}
       >
-        {state === "hold" ? `버티는 중… 💨 ${seconds}초` : state === "done" ? `기록 ${score.toFixed(2)}초 — 다시 도전` : "최대한 오래 꾹 누르기"}
+        {state === "hold" ? "참는 중… 💨" : state === "pop" ? "뿌웅! 다시" : "꾹 누르기"}
       </button>
       <p className="ccGameOut">
-        {state === "done" && `${score.toFixed(2)}초! 가장 오래 버틴 사람이 1등 🏆`}
-        {state === "ready" && "오래 누를수록 높은 기록이에요."}
+        {state === "pop" && "터졌어요… 0점"}
+        {state === "done" && `${score}점! 아슬아슬했네요`}
+        {state === "ready" && "누르고 있으면 게이지가 차올라요"}
       </p>
     </div>
   );
@@ -2185,11 +2192,30 @@ export function MovieSheet({ me, hostCode, isHost, off = false, now, onPlay, onC
    LP바 플레이리스트와 아예 다른 목록입니다. 곡을 'kar:제목' 으로 담아서
    서로 안 섞여요. 번호를 쳐서 고를 수도 있습니다. */
 
+function youtubeId(url) {
+  const u = (url || "").trim();
+  const m =
+    u.match(/[?&]v=([A-Za-z0-9_-]{11})/) ||
+    u.match(/youtu\.be\/([A-Za-z0-9_-]{11})/) ||
+    u.match(/youtube\.com\/shorts\/([A-Za-z0-9_-]{11})/) ||
+    u.match(/youtube\.com\/embed\/([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+function isYoutubeSong(t) {
+  return (t?.title || "").startsWith("kar:yt:");
+}
+
+function youtubeSongName(t) {
+  return (t?.title || "").slice("kar:yt:".length);
+}
+
 export function SongbookSheet({ hostCode, isHost, off = false, playingId, onPlay, onClose }) {
   const [list, setList] = useState(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [no, setNo] = useState("");
+  const [ytUrl, setYtUrl] = useState("");
   const [title, setTitle] = useState("");
   const [pickName, setPickName] = useState("");
   const songFile = useRef(null);
@@ -2256,6 +2282,36 @@ export function SongbookSheet({ hostCode, isHost, off = false, playingId, onPlay
     load();
   };
 
+  const addYoutube = async () => {
+    const u = ytUrl.trim();
+    const id = youtubeId(u);
+    if (!isHost) return;
+    if (!supabase) { setErr("서버 설정이 없어요."); return; }
+    if (!id) { setErr("YouTube 링크를 확인해주세요."); buzz(); return; }
+    if (!title.trim()) { setErr("곡 제목을 적어주세요."); buzz(); return; }
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.rpc("cc_track_add", {
+        p_host_code: hostCode,
+        p_title: "kar:yt:" + title.trim().slice(0, 30),
+        p_path: u,
+        p_pl: null,
+      });
+      if (error || !data?.ok) {
+        setErr(error?.message || msgOf(data));
+        buzz();
+        return;
+      }
+      setYtUrl("");
+      setTitle("");
+      setErr("");
+      ding();
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const del = async (t) => {
     setBusy(true);
     const r = await trackDel(hostCode, t.id);
@@ -2294,7 +2350,7 @@ export function SongbookSheet({ hostCode, isHost, off = false, playingId, onPlay
         {songs.map((t, i) => (
           <div key={t.id} className={"ccBookRow" + (playingId === t.id ? " ccBookOn" : "")}>
             <span className="ccBookNo">{String(i + 1).padStart(3, "0")}</span>
-            <button className="ccBookName" onClick={() => sing(i)}>{karName(t)}</button>
+            <button className="ccBookName" onClick={() => sing(i)}>{isYoutubeSong(t) ? "▶ " + youtubeSongName(t) : karName(t)}</button>
             {isHost && (
               <button className="ccTrackDel" onClick={() => del(t)} disabled={busy}>지우기</button>
             )}
@@ -2305,7 +2361,13 @@ export function SongbookSheet({ hostCode, isHost, off = false, playingId, onPlay
       {err && <div className="ccErr">{err}</div>}
 
       {isHost && !off && (
-        <div className="ccVidAdd">
+        <>
+          <div className="ccYoutubeAdd">
+            <input className="ccInput" value={ytUrl} placeholder="YouTube 링크" onChange={(e) => setYtUrl(e.target.value)} />
+            <input className="ccInput" value={title} maxLength={30} placeholder="곡 제목" onChange={(e) => setTitle(e.target.value)} />
+            <button className="ccBtn ccVidUp" onClick={addYoutube} disabled={busy}>YouTube 선곡표에 추가</button>
+          </div>
+          <div className="ccVidAdd">
           <button className="ccMini ccVidPick" onClick={() => songFile.current?.click()}>
             {pickName || "노래 파일 고르기"}
           </button>
@@ -2320,7 +2382,8 @@ export function SongbookSheet({ hostCode, isHost, off = false, playingId, onPlay
           <button className="ccBtn ccVidUp" onClick={add} disabled={busy}>
             {busy ? "올리는 중…" : "선곡표에 넣기"}
           </button>
-        </div>
+          </div>
+        </>
       )}
 
       <p className="ccSheetNote">여기 곡은 LP바 플레이리스트와 따로예요.</p>
