@@ -654,6 +654,7 @@ function JoinGate({ onJoined, notice }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [solo, setSolo] = useState(false);
+  const [hostSection, setHostSection] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -2470,55 +2471,113 @@ function Town({ me, setMe, onKick }) {
           <button className="ccChip ccHostBtn" onClick={() => setPanel((v) => !v)}>
             테스트 관리
           </button>
-          {panel && (
-            <div className="ccPanel ccHostPanel">
-              <div className="ccHostTitle">{roundNo}번 테스트</div>
-              <div className="ccHostCount">게스트 {room?.taken ?? 0}명 · 최근 순</div>
-              {/* 현재 접속자 위치 — 1명 이상인 장소만 표시 */}
-              {/* 현재 접속자 위치 — 1명 이상인 장소만 표시 */}
-              {(() => {
-                const locationCounts = {};
+      <div className="ccHostTitle">{roundNo}번 테스트</div>
 
-                // 다른 접속자 위치
-                (peerView || []).forEach((p) => {
-                  const roomId = p.r || "";
-                  const roomName = roomId ? (ROOMS[roomId]?.name || roomId) : "마을";
-                  locationCounts[roomName] = (locationCounts[roomName] || 0) + 1;
-                });
+      {/* 👥 테스트 접속자 토글 */}
+      <button
+        className="ccHostToggle"
+        onClick={() =>
+          setHostSection((v) => (v === "players" ? "" : "players"))
+        }
+      >
+        <span>👥 테스트 접속자</span>
+        <span>{hostSection === "players" ? "▲" : "▼"}</span>
+      </button>
 
-                // 나(호스트)의 현재 위치도 포함
-                const myLocation = scene ? (ROOMS[scene]?.name || scene) : "마을";
-                locationCounts[myLocation] = (locationCounts[myLocation] || 0) + 1;
+      {hostSection === "players" && (
+        <div className="ccHostToggleBody">
+          <div className="ccHostCount">
+            게스트 {room?.taken ?? 0}명 · 최근 순
+          </div>
 
-                const locations = Object.entries(locationCounts)
-                  .filter(([, count]) => count > 0);
+          <ul className="ccHostList">
+            {[...(room?.players || [])]
+              .sort(
+                (a, b) =>
+                  new Date(b.joined || 0) -
+                  new Date(a.joined || 0)
+              )
+              .map((p, i) => (
+                <li key={i}>
+                  <span className="ccHostWho">
+                    {p.role === "host"
+                      ? "왕관"
+                      : charForSlot(p.slot).label} · {p.name}
+                  </span>
 
-                return locations.length > 0 ? (
-                  <div className="ccHostLocations">
-                    <div className="ccHostLocationTitle">📍 현재 접속자 위치</div>
+                  <span className="ccHostWhen">
+                    {joinedAgo(p.joined)}
+                  </span>
+                </li>
+              ))}
 
-                    {locations.map(([name, count]) => (
-                      <div className="ccHostLocationRow" key={name}>
-                        <span>{name}</span>
-                        <b>{count}명</b>
-                      </div>
-                    ))}
-                  </div>
-                ) : null;
-              })()}
-              <ul className="ccHostList">
-                {[...(room?.players || [])]
-                  .sort((a, b) => new Date(b.joined || 0) - new Date(a.joined || 0))
-                  .map((p, i) => (
-                    <li key={i}>
-                      <span className="ccHostWho">
-                        {p.role === "host" ? "왕관" : charForSlot(p.slot).label} · {p.name}
-                      </span>
-                      <span className="ccHostWhen">{joinedAgo(p.joined)}</span>
-                    </li>
-                  ))}
-                {!room?.players?.length && <li className="ccHostEmpty">아직 아무도 안 왔어요</li>}
-              </ul>
+            {!room?.players?.length && (
+              <li className="ccHostEmpty">
+                아직 아무도 안 왔어요
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+
+      {/* 📍 현재 접속자 위치 토글 */}
+      <button
+        className="ccHostToggle"
+        onClick={() =>
+          setHostSection((v) => (v === "locations" ? "" : "locations"))
+        }
+      >
+        <span>📍 현재 접속자 위치</span>
+        <span>{hostSection === "locations" ? "▲" : "▼"}</span>
+      </button>
+
+      {hostSection === "locations" && (
+        <div className="ccHostToggleBody">
+          {(() => {
+            const locationCounts = {};
+
+            /* 다른 접속자 */
+            (peerView || []).forEach((p) => {
+              const roomId = p.r || "";
+              const roomName = roomId
+                ? ROOMS[roomId]?.name || roomId
+                : "마을";
+
+              locationCounts[roomName] =
+                (locationCounts[roomName] || 0) + 1;
+            });
+
+            /* 호스트 자신의 위치도 포함 */
+            const myLocation = scene
+              ? ROOMS[scene]?.name || scene
+              : "마을";
+
+            locationCounts[myLocation] =
+              (locationCounts[myLocation] || 0) + 1;
+
+            const locations = Object.entries(locationCounts)
+              .filter(([, count]) => count > 0);
+
+            if (!locations.length) {
+              return (
+                <div className="ccHostEmpty">
+                  현재 접속자가 없어요.
+                </div>
+              );
+            }
+
+            return locations.map(([name, count]) => (
+              <div
+                className="ccHostLocationRow"
+                key={name}
+              >
+                <span>{name}</span>
+                <b>{count}명</b>
+              </div>
+            ));
+          })()}
+        </div>
+      )}
               <div className="ccRoundRow">
                 <input
                   className="ccInput ccRoundInput"
@@ -3771,4 +3830,38 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
   font-weight:700;line-height:1.55;color:#c9524a}
 .ccGateBtn{width:100%;margin-top:12px}
 .ccGateNote{margin:11px 0 0;font-size:10.5px;line-height:1.6;color:${C.inkSoft};font-weight:700}
+
+.ccHostToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ccHostToggleBody {
+  padding: 4px 2px;
+}
+
+.ccHostLocationRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 7px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ccHostLocationRow b {
+  font-weight: 900;
+}
 `;
