@@ -905,8 +905,6 @@ function Town({ me, setMe, onKick }) {
       return true;
     }
   });
-  /* 브라우저/사파리 오디오 자동재생 해제를 위한 최초 1회 사용자 확인 */
-  const [soundGate, setSoundGate] = useState(true);
   const [setOpen, setSetOpen] = useState(false);   // 설정 패널
   const [riding, setRiding] = useState(false);     // 미끄럼틀 타는 중
   const [lying, setLying] = useState(false);       // 천문대에서 눕기
@@ -986,7 +984,6 @@ function Town({ me, setMe, onKick }) {
   const chairRef = useRef(null);
   const audio = useRef(null);
   const bgmAudio = useRef(null);
-  const soundUnlockedRef = useRef(false);
   const roomBgmRef = useRef(roomBgmMap);
   const chatBox = useRef(null);
   const histBox = useRef(null);
@@ -1900,7 +1897,7 @@ function Town({ me, setMe, onKick }) {
     if (!hasServer || me.role === "solo" || !me.round) return undefined;
     const chan = joinChannel({
       round: me.round,
-      me: { id: deviceId(), name: me.name, slot: me.slot, role: me.role },
+      me: { id: deviceId(), name: me.name, slot: me.slot },
       getPose: () => ({
         x: Math.round(posRef.current.x),
         y: Math.round(posRef.current.y),
@@ -1923,24 +1920,6 @@ function Town({ me, setMe, onKick }) {
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
       onFx: (e) => {
         if (!e) return;
-
-        /* 방 BGM — 호스트가 바꾼 즉시 모든 게스트에게 반영 */
-        if (e.t === "roomBgm") {
-          if (
-            e.scene === "__ALL__" &&
-            e.bgmMap &&
-            typeof e.bgmMap === "object"
-          ) {
-            setHostBgmMap(e.bgmMap);
-          } else if (e.scene) {
-            setHostBgmMap((m) => ({
-              ...m,
-              [e.scene]: e.bgm || null,
-            }));
-          }
-          return;
-        }
-
         if (e.t === "ball") {
           if (sceneRef.current === "flower") popBall(e.i, false);
           return;
@@ -2027,146 +2006,51 @@ function Town({ me, setMe, onKick }) {
     ? (me.role === "host" ? roomBgmMap[scene] : hostBgmMap[scene]) || null
     : null;
 
-  /* 방 BGM이 시작되면 LP 음악은 무조건 먼저 끊습니다. */
-  useEffect(() => {
-    if (!currentBgm?.url) return;
-
-    const lp = audio.current;
-    if (lp) {
-      lp.pause();
-      try { lp.currentTime = 0; } catch {}
-    }
-
-    setQueue((q) => (q.length ? [] : q));
-    setQi(0);
-    setPlName("");
-  }, [currentBgm?.url]);
-
-  /* 방 BGM 재생 */
   useEffect(() => {
     const a = bgmAudio.current;
     if (!a) return;
-
     const url = currentBgm?.url || "";
-
     if (!url) {
       a.pause();
       a.removeAttribute("src");
       a.load();
       return;
     }
-
-    a.loop = true;
-    a.preload = "auto";
-    a.playsInline = true;
-    a.autoplay = false;
-    a.volume = muted ? 0 : vol;
-
     if (a.src !== url) {
-      a.pause();
       a.src = url;
-      a.load();
-    }
-
-    const tryPlay = () => {
-      if (!bgmAudio.current) return;
-      if (bgmAudio.current.src !== url) return;
-
-      const p = bgmAudio.current.play();
-      if (p?.catch) p.catch(() => {});
-    };
-
-    tryPlay();
-    a.addEventListener("canplay", tryPlay, { once: true });
-    a.addEventListener("loadeddata", tryPlay, { once: true });
-
-    return () => {
-      a.removeEventListener("canplay", tryPlay);
-      a.removeEventListener("loadeddata", tryPlay);
-    };
-  }, [currentBgm?.url, scene]);
-
-  useEffect(() => {
-    if (bgmAudio.current) {
-      bgmAudio.current.volume = muted ? 0 : vol;
-    }
-  }, [vol, muted]);
-
-  /* 최초 소리 켜기 버튼에서 실제 사용자 제스처로 HTML audio를 unlock */
-  const enableGameSound = useCallback(() => {
-    /* 이 클릭 자체를 HTMLMediaElement의 사용자 제스처로 기록 */
-    soundUnlockedRef.current = true;
-
-    try { unlockAudio(); } catch {}
-
-    const a = bgmAudio.current;
-
-    if (a) {
       a.loop = true;
-      a.playsInline = true;
-      a.autoplay = false;
       a.volume = muted ? 0 : vol;
-
-      /*
-       * 이미 호스트 BGM이 도착해 있으면 바로 이 클릭 안에서 재생합니다.
-       * 아직 BGM이 없다면 같은 audio element에서 무음 트랙을 계속 재생해
-       * Safari/iOS의 media-element 사용자 활성화를 유지합니다.
-       * 이후 BGM이 도착하면 같은 element의 src만 교체합니다.
-       */
-      const silent =
-        "data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-
-      const url = currentBgm?.url || silent;
-
-      if (a.src !== url) {
-        a.src = url;
-        a.load();
-      }
-
+      const p = a.play();
+      if (p?.catch) p.catch(() => {});
+    } else if (a.paused) {
       const p = a.play();
       if (p?.catch) p.catch(() => {});
     }
+  }, [currentBgm, scene]);
 
-    setSoundGate(false);
-
-    try {
-      sessionStorage.setItem("ccSoundEnabled", "1");
-    } catch {}
-  }, [currentBgm?.url, muted, vol]);
-
-  /* 사용자가 소리를 켠 뒤에도 BGM이 들어오면 즉시 재생 */
   useEffect(() => {
-    if (soundGate || !currentBgm?.url) return undefined;
+    if (bgmAudio.current) bgmAudio.current.volume = muted ? 0 : vol;
+  }, [vol, muted]);
 
+  /* 모바일은 원격에서 시작한 소리를 막을 수 있어서, 사용자가 게임을 한 번 터치하면
+     현재 방 BGM을 다시 재생해 줍니다. */
+  useEffect(() => {
+    if (!currentBgm) return undefined;
     const wakeBgm = () => {
       const a = bgmAudio.current;
-      if (!a) return;
-
-      a.volume = muted ? 0 : vol;
-
-      if (a.src !== currentBgm.url) {
-        a.pause();
-        a.src = currentBgm.url;
-        a.loop = true;
-        a.load();
-      }
-
-      if (a.paused) {
-        const p = a.play();
-        if (p?.catch) p.catch(() => {});
-      }
+      if (!a || !a.paused) return;
+      const p = a.play();
+      if (p?.catch) p.catch(() => {});
     };
-
-    window.addEventListener("pointerdown", wakeBgm, true);
-    window.addEventListener("touchstart", wakeBgm, { passive: true, capture: true });
-    window.addEventListener("keydown", wakeBgm, true);
-
+    window.addEventListener("pointerdown", wakeBgm);
+    window.addEventListener("touchstart", wakeBgm, { passive: true });
+    window.addEventListener("keydown", wakeBgm);
     return () => {
-      window.removeEventListener("pointerdown", wakeBgm, true);
-      window.removeEventListener("touchstart", wakeBgm, true);
-      window.removeEventListener("keydown", wakeBgm, true);
+      window.removeEventListener("pointerdown", wakeBgm);
+      window.removeEventListener("touchstart", wakeBgm);
+      window.removeEventListener("keydown", wakeBgm);
     };
-  }, [soundGate, currentBgm?.url, muted, vol]);
+  }, [currentBgm]);
 
   /* 음량 — 슬라이더를 움직이면 바로 반영하고 기기에 기억해둡니다 */
   useEffect(() => {
@@ -2315,17 +2199,16 @@ function Town({ me, setMe, onKick }) {
               pressed={pressed}
               skin={scene === "candy" ? QUIZ_SKIN[quizMode] : null}
             />
-            {me.role === "host" ? (
+            {me.role === "host" && (
               <button
                 className="ccRoomBgmBtn"
                 onClick={(e) => { e.stopPropagation(); setBgmOpen(true); }}
               >
                 🎵 BGM 설정
               </button>
-            ) : (
-              <div className="ccRoomBgmBtn ccRoomBgmGuest">
-                🎵 {currentBgm ? currentBgm.title : "방 BGM 없음"}
-              </div>
+            )}
+            {currentBgm && (
+              <div className="ccRoomBgmNow">🎵 {currentBgm.title}</div>
             )}
             <div className="ccRoomLayer">
               {scene === "sing" && karaoke && youtubeId(karaoke.url) && (
@@ -2381,7 +2264,6 @@ function Town({ me, setMe, onKick }) {
                     <span className="ccKaraokeRemoteMini">장르</span>
                   </div>
                   <div className="ccKaraokeRemoteMiniRow">
-                    <span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">예약</span>
                     <span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">신곡</span>
                     <span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">검색</span>
                   </div>
@@ -2393,9 +2275,6 @@ function Town({ me, setMe, onKick }) {
                   </div>
                   <div className="ccKaraokeRemoteNav">
                     <i className="l">◀</i><i className="r">▶</i><i className="d">▼</i>
-                  </div>
-                  <div className="ccKaraokeRemoteAction">
-                    <span className="cancel">선택</span><span className="start">예약</span>
                   </div>
                   <div className="ccKaraokeRemoteHint">선곡표</div>
                 </div>
@@ -2978,10 +2857,6 @@ function Town({ me, setMe, onKick }) {
             onSelect={(next) => {
               if (!scene) return;
               setRoomBgmMap((m) => ({ ...m, [scene]: next }));
-              chanRef.current?.roomBgm?.({
-                scene,
-                bgm: next || null,
-              });
               setBgmOpen(false);
               blip(next ? 820 : 520);
             }}
@@ -3156,44 +3031,7 @@ function Town({ me, setMe, onKick }) {
 
       {sheet === "starview" && <StarViewSheet onClose={() => setSheet(null)} />}
 
-      {soundGate && (
-        <div className="ccWelWrap" style={{ zIndex: 10001 }}>
-          <div className="ccWelCard" onClick={(e) => e.stopPropagation()}>
-            <span className="ccWelPin ccWelPinA" />
-            <span className="ccWelPin ccWelPinB" />
-            <span className="ccWelPin ccWelPinC" />
-            <span className="ccWelPin ccWelPinD" />
-
-            <div style={{ fontSize: 42, lineHeight: 1, margin: "6px 0 14px" }}>
-              🔊
-            </div>
-
-            <div className="ccWelTag">SOUND ON</div>
-
-            <h2 className="ccWelTitle">
-              게임 소리를<br />켜주세요!
-            </h2>
-
-            <p className="ccWelText">
-              방 BGM과 게임 효과음을<br />
-              들으려면 소리를 켜주세요.
-            </p>
-
-            <p className="ccWelBonus">
-              📱 모바일 · 💻 PC 모두 지원
-            </p>
-
-            <button
-              className="ccBtn ccWelBtn"
-              onClick={enableGameSound}
-            >
-              🔊 소리 켜기
-            </button>
-          </div>
-        </div>
-      )}
-
-      {welcome && !soundGate && (
+      {welcome && (
         <div className="ccWelWrap" onClick={closeWelcome}>
           <div className="ccWelCard" onClick={(e) => e.stopPropagation()}>
             <span className="ccWelPin ccWelPinA" />
@@ -3592,7 +3430,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccKaraokeRemoteBlue{background:#a9dcff;color:#3b5970}
 .ccKaraokeRemoteNav{position:absolute;left:10px;bottom:35px;width:43px;height:43px;border:3px solid #5b5562;border-radius:50%;background:#55505c;box-shadow:inset 0 0 0 4px #dddde4}
 .ccKaraokeRemoteNav::before{content:'▲';position:absolute;left:50%;top:2px;transform:translateX(-50%);font-size:8px;color:#fff}
-.ccKaraokeRemoteNav::after{content:'OK';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;background:#f5f5f7;color:#55505c;font-size:7px;font-weight:900;display:flex;align-items:center;justify-content:center}
+.ccKaraokeRemoteNav::after{display:none}
 .ccKaraokeRemoteNav i{position:absolute;font-style:normal;font-size:8px;color:#fff}
 .ccKaraokeRemoteNav .l{left:4px;top:16px}.ccKaraokeRemoteNav .r{right:4px;top:16px}.ccKaraokeRemoteNav .d{left:17px;bottom:2px}
 .ccKaraokeRemoteAction{position:absolute;right:9px;bottom:38px;display:grid;grid-template-columns:1fr 1fr;gap:4px;width:52px}
