@@ -2784,7 +2784,7 @@ function Town({ me, setMe, onKick }) {
                 </div>
                 <div className="ccKaraokeVideo">
                   <iframe
-                    src={`https://www.youtube-nocookie.com/embed/${youtubeId(karaoke.url)}?autoplay=1&playsinline=1&rel=0`}
+                    src={`https://www.youtube.com/embed/${youtubeId(karaoke.url)}?autoplay=1&playsinline=1&rel=0`}
                     title={karaoke.title}
                     allow="autoplay; encrypted-media; picture-in-picture"
                     allowFullScreen
