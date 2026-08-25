@@ -1,14 +1,17 @@
 import { supabase } from "./room.js";
 
 /* ===========================================================
-   같이 접속한 사람 보이기 + 채팅 — Supabase Realtime 브로드캐스트
-   회차마다 채널이 따로 열립니다: cc-round-<회차>
-   위치는 초당 8번, 일반 채팅은 보낼 때만.
-   카페 자동대화는 일반 채팅과 분리된 cafe_talk 이벤트로 보냅니다.
+   Cloud Candy Town — Realtime
+   - 다른 플레이어 위치
+   - 일반 채팅
+   - 카페 자동대화
+   - 일반 FX
+   - 방 BGM 실시간 동기화
    =========================================================== */
 
 const SEND_MS = 125;
 const STALE_MS = 15000;
+
 export const CHAT_MS = 3000;
 
 export function joinChannel({
@@ -27,6 +30,8 @@ export function joinChannel({
       chat: () => false,
       cafeTalk: () => false,
       fx: () => false,
+      roomBgm: () => false,
+      requestRoomBgm: () => false,
     };
   }
 
@@ -34,10 +39,16 @@ export function joinChannel({
 
   let dead = false;
   let live = false;
+
   let retry = 0;
   let retryTimer = null;
 
-  const ch = supabase.channel(`cc-round-${round}`, {
+  let sendTimer = null;
+  let pruneTimer = null;
+
+  const channelName = `cc-round-${round}`;
+
+  const ch = supabase.channel(channelName, {
     config: {
       broadcast: {
         self: false,
@@ -45,17 +56,20 @@ export function joinChannel({
     },
   });
 
-  const push = () => onPeers([...peers.values()]);
+  const push = () => {
+    onPeers?.([...peers.values()]);
+  };
 
   /* =========================================================
-     다른 사람 위치
+     다른 플레이어 위치
      ========================================================= */
 
   ch.on(
     "broadcast",
     { event: "pose" },
     ({ payload }) => {
-      if (!payload?.id || payload.id === me.id) return;
+      if (!payload?.id) return;
+      if (payload.id === me.id) return;
 
       const prev = peers.get(payload.id);
 
@@ -77,25 +91,27 @@ export function joinChannel({
     "broadcast",
     { event: "chat" },
     ({ payload }) => {
-      if (!payload?.id || payload.id === me.id) return;
+      if (!payload?.id) return;
+      if (payload.id === me.id) return;
 
       const prev =
         peers.get(payload.id) || {
           id: payload.id,
-          name: payload.name,
-          slot: payload.slot,
+          name: payload.name || "",
+          slot: payload.slot ?? -1,
           x: -999,
           y: -999,
         };
 
       peers.set(payload.id, {
         ...prev,
-        msg: payload.text,
+        msg: payload.text || "",
         msgAt: Date.now(),
         at: Date.now(),
       });
 
       onChat?.(payload);
+
       push();
     }
   );
@@ -108,23 +124,110 @@ export function joinChannel({
     "broadcast",
     { event: "cafe_talk" },
     ({ payload }) => {
-      if (!payload || payload.id === me.id) return;
+      if (!payload) return;
+      if (payload.id === me.id) return;
 
       onCafeTalk?.(payload);
     }
   );
 
   /* =========================================================
-     효과
+     일반 FX
      ========================================================= */
 
   ch.on(
     "broadcast",
     { event: "fx" },
     ({ payload }) => {
-      if (!payload || payload.id === me.id) return;
+      if (!payload) return;
+      if (payload.id === me.id) return;
 
       onFx?.(payload);
+    }
+  );
+
+  /* =========================================================
+     방 BGM
+     
+     BGM은 FX와 별도로 분리합니다.
+     이유:
+     - FX는 순간적인 이벤트
+     - BGM은 현재 방의 상태
+     ========================================================= */
+
+  ch.on(
+    "broadcast",
+    { event: "room_bgm" },
+    ({ payload }) => {
+      if (!payload) return;
+      if (payload.id === me.id) return;
+
+      /*
+       * 호스트가 현재 전체 BGM 상태를 보내는 경우
+       */
+      if (
+        payload.scene === "__ALL__" &&
+        payload.bgmMap &&
+        typeof payload.bgmMap === "object"
+      ) {
+        onFx?.({
+          id: payload.id,
+          t: "roomBgm",
+          scene: "__ALL__",
+          bgmMap: payload.bgmMap,
+        });
+
+        return;
+      }
+
+      /*
+       * 특정 방 BGM 변경
+       */
+      if (payload.scene) {
+        onFx?.({
+          id: payload.id,
+          t: "roomBgm",
+          scene: payload.scene,
+          bgm: payload.bgm || null,
+        });
+      }
+    }
+  );
+
+  /* =========================================================
+     게스트 → 호스트
+     
+     "현재 방 BGM 뭐야?" 요청
+     ========================================================= */
+
+  ch.on(
+    "broadcast",
+    { event: "room_bgm_request" },
+    ({ payload }) => {
+      if (!payload) return;
+
+      /*
+       * 호스트만 응답
+       */
+      if (me.role !== "host") return;
+
+      const pose = getPose?.();
+
+      const bgmMap =
+        pose?.bgmMap &&
+        typeof pose.bgmMap === "object"
+          ? pose.bgmMap
+          : {};
+
+      ch.send({
+        type: "broadcast",
+        event: "room_bgm",
+        payload: {
+          id: me.id,
+          scene: "__ALL__",
+          bgmMap,
+        },
+      });
     }
   );
 
@@ -136,20 +239,24 @@ export function joinChannel({
     "broadcast",
     { event: "bye" },
     ({ payload }) => {
-      if (payload?.id && peers.delete(payload.id)) {
+      if (!payload?.id) return;
+
+      if (peers.delete(payload.id)) {
         push();
       }
     }
   );
 
-  let sendTimer = null;
-  let pruneTimer = null;
+  /* =========================================================
+     연결 상태
+     ========================================================= */
 
-  const setLive = (v) => {
-    if (live === v) return;
+  const setLive = (value) => {
+    if (live === value) return;
 
-    live = v;
-    onLive?.(v);
+    live = value;
+
+    onLive?.(value);
   };
 
   /* =========================================================
@@ -179,6 +286,10 @@ export function joinChannel({
     }, wait);
   };
 
+  /* =========================================================
+     SUBSCRIBED
+     ========================================================= */
+
   function onStatus(status) {
     if (dead) return;
 
@@ -189,36 +300,40 @@ export function joinChannel({
       push();
 
       rejoin();
+
       return;
     }
 
     retry = 0;
+
     setLive(true);
 
     clearInterval(sendTimer);
     clearInterval(pruneTimer);
 
     /* =======================================================
-       위치 + 방 BGM 상태 전송
+       내 위치 / 상태 전송
        ======================================================= */
 
     let lastSig = "";
     let lastAt = 0;
 
     const send = () => {
-      const pose = getPose();
+      if (dead || !live) return;
+
+      const pose = getPose?.();
 
       if (!pose) return;
 
-      const sig = JSON.stringify(pose);
       const now = Date.now();
+      const sig = JSON.stringify(pose);
 
       /*
-       * 위치가 바뀌지 않았더라도
-       * 최대 3초마다 한 번씩은 전송합니다.
+       * 움직이지 않았더라도
+       * 3초마다 한 번은 상태를 전송합니다.
        *
-       * 호스트의 bgmMap도 pose 안에 들어가기 때문에
-       * 새로 들어온 게스트가 현재 방 BGM을 받을 수 있습니다.
+       * 따라서 새로 들어온 게스트가
+       * 현재 호스트의 bgmMap도 받을 수 있습니다.
        */
 
       if (
@@ -238,6 +353,7 @@ export function joinChannel({
           id: me.id,
           name: me.name,
           slot: me.slot,
+          role: me.role,
           ...pose,
         },
       });
@@ -251,20 +367,29 @@ export function joinChannel({
     );
 
     /* =======================================================
-       오래된 접속자 / 말풍선 정리
+       오래된 플레이어 / 말풍선 정리
        ======================================================= */
 
     pruneTimer = setInterval(() => {
       const now = Date.now();
+
       let changed = false;
 
       peers.forEach((p, id) => {
-        if (now - p.at > STALE_MS) {
+        if (
+          now - (p.at || 0) >
+          STALE_MS
+        ) {
           peers.delete(id);
           changed = true;
-        } else if (
+
+          return;
+        }
+
+        if (
           p.msg &&
-          now - p.msgAt > CHAT_MS
+          now - (p.msgAt || 0) >
+          CHAT_MS
         ) {
           peers.set(id, {
             ...p,
@@ -279,22 +404,40 @@ export function joinChannel({
         push();
       }
     }, 500);
+
+    /*
+     * 게스트가 연결된 직후 현재 방 BGM 요청
+     */
+    if (me.role !== "host") {
+      setTimeout(() => {
+        if (dead || !live) return;
+
+        ch.send({
+          type: "broadcast",
+          event: "room_bgm_request",
+          payload: {
+            id: me.id,
+          },
+        });
+      }, 350);
+    }
   }
 
   ch.subscribe(onStatus);
 
   /* =========================================================
-     탭 복귀 / 인터넷 복구
+     인터넷 / 탭 복귀
      ========================================================= */
 
   const wake = () => {
     if (dead || live) return;
 
     retry = 0;
+
     rejoin();
   };
 
-  const onVis = () => {
+  const onVisibility = () => {
     if (!document.hidden) {
       wake();
     }
@@ -302,7 +445,7 @@ export function joinChannel({
 
   document.addEventListener(
     "visibilitychange",
-    onVis
+    onVisibility
   );
 
   window.addEventListener(
@@ -320,6 +463,8 @@ export function joinChannel({
      ========================================================= */
 
   const bye = () => {
+    if (dead) return;
+
     try {
       ch.send({
         type: "broadcast",
@@ -333,8 +478,8 @@ export function joinChannel({
     }
   };
 
-  const onPageHide = (e) => {
-    if (!e.persisted) {
+  const onPageHide = (event) => {
+    if (!event.persisted) {
       bye();
     }
   };
@@ -345,20 +490,21 @@ export function joinChannel({
   );
 
   /* =========================================================
-     외부에서 사용할 API
+     외부 API
      ========================================================= */
 
   return {
-    /* =======================================================
+    /* -------------------------------------------------------
        일반 채팅
-       ======================================================= */
+       ------------------------------------------------------- */
 
     chat(text, room) {
-      const t = (text || "")
+      const t = String(text || "")
         .trim()
         .slice(0, 60);
 
       if (!t) return false;
+      if (dead || !live) return false;
 
       ch.send({
         type: "broadcast",
@@ -375,16 +521,24 @@ export function joinChannel({
       return true;
     },
 
-    /* =======================================================
+    /* -------------------------------------------------------
        카페 자동대화
-       ======================================================= */
+       ------------------------------------------------------- */
 
-    cafeTalk({ who, text, room }) {
-      const t = (text || "")
+    cafeTalk({
+      who,
+      text,
+      room,
+    }) {
+      const t = String(text || "")
         .trim()
         .slice(0, 120);
 
       if (!t || !room) {
+        return false;
+      }
+
+      if (dead || !live) {
         return false;
       }
 
@@ -395,7 +549,7 @@ export function joinChannel({
           id: me.id,
 
           senderChair:
-            getPose()?.st ?? -1,
+            getPose?.()?.st ?? -1,
 
           who:
             who === "s"
@@ -411,12 +565,13 @@ export function joinChannel({
       return true;
     },
 
-    /* =======================================================
-       효과
-       ======================================================= */
+    /* -------------------------------------------------------
+       일반 FX
+       ------------------------------------------------------- */
 
     fx(data) {
-      if (!data || dead || !live) return false;
+      if (!data) return false;
+      if (dead || !live) return false;
 
       ch.send({
         type: "broadcast",
@@ -430,22 +585,68 @@ export function joinChannel({
       return true;
     },
 
-    /* =======================================================
-       연결 상태
-       ======================================================= */
+    /* -------------------------------------------------------
+       방 BGM 변경
+       ------------------------------------------------------- */
+
+    roomBgm({
+      scene,
+      bgm,
+    }) {
+      if (!scene) return false;
+      if (dead || !live) return false;
+
+      ch.send({
+        type: "broadcast",
+        event: "room_bgm",
+        payload: {
+          id: me.id,
+          scene,
+          bgm: bgm || null,
+        },
+      });
+
+      return true;
+    },
+
+    /* -------------------------------------------------------
+       현재 방 BGM 요청
+       ------------------------------------------------------- */
+
+    requestRoomBgm() {
+      if (dead || !live) return false;
+
+      ch.send({
+        type: "broadcast",
+        event: "room_bgm_request",
+        payload: {
+          id: me.id,
+        },
+      });
+
+      return true;
+    },
+
+    /* -------------------------------------------------------
+       연결 여부
+       ------------------------------------------------------- */
 
     live: () => live,
 
-    /* =======================================================
+    /* -------------------------------------------------------
        종료
-       ======================================================= */
+       ------------------------------------------------------- */
 
     stop() {
+      if (dead) return;
+
       dead = true;
 
       clearInterval(sendTimer);
       clearInterval(pruneTimer);
       clearTimeout(retryTimer);
+
+      bye();
 
       window.removeEventListener(
         "pagehide",
@@ -454,7 +655,7 @@ export function joinChannel({
 
       document.removeEventListener(
         "visibilitychange",
-        onVis
+        onVisibility
       );
 
       window.removeEventListener(
@@ -467,9 +668,11 @@ export function joinChannel({
         wake
       );
 
-      bye();
-
-      supabase.removeChannel(ch);
+      try {
+        supabase.removeChannel(ch);
+      } catch {
+        /* 무시 */
+      }
     },
   };
 }
