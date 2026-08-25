@@ -1,3 +1,4 @@
+/* CloudCandyTown v4 — real cotton floss growth + fixed spa entrance */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
@@ -593,53 +594,191 @@ function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction }) {
   </div>;
 }
 
+function CottonCanvas({ fibers, decorations = [], activeColor, decorateMode = false, selectedDecor = null, onDecor }) {
+  const ref = useRef(null);
+  const size = 340;
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    canvas.style.width = `${size}px`;
+    canvas.style.height = `${size}px`;
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, size, size);
+
+    const cx = size / 2;
+    const cy = size * 0.46;
+    const n = fibers.length;
+    const maxR = n ? Math.min(126, 12 + Math.sqrt(n) * 5.5) : 8;
+
+    // 아주 옅은 중심 솜. 평평한 원이 아니라 섬유 사이를 메우는 역할만 합니다.
+    if (n) {
+      const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, maxR * 1.08);
+      g.addColorStop(0, "rgba(255,255,255,.96)");
+      g.addColorStop(.42, "rgba(255,255,255,.72)");
+      g.addColorStop(.76, "rgba(255,255,255,.25)");
+      g.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(cx, cy, maxR * 1.08, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 실제 솜사탕의 핵심: 막대 주위를 감아 올라가는 아주 얇은 설탕 실을 여러 겹 누적합니다.
+    const visible = fibers.slice(-720);
+    const offset = Math.max(0, n - visible.length);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.filter = "blur(1.05px)";
+    for (let j = 0; j < visible.length; j++) {
+      const i = offset + j;
+      const f = visible[j];
+      const progress = f.layer != null ? f.layer : Math.min(1, (i + 1) / Math.max(1, n));
+      // 각 바퀴의 실제 누적 이동량을 반지름으로 사용해 중심부터 바깥으로 감깁니다.
+      const r = 8 + (maxR - 8) * Math.pow(progress, 0.82);
+      const base = f.angle;
+      const seed = Math.abs(Math.sin((f.seed || i * 17.13) * 12.9898)) * 43758.5453;
+      const rand = seed - Math.floor(seed);
+      const threads = 4 + Math.floor(rand * 4);
+      for (let q = 0; q < threads; q++) {
+        const rr = r + (q - threads / 2) * 2.2 + (rand - .5) * 5;
+        const a = base + (q - threads / 2) * .035;
+        const sweep = .14 + ((q * 17 + i) % 8) * .012;
+        const wob = Math.sin(i * .73 + q * 2.4) * 3.5;
+        ctx.strokeStyle = f.color;
+        ctx.globalAlpha = .22 + ((q + 1) / threads) * .16 + progress * .08;
+        ctx.lineWidth = 0.85 + ((i + q) % 3) * .32;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a - sweep) * (rr - 7), cy + Math.sin(a - sweep) * (rr - 7));
+        ctx.quadraticCurveTo(
+          cx + Math.cos(a) * (rr + wob),
+          cy + Math.sin(a) * (rr + wob),
+          cx + Math.cos(a + sweep) * (rr + 7),
+          cy + Math.sin(a + sweep) * (rr + 7)
+        );
+        ctx.stroke();
+      }
+    }
+    ctx.filter = "none";
+    ctx.globalAlpha = 1;
+
+    // 가장자리의 잔털 — 솜사탕 특유의 삐져나온 실.
+    if (n > 4) {
+      const edgeCount = Math.min(70, Math.floor(n / 7));
+      for (let i = 0; i < edgeCount; i++) {
+        const f = fibers[(i * 17 + n - 1) % n];
+        const a = f.angle + Math.sin(i * 4.1) * .08;
+        const r = maxR * (0.94 + (i % 5) * .018);
+        ctx.strokeStyle = f.color;
+        ctx.globalAlpha = .45;
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        ctx.lineTo(cx + Math.cos(a + .08) * (r + 12), cy + Math.sin(a + .08) * (r + 12));
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // 꾸미기 단계의 스프링클도 같은 캔버스 위에 그려서 실제 솜 위에 꽂힌 것처럼 보이게 합니다.
+    const cottonR = Math.max(18, maxR * .96);
+    for (const d of decorations) {
+      const x = cx + (d.x / 100 - .5) * cottonR * 2;
+      const y = cy + (d.y / 100 - .5) * cottonR * 2;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate((d.r || 0) * Math.PI / 180);
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#5b4a63";
+      ctx.fillStyle = d.type === "star" ? "#ffd45e" : d.type === "bar" ? "#ff8fb6" : "#ff6f9e";
+      if (d.type === "star") {
+        ctx.beginPath();
+        for (let k = 0; k < 10; k++) {
+          const a = -Math.PI / 2 + k * Math.PI / 5;
+          const r = k % 2 ? 5 : 10;
+          ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        }
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      } else if (d.type === "bar") {
+        ctx.fillRect(-3.5, -10, 7, 20); ctx.strokeRect(-3.5, -10, 7, 20);
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(0, 10);
+        ctx.bezierCurveTo(-14, 1, -12, -9, -5, -9);
+        ctx.bezierCurveTo(-2, -9, 0, -6, 0, -3);
+        ctx.bezierCurveTo(0, -6, 2, -9, 5, -9);
+        ctx.bezierCurveTo(12, -9, 14, 1, 0, 10);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }, [fibers, decorations]);
+
+  const handleClick = (e) => {
+    if (!decorateMode || !selectedDecor || !onDecor || !fibers.length) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const maxR = Math.min(126, 12 + Math.sqrt(fibers.length) * 5.5);
+    const cx = size / 2, cy = size * .46;
+    const px = e.clientX - r.left, py = e.clientY - r.top;
+    const dx = px - cx, dy = py - cy;
+    const cottonR = Math.max(18, maxR * .96);
+    if (Math.hypot(dx, dy) > cottonR) return;
+    const x = clamp(50 + dx / (cottonR * 2) * 100, 6, 94);
+    const y = clamp(50 + dy / (cottonR * 2) * 100, 6, 94);
+    onDecor(selectedDecor, x, y);
+  };
+
+  return <canvas ref={ref} className={decorateMode ? "ccCottonCanvas ccCottonCanvasDecor" : "ccCottonCanvas"} onClick={handleClick} />;
+}
+
 function CottonShopRoom({step,color,powered,tufts,decor,shelf,onMachine,onColor,onPower,onStroke,onFinish,onDecor,onDone,confirm,onConfirm,onBack}) {
   const draw = useRef(false), ring = useRef(null);
+  const lastAngle = useRef(null), travel = useRef(0);
   const [selectedDecor, setSelectedDecor] = useState(null);
   const colors=[{id:"pink",n:"딸기",c:"#ff8fbe"},{id:"sky",n:"소다",c:"#8fdcff"},{id:"lemon",n:"레몬",c:"#ffe27a"},{id:"mint",n:"민트",c:"#9ce9c8"},{id:"grape",n:"포도",c:"#c4a4f4"}];
   const active=colors.find(x=>x.id===color)||colors[0];
-  // 처음에는 아주 작게 시작하고, 원을 계속 그릴수록 중심에서 바깥쪽으로 부드럽게 커집니다.
-  const size=Math.min(230, 38 + Math.sqrt(tufts.length) * 18);
-  const pt=e=>{const r=ring.current?.getBoundingClientRect();if(!r)return null;const x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2);return {d:Math.hypot(x,y),a:Math.atan2(y,x)};};
-  const down=e=>{if(!powered||step!=="machine")return;const p=pt(e);if(!p||p.d<82||p.d>185)return;draw.current=true;try{e.currentTarget.setPointerCapture(e.pointerId)}catch{};onStroke({color:active.c,angle:p.a,seed:Date.now()+Math.random()});};
-  const move=e=>{if(!draw.current)return;const p=pt(e);if(!p||p.d<72||p.d>195)return;onStroke({color:active.c,angle:p.a,seed:Date.now()+Math.random()});};
-  const up=()=>{draw.current=false;};
-
-  const cloud=(cls="", clickable=false)=><div
-    className={`ccCottonCloud ${cls}${clickable && selectedDecor ? " ccDecorReady" : ""}`}
-    style={{width:size,height:size,borderColor:active.c}}
-    onClick={clickable ? (e)=>{
-      if(!selectedDecor) return;
-      const r=e.currentTarget.getBoundingClientRect();
-      const x=clamp(((e.clientX-r.left)/r.width)*100, 7, 93);
-      const y=clamp(((e.clientY-r.top)/r.height)*100, 7, 93);
-      onDecor(selectedDecor, x, y);
-    } : undefined}
-  >
-    {tufts.slice(-240).map((t,i)=>{
-      // 솜털을 중심 → 바깥 순서로 배치해서, 원을 그릴수록 안쪽부터 차오르는 느낌을 만듭니다.
-      const n=Math.max(1, Math.min(240, tufts.length));
-      const rr=Math.sqrt((i+1)/n)*43;
-      const jitter=((i*37)%13)-6;
-      const x=50+Math.cos(t.angle)*rr + jitter*.22;
-      const y=50+Math.sin(t.angle)*rr + jitter*.18;
-      return <i key={t.seed+"-"+i} style={{left:`${x}%`,top:`${y}%`,background:t.color}}/>;
-    })}
-    {(decor||[]).map((d,i)=><span key={i} className={`ccSprinkle ccSprinkle-${d.type}`} style={{left:`${d.x}%`,top:`${d.y}%`,transform:`translate(-50%,-50%) rotate(${d.r}deg)`}}/>)}
-  </div>;
-
-  useEffect(()=>{
-    if(step!=="decorate") setSelectedDecor(null);
-  },[step]);
+  const pt=e=>{const r=ring.current?.getBoundingClientRect();if(!r)return null;const x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height*.48);return {d:Math.hypot(x,y),a:Math.atan2(y,x)};};
+  const addThread=(p)=>{
+    if(lastAngle.current!=null){
+      let delta=p.a-lastAngle.current;
+      while(delta>Math.PI) delta-=Math.PI*2;
+      while(delta<-Math.PI) delta+=Math.PI*2;
+      travel.current += Math.abs(delta);
+    }
+    lastAngle.current=p.a;
+    // 약 5바퀴에 걸쳐 중심에서 바깥까지 성장합니다. 실제 이동량이 성장량입니다.
+    const layer=Math.min(1, travel.current/(Math.PI*2*5));
+    onStroke({color:active.c,angle:p.a,layer,turn:travel.current/(Math.PI*2),seed:Date.now()+Math.random()});
+  };
+  const down=e=>{
+    if(!powered||step!=="machine")return;
+    const p=pt(e); if(!p||p.d<95||p.d>155)return;
+    draw.current=true; lastAngle.current=p.a;
+    try{e.currentTarget.setPointerCapture(e.pointerId)}catch{}
+    addThread(p);
+  };
+  const move=e=>{
+    if(!draw.current)return;
+    const p=pt(e); if(!p||p.d<82||p.d>165)return;
+    addThread(p);
+  };
+  const up=()=>{draw.current=false;lastAngle.current=null;};
+  useEffect(()=>{if(step!=="decorate")setSelectedDecor(null)},[step]);
 
   return <div className="ccCottonRoom">
-    <div className="ccCottonRoomTop"><div><div className="ccCottonRoomTitle">☁️ 구름솜사탕 가게</div><div className="ccCottonRoomSub">{step==="shop"?"기계에서 솜사탕을 만들어보세요":step==="machine"?"색을 고르고 전원을 켠 뒤 원을 따라 빙글빙글!":"스프링클을 선택한 뒤 솜사탕 위를 클릭해보세요!"}</div></div><button className="ccCottonBack" onClick={onBack}>← 나가기</button></div>
+    <div className="ccCottonRoomTop"><div><div className="ccCottonRoomTitle">☁️ 구름솜사탕 가게</div><div className="ccCottonRoomSub">{step==="shop"?"기계에서 솜사탕을 만들어보세요":step==="machine"?"색을 고르고 전원을 켠 뒤 스테인리스 원을 따라 천천히 빙글빙글!":"스프링클을 선택한 뒤 솜사탕 위를 클릭해보세요!"}</div></div><button className="ccCottonBack" onClick={onBack}>← 나가기</button></div>
     {step==="shop"&&<div className="ccCottonShopScene"><button className="ccCottonBigObject" onClick={onMachine}><div className="ccCottonMachineIcon"><span className="ccMachineBowl"/><span className="ccMachinePole"/></div><b>솜사탕 기계</b><small>눌러서 만들기</small></button><div className="ccCottonShelfObject"><div className="ccShelfCanopy">☁️ 솜사탕 진열대</div><div className="ccShelfRows">{[0,1,2].map(r=><div className="ccShelfRow" key={r}>{[0,1,2].map(i=><div className="ccShelfSlot" key={i}>{shelf?.[r*3+i]&&<span className="ccMiniCotton" style={{background:shelf[r*3+i].color}}/>}</div>)}</div>)}</div><small>{shelf?.length?`${shelf.length}개 진열됨`:"아직 진열된 솜사탕이 없어요"}</small></div></div>}
-    {step==="machine"&&<div className="ccCottonMachineStage"><div className="ccCottonColorBar"><b>색상</b>{colors.map(c=><button key={c.id} className={"ccCottonColor"+(color===c.id?" on":"")} style={{background:c.c}} onClick={()=>onColor(c.id)} title={c.n}/>)}<span>솜털 {tufts.length}</span></div><div className={"ccCottonMachine"+(powered?" powered":"")}><div className="ccMachineLabel">CLOUD COTTON</div><div ref={ring} className="ccMachineRingArea" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}><div className="ccSteelRing"><div className="ccSteelHole"/></div>{cloud()}<div className="ccCottonStick"/></div><div className="ccPowerRow"><button className={"ccPowerBtn"+(powered?" on":"")} onClick={onPower}>{powered?"⏻ 작동 중":"⏻ 전원"}</button><span>{powered?"원형을 따라 마우스를 누르고 움직여주세요":"먼저 전원을 켜주세요"}</span></div></div><button className="ccBtn ccCottonFinish" disabled={tufts.length<8} onClick={onFinish}>솜사탕 완성 → 꾸미기</button></div>}
-    {step==="decorate"&&<div className="ccCottonDecorStage"><div className="ccDecorPreview"><div className="ccDecorCottonWrap">{cloud("ccDecorCloud",true)}</div></div><div className="ccDecorPanel"><h3>✨ 솜사탕 꾸미기</h3><p>{selectedDecor?"선택한 스프링클을 솜사탕 위 원하는 곳에 클릭하세요.":"먼저 스프링클을 하나 선택하세요."}</p><div className="ccDecorButtons"><button className={selectedDecor==="star"?"ccDecorSelected":""} onClick={()=>setSelectedDecor("star")}>★ 별모양 스프링클</button><button className={selectedDecor==="bar"?"ccDecorSelected":""} onClick={()=>setSelectedDecor("bar")}>▮ 길쭉한 네모 스프링클</button><button className={selectedDecor==="heart"?"ccDecorSelected":""} onClick={()=>setSelectedDecor("heart")}>♥ 하트 스프링클</button></div><div className="ccDecorCount">장식 {decor.length}개{selectedDecor?` · ${selectedDecor} 선택됨`:""}</div><button className="ccBtn ccCottonDone" onClick={onDone}>완료</button></div></div>}
+    {step==="machine"&&<div className="ccCottonMachineStage"><div className="ccCottonColorBar"><b>색상</b>{colors.map(c=><button key={c.id} className={"ccCottonColor"+(color===c.id?" on":"")} style={{background:c.c}} onClick={()=>onColor(c.id)} title={c.n}/>)}<span>설탕실 {tufts.length}회</span></div><div className={"ccCottonMachine"+(powered?" powered":"")}><div className="ccMachineLabel">CLOUD COTTON · {powered ? "설탕실이 회전판에서 날리고 있어요" : "전원을 켜주세요"}</div><div ref={ring} className="ccMachineRingArea" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}><div className={"ccSteelRing" + (powered ? " spinning" : "")}><div className="ccSteelHole"/></div><CottonCanvas fibers={tufts} activeColor={active.c}/><div className="ccCottonStick"/></div><div className="ccPowerRow"><button className={"ccPowerBtn"+(powered?" on":"")} onClick={onPower}>{powered?"⏻ 작동 중":"⏻ 전원"}</button><span>{powered?"원형을 따라 천천히 돌리면 중심에서 바깥으로 실이 감겨요":"먼저 전원을 켜주세요"}</span></div></div><button className="ccBtn ccCottonFinish" disabled={tufts.length<12} onClick={onFinish}>솜사탕 완성 → 꾸미기</button></div>}
+    {step==="decorate"&&<div className="ccCottonDecorStage"><div className="ccDecorPreview"><div className="ccDecorCottonWrap"><CottonCanvas fibers={tufts} decorations={decor} activeColor={active.c} decorateMode={true} selectedDecor={selectedDecor} onDecor={onDecor}/></div></div><div className="ccDecorPanel"><h3>✨ 솜사탕 꾸미기</h3><p>{selectedDecor?"선택한 스프링클을 솜사탕 위 원하는 곳에 클릭하세요.":"먼저 스프링클을 하나 선택하세요."}</p><div className="ccDecorButtons"><button className={selectedDecor==="star"?"ccDecorSelected":""} onClick={()=>setSelectedDecor("star")}>★ 별모양 스프링클</button><button className={selectedDecor==="bar"?"ccDecorSelected":""} onClick={()=>setSelectedDecor("bar")}>▮ 길쭉한 네모 스프링클</button><button className={selectedDecor==="heart"?"ccDecorSelected":""} onClick={()=>setSelectedDecor("heart")}>♥ 하트 스프링클</button></div><div className="ccDecorCount">장식 {decor.length}개{selectedDecor?` · ${selectedDecor} 선택됨`:""}</div><button className="ccBtn ccCottonDone" onClick={onDone}>완료</button></div></div>}
     {confirm&&<div className="ccCottonConfirmWrap"><div className="ccCottonConfirm ccPanel"><div className="ccCottonConfirmIcon">🍭</div><h2>진열하시겠습니다?</h2><p>완성한 솜사탕을 가게 진열대에 올릴까요?</p><div className="ccCottonConfirmBtns"><button className="ccBtn" onClick={()=>onConfirm(true)}>예, 진열할게요</button><button className="ccMini" onClick={()=>onConfirm(false)}>아니오, 그냥 나가기</button></div></div></div>}
   </div>;
 }
+
 /* ============================ 건물 ============================ */
 
 function Building({ b, near }) {
@@ -1755,6 +1894,8 @@ function Town({ me, setMe, onKick }) {
   }, [scene, sit, peerView, startPairTalk]);
 
   const openBuilding = useCallback((id) => {
+    // 찜질스파 외부 건물은 실제 내부 씬이 spa가 아니라 1층(spa1)으로 시작합니다.
+    if (id === "spa") { enterRoom("spa1"); return; }
     const b = BUILDINGS.find((x) => x.id === id);
     if (!b) return;
     if (b.sheet) { setSheet(b.sheet); return; }   /* 방이 없는 건물은 바로 창을 엽니다 */
@@ -2188,7 +2329,8 @@ function Town({ me, setMe, onKick }) {
       let bestD = Infinity;
       for (const b of BUILDINGS) {
         const d = Math.hypot(p.x - b.x, p.y - (b.y - 20));
-        const reach = 12 * b.scale + 40;
+        // 새 찜질스파는 건물 앞 넓은 자동문 구역까지 접근으로 인정합니다.
+        const reach = b.id === "spa" ? 230 : 12 * b.scale + 40;
         if (d < reach && d < bestD) { best = b.id; bestD = d; }
       }
       if (best !== nearRef.current) { nearRef.current = best; setNearId(best); }
@@ -2757,9 +2899,9 @@ function Town({ me, setMe, onKick }) {
 
   useEffect(() => { if (scene === "cotton") { setCottonStep("shop"); setCottonColor("pink"); setCottonPowered(false); setCottonTufts([]); setCottonDecor([]); setCottonConfirm(false); } }, [scene]);
   const cottonStartMachine = useCallback(() => { setCottonStep("machine"); setCottonPowered(false); setCottonTufts([]); setCottonDecor([]); blip(760); }, []);
-  const cottonStroke = useCallback((t) => setCottonTufts(list => list.length > 260 ? [...list.slice(-259), t] : [...list, t]), []);
+  const cottonStroke = useCallback((t) => setCottonTufts(list => list.length > 720 ? [...list.slice(-719), t] : [...list, t]), []);
   const cottonDecorate = useCallback((type, x, y) => { setCottonDecor(list => [...list, {x, y, r:Math.round(Math.random()*70-35),type}]); blip(760); }, []);
-  const cottonConfirmDone = useCallback((yes) => { if (yes) { setCottonShelf(list => [...list, {color:cottonTufts[0]?.color||"#ff8fbe",decor:cottonDecor.length,at:Date.now()}]); setToast("🍭 완성한 솜사탕을 진열대에 진열했어요!"); } setCottonConfirm(false); exitRoom(); }, [cottonTufts,cottonDecor,exitRoom]);
+  const cottonConfirmDone = useCallback((yes) => { if (yes) { setCottonShelf(list => [...list, {color:cottonTufts[cottonTufts.length-1]?.color||cottonTufts[0]?.color||"#ff8fbe",decor:cottonDecor.length,at:Date.now()}]); setToast("🍭 완성한 솜사탕을 진열대에 진열했어요!"); } setCottonConfirm(false); exitRoom(); }, [cottonTufts,cottonDecor,exitRoom]);
 
   const ordered = useMemo(() => [...BUILDINGS].sort((a, b) => a.y - b.y), []);
   const questDone = QUESTS.filter((q) => quests.includes(q.id)).length;
@@ -3077,7 +3219,7 @@ function Town({ me, setMe, onKick }) {
             )}
 
             {ordered.map((b) => (
-              <div key={b.id} className="ccBWrap" style={{ zIndex: Math.round(b.y) }} onClick={() => openBuilding(b.id)}>
+              <div key={b.id} className={"ccBWrap" + (b.id === "spa" ? " ccSpaClickable" : "")} style={{ zIndex: Math.round(b.y) }} onClick={() => openBuilding(b.id)} onPointerDown={(e) => { if (b.id === "spa") { e.stopPropagation(); openBuilding("spa"); } }}>
                 <Building b={b} near={nearId === b.id} />
               </div>
             ))}
@@ -4444,7 +4586,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 @keyframes ccMuralSh{0%,100%{opacity:0;transform:translateX(-10px)}45%{opacity:.9;transform:translateX(6px)}70%{opacity:.25;transform:translateX(12px)}}
 
 /* ☁️ 구름솜사탕 가게 */
-.ccCottonRoom{position:absolute;inset:0;background:linear-gradient(#fff9fc,#ffeaf4);z-index:30;color:${C.ink};overflow:hidden}.ccCottonRoomTop{height:82px;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#fff;border-bottom:4px solid ${C.line}}.ccCottonRoomTitle{font-size:22px;font-weight:900}.ccCottonRoomSub{font-size:11px;color:${C.inkSoft};font-weight:700}.ccCottonBack,.ccCottonColor,.ccPowerBtn,.ccDecorButtons button{border:3px solid ${C.line};font-family:inherit;font-weight:900;cursor:pointer}.ccCottonBack{background:#fff6dc;padding:7px 11px}.ccCottonShopScene{height:calc(100% - 82px);display:flex;gap:34px;align-items:center;justify-content:center;padding:28px}.ccCottonBigObject,.ccCottonShelfObject{width:38%;min-width:270px;height:390px;border:5px solid ${C.line};background:#fff;box-shadow:8px 8px 0 rgba(91,74,99,.18)}.ccCottonBigObject{cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}.ccCottonMachineIcon{position:relative;width:230px;height:230px}.ccMachineBowl{position:absolute;left:20px;top:20px;width:190px;height:190px;border-radius:50%;background:radial-gradient(circle,#fff 0 40%,#a9b2ba 41% 47%,#f7f8f9 48% 66%,#929ca4 67% 72%,#fff 73%);border:5px solid ${C.line};box-shadow:inset 0 0 20px #7775}.ccMachineBowl:after{content:"";position:absolute;left:60px;top:60px;width:60px;height:60px;border-radius:50%;background:#fff7fb;border:5px solid #9da6ad}.ccMachinePole{position:absolute;left:103px;top:175px;width:24px;height:50px;background:#9da6ad;border:4px solid ${C.line};border-top:0}.ccShelfCanopy{font-size:20px;font-weight:900;padding:18px;background:#ffd9ea;border-bottom:4px solid ${C.line};text-align:center}.ccShelfRows{padding:28px 24px}.ccShelfRow{height:82px;border-bottom:5px solid ${C.line};display:flex;gap:12px;align-items:flex-end}.ccShelfSlot{flex:1;height:62px;border:3px solid ${C.line};display:flex;align-items:center;justify-content:center}.ccMiniCotton{width:48px;height:42px;border-radius:50%;filter:blur(1px)}.ccCottonMachineStage{height:calc(100% - 82px);display:flex;flex-direction:column;align-items:center;padding:16px 22px;overflow:auto}.ccCottonColorBar{display:flex;align-items:center;gap:9px;border:4px solid ${C.line};background:#fff;padding:7px 10px}.ccCottonColor{width:30px;height:30px;border-radius:50%;box-shadow:2px 2px 0 #7775}.ccCottonColor.on{transform:scale(1.15);box-shadow:inset 0 0 0 3px #fff}.ccCottonColorBar span{font-size:10px;color:${C.inkSoft}}.ccCottonMachine{width:min(620px,92%);min-height:480px;margin-top:12px;background:linear-gradient(#eef1f4,#adb6be);border:6px solid ${C.line};box-shadow:8px 8px 0 #7774;padding:18px}.ccCottonMachine.powered{animation:ccMachineVibrate .11s steps(2,end) infinite}.ccMachineLabel{text-align:center;font-weight:900;font-size:12px}.ccMachineRingArea{position:relative;width:420px;height:360px;max-width:100%;margin:auto;touch-action:none;cursor:crosshair}.ccSteelRing{position:absolute;left:50%;top:48%;transform:translate(-50%,-50%);width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,#eef1f3 0 49%,#929da5 50% 54%,#fff 55% 68%,#89949d 69% 73%,#dce1e5 74%);border:6px solid ${C.line};box-shadow:inset 0 0 22px #7774}.ccSteelHole{position:absolute;inset:80px;border-radius:50%;background:#fff0f7;border:5px solid #9da6ad}.ccCottonCloud{position:absolute;left:50%;top:48%;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle at 42% 38%,rgba(255,255,255,.98) 0 14%,rgba(255,255,255,.82) 34%,rgba(255,255,255,.38) 62%,rgba(255,255,255,0) 78%);border:0;overflow:hidden;filter:drop-shadow(0 1px 2px rgba(91,74,99,.12));transition:width .18s,height .18s;z-index:4}.ccCottonCloud i{position:absolute;width:20px;height:20px;border-radius:50%;filter:blur(3px);transform:translate(-50%,-50%);opacity:.9}.ccCottonStick{position:absolute;left:50%;top:70%;width:20px;height:115px;background:#fff;border:4px solid ${C.line};transform:translateX(-50%)}.ccPowerRow{display:flex;align-items:center;justify-content:center;gap:12px;font-size:10px;font-weight:800;color:${C.inkSoft}}.ccPowerBtn{background:#fff;padding:9px 15px}.ccPowerBtn.on{background:#8fe3c9}.ccCottonFinish{margin-top:8px;background:#ff8fb6}.ccCottonFinish:disabled{opacity:.4}@keyframes ccMachineVibrate{0%,100%{transform:translate(0)}25%{transform:translate(1px,-1px)}50%{transform:translate(-1px,1px)}75%{transform:translate(1px,1px)}}.ccCottonDecorStage{height:calc(100% - 82px);display:flex;gap:30px;align-items:center;justify-content:center;padding:24px}.ccDecorPreview{width:52%;height:78%;min-height:360px;border:5px solid ${C.line};background:#eef8ff;display:flex;align-items:center;justify-content:center}.ccDecorCloud{position:relative;flex:none;cursor:crosshair}.ccDecorReady{cursor:crosshair;filter:drop-shadow(0 0 5px rgba(255,143,190,.35))}.ccDecorButtons .ccDecorSelected{background:#ffd45e;box-shadow:inset 0 0 0 3px #fff,3px 3px 0 rgba(91,74,99,.18)}.ccDecorPanel{width:330px;border:5px solid ${C.line};background:#fff;padding:20px;box-shadow:7px 7px 0 #7774}.ccDecorPanel h3{margin:0 0 8px;font-size:20px}.ccDecorPanel p{font-size:11px;color:${C.inkSoft};font-weight:700}.ccDecorButtons{display:flex;flex-direction:column;gap:8px;margin:16px 0}.ccDecorButtons button{background:#fff6dc;padding:10px;font-size:13px}.ccDecorCount{font-size:11px;font-weight:800;color:${C.inkSoft};margin-bottom:10px}.ccCottonDone{width:100%;background:#8fe3c9}.ccSprinkle{position:absolute;z-index:8}.ccSprinkle-star{width:20px;height:20px;background:#ffd45e;clip-path:polygon(50% 0,61% 36%,98% 36%,68% 58%,79% 96%,50% 73%,21% 96%,32% 58%,2% 36%,39% 36%)}.ccSprinkle-bar{width:9px;height:28px;background:#ff8fb6;border:2px solid ${C.line};border-radius:3px}.ccSprinkle-heart{width:22px;height:20px;background:#ff6f9e;clip-path:polygon(50% 100%,0 35%,12% 8%,35% 8%,50% 28%,65% 8%,88% 8%,100% 35%)}.ccCottonConfirmWrap{position:absolute;inset:0;background:#5b4a6377;display:flex;align-items:center;justify-content:center;z-index:80}.ccCottonConfirm{width:min(390px,88%);padding:26px;text-align:center}.ccCottonConfirmIcon{font-size:48px}.ccCottonConfirm h2{margin:8px 0}.ccCottonConfirm p{font-size:12px;font-weight:700;color:${C.inkSoft}}.ccCottonConfirmBtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}.ccCottonOverlay{z-index:2}
+.ccCottonRoom{position:absolute;inset:0;background:linear-gradient(#fff9fc,#ffeaf4);z-index:30;color:${C.ink};overflow:hidden}.ccCottonRoomTop{height:82px;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#fff;border-bottom:4px solid ${C.line}}.ccCottonRoomTitle{font-size:22px;font-weight:900}.ccCottonRoomSub{font-size:11px;color:${C.inkSoft};font-weight:700}.ccCottonBack,.ccCottonColor,.ccPowerBtn,.ccDecorButtons button{border:3px solid ${C.line};font-family:inherit;font-weight:900;cursor:pointer}.ccCottonBack{background:#fff6dc;padding:7px 11px}.ccCottonShopScene{height:calc(100% - 82px);display:flex;gap:34px;align-items:center;justify-content:center;padding:28px}.ccCottonBigObject,.ccCottonShelfObject{width:38%;min-width:270px;height:390px;border:5px solid ${C.line};background:#fff;box-shadow:8px 8px 0 rgba(91,74,99,.18)}.ccCottonBigObject{cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}.ccCottonMachineIcon{position:relative;width:230px;height:230px}.ccMachineBowl{position:absolute;left:20px;top:20px;width:190px;height:190px;border-radius:50%;background:radial-gradient(circle,#fff 0 40%,#a9b2ba 41% 47%,#f7f8f9 48% 66%,#929ca4 67% 72%,#fff 73%);border:5px solid ${C.line};box-shadow:inset 0 0 20px #7775}.ccMachineBowl:after{content:"";position:absolute;left:60px;top:60px;width:60px;height:60px;border-radius:50%;background:#fff7fb;border:5px solid #9da6ad}.ccMachinePole{position:absolute;left:103px;top:175px;width:24px;height:50px;background:#9da6ad;border:4px solid ${C.line};border-top:0}.ccShelfCanopy{font-size:20px;font-weight:900;padding:18px;background:#ffd9ea;border-bottom:4px solid ${C.line};text-align:center}.ccShelfRows{padding:28px 24px}.ccShelfRow{height:82px;border-bottom:5px solid ${C.line};display:flex;gap:12px;align-items:flex-end}.ccShelfSlot{flex:1;height:62px;border:3px solid ${C.line};display:flex;align-items:center;justify-content:center}.ccMiniCotton{width:48px;height:42px;border-radius:50%;filter:blur(1px)}.ccCottonMachineStage{height:calc(100% - 82px);display:flex;flex-direction:column;align-items:center;padding:16px 22px;overflow:auto}.ccCottonColorBar{display:flex;align-items:center;gap:9px;border:4px solid ${C.line};background:#fff;padding:7px 10px}.ccCottonColor{width:30px;height:30px;border-radius:50%;box-shadow:2px 2px 0 #7775}.ccCottonColor.on{transform:scale(1.15);box-shadow:inset 0 0 0 3px #fff}.ccCottonColorBar span{font-size:10px;color:${C.inkSoft}}.ccCottonMachine{width:min(620px,92%);min-height:480px;margin-top:12px;background:linear-gradient(#eef1f4,#adb6be);border:6px solid ${C.line};box-shadow:8px 8px 0 #7774;padding:18px}.ccCottonMachine.powered{animation:ccMachineVibrate .11s steps(2,end) infinite}.ccMachineLabel{text-align:center;font-weight:900;font-size:12px}.ccMachineRingArea{position:relative;width:420px;height:360px;max-width:100%;margin:auto;touch-action:none;cursor:crosshair}.ccSteelRing{position:absolute;left:50%;top:48%;transform:translate(-50%,-50%);width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,#eef1f3 0 49%,#929da5 50% 54%,#fff 55% 68%,#89949d 69% 73%,#dce1e5 74%);border:6px solid ${C.line};box-shadow:inset 0 0 22px #7774}.ccSteelRing.spinning{animation:ccRingSpin .72s linear infinite}.ccSteelHole{position:absolute;inset:80px;border-radius:50%;background:#fff0f7;border:5px solid #9da6ad}.ccCottonCloud{position:absolute;left:50%;top:48%;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle at 42% 38%,rgba(255,255,255,.98) 0 14%,rgba(255,255,255,.82) 34%,rgba(255,255,255,.38) 62%,rgba(255,255,255,0) 78%);border:0;overflow:hidden;filter:drop-shadow(0 1px 2px rgba(91,74,99,.12));transition:width .18s,height .18s;z-index:4}.ccCottonCloud i{position:absolute;width:20px;height:20px;border-radius:50%;filter:blur(3px);transform:translate(-50%,-50%);opacity:.9}.ccCottonStick{position:absolute;left:50%;top:70%;width:20px;height:115px;background:#fff;border:4px solid ${C.line};transform:translateX(-50%)}.ccPowerRow{display:flex;align-items:center;justify-content:center;gap:12px;font-size:10px;font-weight:800;color:${C.inkSoft}}.ccPowerBtn{background:#fff;padding:9px 15px}.ccPowerBtn.on{background:#8fe3c9}.ccCottonFinish{margin-top:8px;background:#ff8fb6}.ccCottonFinish:disabled{opacity:.4}@keyframes ccRingSpin{to{transform:translate(-50%,-50%) rotate(360deg)}}@keyframes ccMachineVibrate{0%,100%{transform:translate(0)}25%{transform:translate(1px,-1px)}50%{transform:translate(-1px,1px)}75%{transform:translate(1px,1px)}}.ccCottonDecorStage{height:calc(100% - 82px);display:flex;gap:30px;align-items:center;justify-content:center;padding:24px}.ccDecorPreview{width:52%;height:78%;min-height:360px;border:5px solid ${C.line};background:#eef8ff;display:flex;align-items:center;justify-content:center}.ccDecorCloud{position:relative;flex:none;cursor:crosshair}.ccDecorReady{cursor:crosshair;filter:drop-shadow(0 0 5px rgba(255,143,190,.35))}.ccDecorButtons .ccDecorSelected{background:#ffd45e;box-shadow:inset 0 0 0 3px #fff,3px 3px 0 rgba(91,74,99,.18)}.ccDecorPanel{width:330px;border:5px solid ${C.line};background:#fff;padding:20px;box-shadow:7px 7px 0 #7774}.ccDecorPanel h3{margin:0 0 8px;font-size:20px}.ccDecorPanel p{font-size:11px;color:${C.inkSoft};font-weight:700}.ccDecorButtons{display:flex;flex-direction:column;gap:8px;margin:16px 0}.ccDecorButtons button{background:#fff6dc;padding:10px;font-size:13px}.ccDecorCount{font-size:11px;font-weight:800;color:${C.inkSoft};margin-bottom:10px}.ccCottonDone{width:100%;background:#8fe3c9}.ccSprinkle{position:absolute;z-index:8}.ccSprinkle-star{width:20px;height:20px;background:#ffd45e;clip-path:polygon(50% 0,61% 36%,98% 36%,68% 58%,79% 96%,50% 73%,21% 96%,32% 58%,2% 36%,39% 36%)}.ccSprinkle-bar{width:9px;height:28px;background:#ff8fb6;border:2px solid ${C.line};border-radius:3px}.ccSprinkle-heart{width:22px;height:20px;background:#ff6f9e;clip-path:polygon(50% 100%,0 35%,12% 8%,35% 8%,50% 28%,65% 8%,88% 8%,100% 35%)}.ccCottonConfirmWrap{position:absolute;inset:0;background:#5b4a6377;display:flex;align-items:center;justify-content:center;z-index:80}.ccCottonConfirm{width:min(390px,88%);padding:26px;text-align:center}.ccCottonConfirmIcon{font-size:48px}.ccCottonConfirm h2{margin:8px 0}.ccCottonConfirm p{font-size:12px;font-weight:700;color:${C.inkSoft}}.ccCottonConfirmBtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}.ccCottonOverlay{z-index:2}
 
 /* 방 내부 */
 .ccRoomBg{position:absolute;inset:0;overflow:hidden}
@@ -4701,6 +4843,8 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccSpaObj{position:absolute;z-index:9;border:4px solid #5b4a63;background:#ffd45e;font-family:inherit;font-weight:900;cursor:pointer}.ccSpaObj:hover{transform:translateY(-2px)}.ccSpaPlayerLayer{position:absolute;inset:0;pointer-events:none;z-index:30}.ccSpaPlayerLayer .ccAvatar{pointer-events:none}.ccSpaPlayerLayer .ccAvatar{pointer-events:none}.ccSpaNpcLayer{position:absolute;inset:0;z-index:22;pointer-events:none}.ccSpaNpc{position:absolute;transform:translate(-50%,-100%);font-size:34px;filter:drop-shadow(2px 3px 0 rgba(91,74,99,.18));animation:ccSpaNpcBob 2.8s steps(2,end) infinite}.ccSpaRoom.night .ccSpaMap{background:#eee9df}.ccSpaRoom.night .ccSpaCeiling{background-color:rgba(60,65,90,.14)}.ccSpaRoom.night .ccSpaHud{background:#f5f2ff}.ccSpaRoom.night .ccWindowScene{filter:brightness(.78)}@keyframes ccSpaNpcBob{0%,100%{transform:translate(-50%,-100%)}50%{transform:translate(-50%,calc(-100% - 3px))}}
 .ccSpaExterior{position:relative;width:290px;height:245px;background:#f9e7c5;border:6px solid #5b4a63;box-shadow:10px 10px 0 rgba(91,74,99,.22);overflow:hidden}.ccSpaExterior.ccNear{transform:translateY(-5px)}.ccSpaExtRoof{height:58px;background:#d67f6f;color:#fff;padding:12px;text-align:center;font-size:17px;font-weight:900;border-bottom:5px solid #5b4a63}.ccSpaExtWindows{display:flex;gap:10px;padding:24px 15px}.ccSpaExtWindows i{width:48px;height:62px;background:linear-gradient(#9dddf1 0 55%,#6b8c98 56%);border:4px solid #5b4a63}.ccSpaExtDoor{position:absolute;bottom:25px;left:115px;width:60px;height:82px;background:#8cc5d1;border:5px solid #5b4a63;text-align:center;font-size:8px;padding-top:25px}.ccSpaExtSign{position:absolute;bottom:4px;left:10px;right:10px;background:#fff9df;border:3px solid #5b4a63;text-align:center;font-size:8px;font-weight:900;padding:4px}
 @keyframes ccSpaSteam{0%,100%{transform:translateY(8px);opacity:.25}50%{transform:translateY(-10px);opacity:.8}}@keyframes ccBubble{0%{transform:translateY(30px);opacity:0}30%{opacity:.9}100%{transform:translateY(-180px);opacity:0}}@keyframes ccFire{0%,100%{transform:scale(.9)}50%{transform:scale(1.08)}}
+
+.ccCottonCanvas{position:absolute;left:50%;top:48%;width:340px;height:340px;transform:translate(-50%,-50%);z-index:5;pointer-events:none;image-rendering:auto}.ccCottonCanvasDecor{position:relative;left:auto;top:auto;transform:none;width:340px;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340px;height:340px;display:flex;align-items:center;justify-content:center}.ccSpaClickable{pointer-events:auto}.ccSpaClickable .ccBuilding{pointer-events:auto}
 
 `;
 
