@@ -1972,7 +1972,7 @@ function Town({ me, setMe, onKick }) {
 
           if (e.scene) {
             const bgm = e.bgm && typeof e.bgm === "object"
-              ? { ...e.bgm, url: e.bgm.url || e.bgm.path || "" }
+              ? { ...e.bgm, url: e.bgm.url || (e.bgm.path ? trackUrl(e.bgm.path) : "") }
               : null;
 
             setHostBgmMap((m) => ({
@@ -3002,7 +3002,7 @@ function Town({ me, setMe, onKick }) {
               const normalized = next
                 ? {
                     ...next,
-                    url: next.url || next.path || "",
+                    url: next.url || (next.path ? trackUrl(next.path) : ""),
                   }
                 : null;
 
