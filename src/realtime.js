@@ -1,12 +1,15 @@
 import { supabase } from "./room.js";
 
 /* ===========================================================
-   Cloud Candy Town — Realtime
-   - 다른 플레이어 위치
-   - 일반 채팅
-   - 카페 자동대화
-   - 일반 FX
-   - 방 BGM 실시간 동기화
+   Cloud Candy Town — Supabase Realtime
+
+   기능
+   1. 플레이어 위치 동기화
+   2. 채팅
+   3. 카페 자동대화
+   4. FX
+   5. 방 BGM 실시간 동기화
+   6. 늦게 들어온 게스트의 현재 BGM 요청
    =========================================================== */
 
 const SEND_MS = 125;
@@ -24,6 +27,10 @@ export function joinChannel({
   onFx,
   onLive,
 }) {
+  /* =========================================================
+     Supabase가 없는 경우
+     ========================================================= */
+
   if (!supabase) {
     return {
       stop: () => {},
@@ -32,8 +39,13 @@ export function joinChannel({
       fx: () => false,
       roomBgm: () => false,
       requestRoomBgm: () => false,
+      live: () => false,
     };
   }
+
+  /* =========================================================
+     기본 상태
+     ========================================================= */
 
   const peers = new Map();
 
@@ -46,29 +58,34 @@ export function joinChannel({
   let sendTimer = null;
   let pruneTimer = null;
 
-  const channelName = `cc-round-${round}`;
-
-  const ch = supabase.channel(channelName, {
-    config: {
-      broadcast: {
-        self: false,
+  const ch = supabase.channel(
+    `cc-round-${round}`,
+    {
+      config: {
+        broadcast: {
+          self: false,
+        },
       },
-    },
-  });
+    }
+  );
 
-  const push = () => {
+  const pushPeers = () => {
     onPeers?.([...peers.values()]);
   };
 
   /* =========================================================
-     다른 플레이어 위치
+     플레이어 위치
      ========================================================= */
 
   ch.on(
     "broadcast",
-    { event: "pose" },
+    {
+      event: "pose",
+    },
     ({ payload }) => {
       if (!payload?.id) return;
+
+      /* 내 메시지는 받지 않음 */
       if (payload.id === me.id) return;
 
       const prev = peers.get(payload.id);
@@ -79,7 +96,7 @@ export function joinChannel({
         at: Date.now(),
       });
 
-      push();
+      pushPeers();
     }
   );
 
@@ -89,7 +106,9 @@ export function joinChannel({
 
   ch.on(
     "broadcast",
-    { event: "chat" },
+    {
+      event: "chat",
+    },
     ({ payload }) => {
       if (!payload?.id) return;
       if (payload.id === me.id) return;
@@ -112,7 +131,7 @@ export function joinChannel({
 
       onChat?.(payload);
 
-      push();
+      pushPeers();
     }
   );
 
@@ -122,7 +141,9 @@ export function joinChannel({
 
   ch.on(
     "broadcast",
-    { event: "cafe_talk" },
+    {
+      event: "cafe_talk",
+    },
     ({ payload }) => {
       if (!payload) return;
       if (payload.id === me.id) return;
@@ -137,7 +158,9 @@ export function joinChannel({
 
   ch.on(
     "broadcast",
-    { event: "fx" },
+    {
+      event: "fx",
+    },
     ({ payload }) => {
       if (!payload) return;
       if (payload.id === me.id) return;
@@ -147,24 +170,28 @@ export function joinChannel({
   );
 
   /* =========================================================
-     방 BGM
-     
-     BGM은 FX와 별도로 분리합니다.
-     이유:
-     - FX는 순간적인 이벤트
-     - BGM은 현재 방의 상태
+     방 BGM 수신
+
+     room_bgm
+     ├─ 특정 방 BGM 변경
+     └─ __ALL__이면 현재 전체 BGM 상태
      ========================================================= */
 
   ch.on(
     "broadcast",
-    { event: "room_bgm" },
+    {
+      event: "room_bgm",
+    },
     ({ payload }) => {
       if (!payload) return;
+
+      /* 자기 자신이 보낸 BGM은 무시 */
       if (payload.id === me.id) return;
 
-      /*
-       * 호스트가 현재 전체 BGM 상태를 보내는 경우
-       */
+      /* -----------------------------------------------
+         호스트가 현재 전체 BGM 상태를 보내는 경우
+         ----------------------------------------------- */
+
       if (
         payload.scene === "__ALL__" &&
         payload.bgmMap &&
@@ -180,9 +207,10 @@ export function joinChannel({
         return;
       }
 
-      /*
-       * 특정 방 BGM 변경
-       */
+      /* -----------------------------------------------
+         특정 방 BGM 변경
+         ----------------------------------------------- */
+
       if (payload.scene) {
         onFx?.({
           id: payload.id,
@@ -195,20 +223,24 @@ export function joinChannel({
   );
 
   /* =========================================================
-     게스트 → 호스트
-     
-     "현재 방 BGM 뭐야?" 요청
+     게스트가 현재 BGM 요청
+
+     게스트:
+       "현재 방에서 무슨 BGM 틀고 있어?"
+
+     호스트:
+       현재 bgmMap을 전체 전송
      ========================================================= */
 
   ch.on(
     "broadcast",
-    { event: "room_bgm_request" },
+    {
+      event: "room_bgm_request",
+    },
     ({ payload }) => {
       if (!payload) return;
 
-      /*
-       * 호스트만 응답
-       */
+      /* 호스트만 응답 */
       if (me.role !== "host") return;
 
       const pose = getPose?.();
@@ -221,10 +253,14 @@ export function joinChannel({
 
       ch.send({
         type: "broadcast",
+
         event: "room_bgm",
+
         payload: {
           id: me.id,
+
           scene: "__ALL__",
+
           bgmMap,
         },
       });
@@ -237,12 +273,14 @@ export function joinChannel({
 
   ch.on(
     "broadcast",
-    { event: "bye" },
+    {
+      event: "bye",
+    },
     ({ payload }) => {
       if (!payload?.id) return;
 
       if (peers.delete(payload.id)) {
-        push();
+        pushPeers();
       }
     }
   );
@@ -287,23 +325,26 @@ export function joinChannel({
   };
 
   /* =========================================================
-     SUBSCRIBED
+     Realtime 상태
      ========================================================= */
 
   function onStatus(status) {
     if (dead) return;
 
+    /* 연결 실패 */
     if (status !== "SUBSCRIBED") {
       setLive(false);
 
       peers.clear();
-      push();
+
+      pushPeers();
 
       rejoin();
 
       return;
     }
 
+    /* 연결 성공 */
     retry = 0;
 
     setLive(true);
@@ -312,13 +353,13 @@ export function joinChannel({
     clearInterval(pruneTimer);
 
     /* =======================================================
-       내 위치 / 상태 전송
+       플레이어 위치 전송
        ======================================================= */
 
     let lastSig = "";
     let lastAt = 0;
 
-    const send = () => {
+    const sendPose = () => {
       if (dead || !live) return;
 
       const pose = getPose?.();
@@ -326,14 +367,15 @@ export function joinChannel({
       if (!pose) return;
 
       const now = Date.now();
+
       const sig = JSON.stringify(pose);
 
       /*
-       * 움직이지 않았더라도
-       * 3초마다 한 번은 상태를 전송합니다.
+       * 움직이지 않았다면 계속 보내지 않음.
        *
-       * 따라서 새로 들어온 게스트가
-       * 현재 호스트의 bgmMap도 받을 수 있습니다.
+       * 단, 3초가 지나면 한 번 다시 보냄.
+       * 늦게 들어온 게스트가 호스트 상태를 받을 수 있도록
+       * 하기 위한 처리.
        */
 
       if (
@@ -348,26 +390,29 @@ export function joinChannel({
 
       ch.send({
         type: "broadcast",
+
         event: "pose",
+
         payload: {
           id: me.id,
           name: me.name,
           slot: me.slot,
           role: me.role,
+
           ...pose,
         },
       });
     };
 
-    send();
+    sendPose();
 
     sendTimer = setInterval(
-      send,
+      sendPose,
       SEND_MS
     );
 
     /* =======================================================
-       오래된 플레이어 / 말풍선 정리
+       오래된 플레이어 / 말풍선 제거
        ======================================================= */
 
     pruneTimer = setInterval(() => {
@@ -376,15 +421,20 @@ export function joinChannel({
       let changed = false;
 
       peers.forEach((p, id) => {
+        /* 오래 접속하지 않은 플레이어 제거 */
+
         if (
           now - (p.at || 0) >
           STALE_MS
         ) {
           peers.delete(id);
+
           changed = true;
 
           return;
         }
+
+        /* 말풍선 제거 */
 
         if (
           p.msg &&
@@ -401,20 +451,29 @@ export function joinChannel({
       });
 
       if (changed) {
-        push();
+        pushPeers();
       }
     }, 500);
 
-    /*
-     * 게스트가 연결된 직후 현재 방 BGM 요청
-     */
+    /* =======================================================
+       게스트가 접속하면 현재 방 BGM 요청
+
+       이 부분이 중요함.
+
+       게스트가 방에 들어왔을 때
+       호스트가 이미 BGM을 틀고 있다면
+       그 상태를 바로 받아옴.
+       ======================================================= */
+
     if (me.role !== "host") {
       setTimeout(() => {
         if (dead || !live) return;
 
         ch.send({
           type: "broadcast",
+
           event: "room_bgm_request",
+
           payload: {
             id: me.id,
           },
@@ -423,10 +482,14 @@ export function joinChannel({
     }
   }
 
+  /* =========================================================
+     채널 구독 시작
+     ========================================================= */
+
   ch.subscribe(onStatus);
 
   /* =========================================================
-     인터넷 / 탭 복귀
+     탭 복귀 / 인터넷 복구
      ========================================================= */
 
   const wake = () => {
@@ -468,7 +531,9 @@ export function joinChannel({
     try {
       ch.send({
         type: "broadcast",
+
         event: "bye",
+
         payload: {
           id: me.id,
         },
@@ -490,13 +555,14 @@ export function joinChannel({
   );
 
   /* =========================================================
-     외부 API
+     외부에서 사용하는 API
      ========================================================= */
 
   return {
-    /* -------------------------------------------------------
+
+    /* =======================================================
        일반 채팅
-       ------------------------------------------------------- */
+       ======================================================= */
 
     chat(text, room) {
       const t = String(text || "")
@@ -504,16 +570,23 @@ export function joinChannel({
         .slice(0, 60);
 
       if (!t) return false;
-      if (dead || !live) return false;
+
+      if (dead || !live) {
+        return false;
+      }
 
       ch.send({
         type: "broadcast",
+
         event: "chat",
+
         payload: {
           id: me.id,
           name: me.name,
           slot: me.slot,
+
           text: t,
+
           r: room || "",
         },
       });
@@ -521,9 +594,9 @@ export function joinChannel({
       return true;
     },
 
-    /* -------------------------------------------------------
+    /* =======================================================
        카페 자동대화
-       ------------------------------------------------------- */
+       ======================================================= */
 
     cafeTalk({
       who,
@@ -542,14 +615,18 @@ export function joinChannel({
         return false;
       }
 
+      const pose = getPose?.();
+
       ch.send({
         type: "broadcast",
+
         event: "cafe_talk",
+
         payload: {
           id: me.id,
 
           senderChair:
-            getPose?.()?.st ?? -1,
+            pose?.st ?? -1,
 
           who:
             who === "s"
@@ -565,19 +642,25 @@ export function joinChannel({
       return true;
     },
 
-    /* -------------------------------------------------------
+    /* =======================================================
        일반 FX
-       ------------------------------------------------------- */
+       ======================================================= */
 
     fx(data) {
       if (!data) return false;
-      if (dead || !live) return false;
+
+      if (dead || !live) {
+        return false;
+      }
 
       ch.send({
         type: "broadcast",
+
         event: "fx",
+
         payload: {
           id: me.id,
+
           ...data,
         },
       });
@@ -585,23 +668,41 @@ export function joinChannel({
       return true;
     },
 
-    /* -------------------------------------------------------
+    /* =======================================================
        방 BGM 변경
-       ------------------------------------------------------- */
+
+       CloudCandyTown.jsx에서:
+
+       chanRef.current?.roomBgm({
+         scene,
+         bgm: next || null
+       });
+
+       이렇게 호출하면 됨.
+       ======================================================= */
 
     roomBgm({
       scene,
       bgm,
     }) {
-      if (!scene) return false;
-      if (dead || !live) return false;
+      if (!scene) {
+        return false;
+      }
+
+      if (dead || !live) {
+        return false;
+      }
 
       ch.send({
         type: "broadcast",
+
         event: "room_bgm",
+
         payload: {
           id: me.id,
+
           scene,
+
           bgm: bgm || null,
         },
       });
@@ -609,16 +710,22 @@ export function joinChannel({
       return true;
     },
 
-    /* -------------------------------------------------------
+    /* =======================================================
        현재 방 BGM 요청
-       ------------------------------------------------------- */
+
+       게스트가 방 입장 직후 호출.
+       ======================================================= */
 
     requestRoomBgm() {
-      if (dead || !live) return false;
+      if (dead || !live) {
+        return false;
+      }
 
       ch.send({
         type: "broadcast",
+
         event: "room_bgm_request",
+
         payload: {
           id: me.id,
         },
@@ -627,15 +734,15 @@ export function joinChannel({
       return true;
     },
 
-    /* -------------------------------------------------------
-       연결 여부
-       ------------------------------------------------------- */
+    /* =======================================================
+       연결 상태
+       ======================================================= */
 
     live: () => live,
 
-    /* -------------------------------------------------------
+    /* =======================================================
        종료
-       ------------------------------------------------------- */
+       ======================================================= */
 
     stop() {
       if (dead) return;
@@ -647,11 +754,6 @@ export function joinChannel({
       clearTimeout(retryTimer);
 
       bye();
-
-      window.removeEventListener(
-        "pagehide",
-        onPageHide
-      );
 
       document.removeEventListener(
         "visibilitychange",
@@ -666,6 +768,11 @@ export function joinChannel({
       window.removeEventListener(
         "focus",
         wake
+      );
+
+      window.removeEventListener(
+        "pagehide",
+        onPageHide
       );
 
       try {
