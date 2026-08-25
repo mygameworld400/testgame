@@ -37,7 +37,7 @@ const AREAS = [
   { x0: 1600, y0: 250, x1: 2820, y1: 810 },      // 오른쪽 윗섬
   { x0: 1600, y0: 2100, x1: 2820, y1: 2640 },     // 오른쪽 아랫섬
 ];
-const PLAY = { x0: 190, y0: 320, x1: 1520, y1: 2640 };
+const PLAY = { x0: 190, y0: 320, x1: 2820, y1: 2640 };
 const inArea = (x, y) => AREAS.some((a) => x >= a.x0 && x <= a.x1 && y >= a.y0 && y <= a.y1);
 
 const C = {
@@ -482,6 +482,32 @@ function blockBox(b) {
 }
 
 /* ============================ 픽셀 그리기 ============================ */
+
+const COTTON_ROOM = {
+  id: "cotton", name: "구름솜사탕", emoji: "🍭", hint: "기계에서 원하는 색의 솜사탕을 직접 만들어보세요!",
+  wallDark: "#fff0f7", play: { x0: 70, x1: 930, y0: 90, y1: 640 },
+  blocks: [{x1:40,x2:960,y1:50,y2:78},{x1:40,x2:960,y1:652,y2:680},{x1:40,x2:68,y1:50,y2:680},{x1:932,x2:960,y1:50,y2:680}],
+  zones: [{id:"cotton-machine",x:350,y:300,r:150,label:"솜사탕 기계 열기"},{id:"cotton-shelf",x:735,y:330,r:145,label:"진열대 보기"}],
+};
+const roomFor = (id) => id === "cotton" ? COTTON_ROOM : ROOMS[id];
+
+function CottonShopRoom({step,color,powered,tufts,decor,shelf,onMachine,onColor,onPower,onStroke,onFinish,onDecor,onDone,confirm,onConfirm,onBack}) {
+  const draw = useRef(false), ring = useRef(null);
+  const colors=[{id:"pink",n:"딸기",c:"#ff8fbe"},{id:"sky",n:"소다",c:"#8fdcff"},{id:"lemon",n:"레몬",c:"#ffe27a"},{id:"mint",n:"민트",c:"#9ce9c8"},{id:"grape",n:"포도",c:"#c4a4f4"}];
+  const active=colors.find(x=>x.id===color)||colors[0], size=Math.min(230,72+tufts.length*2.6);
+  const pt=e=>{const r=ring.current?.getBoundingClientRect();if(!r)return null;const x=e.clientX-(r.left+r.width/2),y=e.clientY-(r.top+r.height/2);return {d:Math.hypot(x,y),a:Math.atan2(y,x)};};
+  const down=e=>{if(!powered||step!=="machine")return;const p=pt(e);if(!p||p.d<82||p.d>185)return;draw.current=true;try{e.currentTarget.setPointerCapture(e.pointerId)}catch{};onStroke({color:active.c,angle:p.a,seed:Date.now()+Math.random()});};
+  const move=e=>{if(!draw.current)return;const p=pt(e);if(!p||p.d<72||p.d>195)return;onStroke({color:active.c,angle:p.a,seed:Date.now()+Math.random()});};
+  const up=()=>{draw.current=false;};
+  const cloud=(cls="")=><div className={`ccCottonCloud ${cls}`} style={{width:size,height:size,borderColor:active.c}}>{tufts.slice(-180).map((t,i)=>{const rr=.48+((i*17)%40)/100,x=50+Math.cos(t.angle)*46*rr,y=50+Math.sin(t.angle)*46*rr;return <i key={t.seed+"-"+i} style={{left:`${x}%`,top:`${y}%`,background:t.color}}/>})}{(decor||[]).map((d,i)=><span key={i} className={`ccSprinkle ccSprinkle-${d.type}`} style={{left:`${d.x}%`,top:`${d.y}%`,transform:`translate(-50%,-50%) rotate(${d.r}deg)`}}/>)}</div>;
+  return <div className="ccCottonRoom">
+    <div className="ccCottonRoomTop"><div><div className="ccCottonRoomTitle">☁️ 구름솜사탕 가게</div><div className="ccCottonRoomSub">{step==="shop"?"기계에서 솜사탕을 만들어보세요":step==="machine"?"색을 고르고 전원을 켠 뒤 원을 따라 빙글빙글!":"스프링클로 솜사탕을 꾸며보세요"}</div></div><button className="ccCottonBack" onClick={onBack}>← 나가기</button></div>
+    {step==="shop"&&<div className="ccCottonShopScene"><button className="ccCottonBigObject" onClick={onMachine}><div className="ccCottonMachineIcon"><span className="ccMachineBowl"/><span className="ccMachinePole"/></div><b>솜사탕 기계</b><small>눌러서 만들기</small></button><div className="ccCottonShelfObject"><div className="ccShelfCanopy">☁️ 솜사탕 진열대</div><div className="ccShelfRows">{[0,1,2].map(r=><div className="ccShelfRow" key={r}>{[0,1,2].map(i=><div className="ccShelfSlot" key={i}>{shelf?.[r*3+i]&&<span className="ccMiniCotton" style={{background:shelf[r*3+i].color}}/>}</div>)}</div>)}</div><small>{shelf?.length?`${shelf.length}개 진열됨`:"아직 진열된 솜사탕이 없어요"}</small></div></div>}
+    {step==="machine"&&<div className="ccCottonMachineStage"><div className="ccCottonColorBar"><b>색상</b>{colors.map(c=><button key={c.id} className={"ccCottonColor"+(color===c.id?" on":"")} style={{background:c.c}} onClick={()=>onColor(c.id)} title={c.n}/>)}<span>솜털 {tufts.length}</span></div><div className={"ccCottonMachine"+(powered?" powered":"")}><div className="ccMachineLabel">CLOUD COTTON</div><div ref={ring} className="ccMachineRingArea" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}><div className="ccSteelRing"><div className="ccSteelHole"/></div>{cloud()}<div className="ccCottonStick"/></div><div className="ccPowerRow"><button className={"ccPowerBtn"+(powered?" on":"")} onClick={onPower}>{powered?"⏻ 작동 중":"⏻ 전원"}</button><span>{powered?"원형을 따라 마우스를 누르고 움직여주세요":"먼저 전원을 켜주세요"}</span></div></div><button className="ccBtn ccCottonFinish" disabled={tufts.length<8} onClick={onFinish}>솜사탕 완성 → 꾸미기</button></div>}
+    {step==="decorate"&&<div className="ccCottonDecorStage"><div className="ccDecorPreview">{cloud("ccDecorCloud")}</div><div className="ccDecorPanel"><h3>✨ 솜사탕 꾸미기</h3><p>장식을 누르면 솜사탕에 톡! 올라가요.</p><div className="ccDecorButtons"><button onClick={()=>onDecor("star")}>★ 별모양 스프링클</button><button onClick={()=>onDecor("bar")}>▮ 길쭉한 네모 스프링클</button><button onClick={()=>onDecor("heart")}>♥ 하트 스프링클</button></div><div className="ccDecorCount">장식 {decor.length}개</div><button className="ccBtn ccCottonDone" onClick={onDone}>완료</button></div></div>}
+    {confirm&&<div className="ccCottonConfirmWrap"><div className="ccCottonConfirm ccPanel"><div className="ccCottonConfirmIcon">🍭</div><h2>진열하시겠습니다?</h2><p>완성한 솜사탕을 가게 진열대에 올릴까요?</p><div className="ccCottonConfirmBtns"><button className="ccBtn" onClick={()=>onConfirm(true)}>예, 진열할게요</button><button className="ccMini" onClick={()=>onConfirm(false)}>아니오, 그냥 나가기</button></div></div></div>}
+  </div>;
+}
 
 /* ============================ 건물 ============================ */
 
@@ -966,7 +992,7 @@ function Town({ me, setMe, onKick }) {
   const [roomStars, setRoomStars] = useState(() => {
     const out = {};
     Object.entries(SAVED?.rooms || {}).forEach(([id, str]) => {
-      const n = (ROOMS[id]?.stars || []).length;
+      const n = (roomFor(id)?.stars || []).length;
       if (n) out[id] = unbits(str, n);
     });
     return out;
@@ -975,6 +1001,13 @@ function Town({ me, setMe, onKick }) {
   const [broken, setBroken] = useState([]);  // 뿌셔진 왁뿌볼
   const [pressed, setPressed] = useState([]); // 눌린 키보드 키
   const [quizMode, setQuizMode] = useState("solo");   // 퀴즈상가 개인전 / 팀전
+  const [cottonStep, setCottonStep] = useState("shop");
+  const [cottonColor, setCottonColor] = useState("pink");
+  const [cottonPowered, setCottonPowered] = useState(false);
+  const [cottonTufts, setCottonTufts] = useState([]);
+  const [cottonDecor, setCottonDecor] = useState([]);
+  const [cottonShelf, setCottonShelf] = useState([]);
+  const [cottonConfirm, setCottonConfirm] = useState(false);
   const [touch, setTouch] = useState(
     () => typeof navigator !== "undefined" && (navigator.maxTouchPoints > 0 || "ontouchstart" in window)
   );
@@ -1321,7 +1354,7 @@ function Town({ me, setMe, onKick }) {
     const script = pick.flatMap((t) => [{ who: "s", text: t.s }, { who: "m", text: t.m }]);
 
     let delay = 700;
-    const home = ROOMS[roomId]?.staff;
+    const home = roomFor(roomId)?.staff;
     if (roomId === "cafe" && chair != null) {
       const c = CAFE_CHAIRS.find((x) => x.i === chair);
       const tb = c && CAFE_TABLES[c.t];
@@ -1445,19 +1478,20 @@ function Town({ me, setMe, onKick }) {
       setToast("🔐 방탈출은 준비중이에요!");
       return;
     }
-    if (!ROOMS[id]) return;
+    if (!roomFor(id)) return;
     worldPos.current = { ...posRef.current };
     sceneRef.current = id;
-    const st = ROOMS[id].staff ? { ...ROOMS[id].staff } : null;
+    const roomDef = roomFor(id);
+    const st = roomDef.staff ? { ...roomDef.staff } : null;
     staffRef.current = st;
     staffTo.current = st;
     setStaffPos(st);
-    const start = { x: ROOM.w / 2, y: ROOM.d - 60 };
+    const start = id === "cotton" ? { x: 500, y: 600 } : { x: ROOM.w / 2, y: ROOM.d - 60 };
     posRef.current = start;
     setPos(start);
     setScene(id);
     setSheet(null);
-    setToast(`${ROOMS[id].emoji} ${ROOMS[id].name} — ${ROOMS[id].hint}`);
+    setToast(`${roomDef.emoji} ${roomDef.name} — ${roomDef.hint}`);
     if (UP_ROOMS.includes(id)) doQuestRef.current?.("up");
   }, []);
 
@@ -1488,16 +1522,16 @@ function Town({ me, setMe, onKick }) {
   const activateZone = useCallback((id) => {
     /* 앉아 있으면 무엇을 누르든 먼저 일어납니다 */
     if (sitRef.current != null) {
-      const room0 = ROOMS[sceneRef.current];
+      const room0 = roomFor(sceneRef.current);
       const c = (room0?.chairs || CHAIRS).find((x) => x.i === sitRef.current);
       if (!c) { sitRef.current = null; setSit(null); return; }
       sitRef.current = null;
       setSit(null);
       clearSeatTalk();
       pairRef.current = null;
-      const back0 = ROOMS[sceneRef.current]?.staff;
+      const back0 = roomFor(sceneRef.current)?.staff;
       if (back0) staffTo.current = { ...back0 };
-      const room = ROOMS[sceneRef.current];
+      const room = roomFor(sceneRef.current);
       const back = room ? freeSpot(room, c.x, c.y) : { x: c.x, y: c.y + 60 };
       posRef.current = back;
       setPos(back);
@@ -1505,6 +1539,8 @@ function Town({ me, setMe, onKick }) {
     }
     if (!id) return;
     if (id === "exit") { exitRoom(); return; }
+    if (id === "cotton-machine") { setCottonStep("machine"); setCottonPowered(false); setCottonTufts([]); setCottonDecor([]); blip(760); return; }
+    if (id === "cotton-shelf") { setToast(`🍭 진열대에 ${cottonShelf.length}개의 솜사탕이 있어요.`); return; }
     if (id === "dress") loadSkins();
     if (id === "arcade" || id === "starview" || id === "showtime" || id === "songs") {
       if (id === "arcade") doQuest("arcade");
@@ -1527,7 +1563,7 @@ function Town({ me, setMe, onKick }) {
     }
     if (id === "chair") {
       const i = chairRef.current;
-      const room1 = ROOMS[sceneRef.current];
+      const room1 = roomFor(sceneRef.current);
       const c = (room1?.chairs || CHAIRS).find((x) => x.i === i);
       if (!c) return;
       sitRef.current = i;
@@ -1542,7 +1578,7 @@ function Town({ me, setMe, onKick }) {
       return;
     }
     setSheet(id);
-  }, [exitRoom, doQuest, startSeatTalk, clearSeatTalk, loadSkins]);
+  }, [exitRoom, doQuest, startSeatTalk, clearSeatTalk, loadSkins, cottonShelf.length]);
 
   /* 같은 테이블에 둘이 앉으면 스몰토크를 시작합니다 */
   useEffect(() => {
@@ -1792,7 +1828,7 @@ function Town({ me, setMe, onKick }) {
       last = now;
       const k = keys.current;
       const roomId = sceneRef.current;
-      const room = roomId ? ROOMS[roomId] : null;
+      const room = roomId ? roomFor(roomId) : null;
 
       let dx = 0;
       let dy = 0;
@@ -2568,11 +2604,17 @@ function Town({ me, setMe, onKick }) {
     return () => clearTimeout(t);
   }, [justDone]);
 
+  useEffect(() => { if (scene === "cotton") { setCottonStep("shop"); setCottonColor("pink"); setCottonPowered(false); setCottonTufts([]); setCottonDecor([]); setCottonConfirm(false); } }, [scene]);
+  const cottonStartMachine = useCallback(() => { setCottonStep("machine"); setCottonPowered(false); setCottonTufts([]); setCottonDecor([]); blip(760); }, []);
+  const cottonStroke = useCallback((t) => setCottonTufts(list => list.length > 260 ? [...list.slice(-259), t] : [...list, t]), []);
+  const cottonDecorate = useCallback((type) => { setCottonDecor(list => [...list, {x:22+Math.random()*56,y:22+Math.random()*56,r:Math.round(Math.random()*70-35),type}]); blip(760); }, []);
+  const cottonConfirmDone = useCallback((yes) => { if (yes) { setCottonShelf(list => [...list, {color:cottonTufts[0]?.color||"#ff8fbe",decor:cottonDecor.length,at:Date.now()}]); setToast("🍭 완성한 솜사탕을 진열대에 진열했어요!"); } setCottonConfirm(false); exitRoom(); }, [cottonTufts,cottonDecor,exitRoom]);
+
   const ordered = useMemo(() => [...BUILDINGS].sort((a, b) => a.y - b.y), []);
   const questDone = QUESTS.filter((q) => quests.includes(q.id)).length;
   const nextQuest = QUESTS.find((q) => !quests.includes(q.id));
   const roundNo = room?.round ?? me.round;
-  const R = scene ? ROOMS[scene] : null;
+  const R = scene ? roomFor(scene) : null;
   const here = scene || "";
   const roomPeers = peerView.filter((p) => (p.r || "") === here);
   const seats = R?.chairs
@@ -2591,14 +2633,13 @@ function Town({ me, setMe, onKick }) {
             className="ccRoomWrap"
             style={{ width: SCREEN.w, height: SCREEN.h, transform: `translate(-50%,-50%) scale(${roomZoom})` }}
           >
-            <RoomStage
-              room={R}
-              waterPhase={wave}
-              seats={seats}
-              broken={broken}
-              pressed={pressed}
-              skin={scene === "candy" ? QUIZ_SKIN[quizMode] : null}
-            />
+            {scene === "cotton" ? <CottonShopRoom
+              step={cottonStep} color={cottonColor} powered={cottonPowered} tufts={cottonTufts} decor={cottonDecor} shelf={cottonShelf}
+              onMachine={cottonStartMachine} onColor={setCottonColor}
+              onPower={() => { setCottonPowered(v => !v); blip(cottonPowered ? 420 : 860); }}
+              onStroke={cottonStroke} onFinish={() => cottonTufts.length >= 8 && setCottonStep("decorate")}
+              onDecor={cottonDecorate} onDone={() => setCottonConfirm(true)} confirm={cottonConfirm} onConfirm={cottonConfirmDone} onBack={exitRoom}
+            /> : <RoomStage room={R} waterPhase={wave} seats={seats} broken={broken} pressed={pressed} skin={scene === "candy" ? QUIZ_SKIN[quizMode] : null} />}
             {me.role === "host" && (
               <button
                 className="ccRoomBgmBtn"
@@ -2977,7 +3018,7 @@ function Town({ me, setMe, onKick }) {
               {history.map((m, i) => (
                 <div key={m.at + "-" + i} className={"ccHistLine" + (m.mine ? " ccHistMine" : "") + (m.system ? " ccHistSystem" : "")}>
                   <span className="ccHistWho">{m.name}</span>
-                  <span className="ccLogRoom">{m.r ? ROOMS[m.r]?.name : "마을"}</span>
+                  <span className="ccLogRoom">{m.r ? roomFor(m.r)?.name : "마을"}</span>
                   <span className="ccHistText">{m.text}</span>
                 </div>
               ))}
@@ -2991,7 +3032,7 @@ function Town({ me, setMe, onKick }) {
               <div key={m.at + "-" + i} className={"ccFeedLine" + (m.mine ? " ccFeedMine" : "") + (m.system ? " ccFeedSystem" : "")}>
                 <b>{m.name}</b>
                 {(m.r || "") !== (scene || "") && (
-                  <span className="ccLogRoom">{m.r ? ROOMS[m.r]?.name : "마을"}</span>
+                  <span className="ccLogRoom">{m.r ? roomFor(m.r)?.name : "마을"}</span>
                 )}
                 {m.text}
               </div>
@@ -3063,10 +3104,10 @@ function Town({ me, setMe, onKick }) {
                     const counts = {};
                     (peerView || []).forEach((p) => {
                       const id = p.r || "";
-                      const name = id ? (ROOMS[id]?.name || id) : "마을";
+                      const name = id ? (roomFor(id)?.name || id) : "마을";
                       counts[name] = (counts[name] || 0) + 1;
                     });
-                    const mine = scene ? (ROOMS[scene]?.name || scene) : "마을";
+                    const mine = scene ? (roomFor(scene)?.name || scene) : "마을";
                     counts[mine] = (counts[mine] || 0) + 1;
                     const rows = Object.entries(counts).filter(([, n]) => n > 0);
                     return rows.length ? rows.map(([name, n]) => (
@@ -3280,7 +3321,7 @@ function Town({ me, setMe, onKick }) {
       {bgmOpen && me.role === "host" && (
         <div className="ccModalWrap" onClick={() => setBgmOpen(false)}>
           <BgmSheet
-            roomName={ROOMS[scene]?.name || "방"}
+            roomName={roomFor(scene)?.name || "방"}
             current={scene ? roomBgmMap[scene] || null : null}
             onSelect={(next) => {
               if (!scene) return;
@@ -4247,6 +4288,9 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 @keyframes ccMuralGlow{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:.7;transform:scale(1.12)}}
 .ccMuralShimmer{animation-name:ccMuralSh;animation-timing-function:ease-in-out;animation-iteration-count:infinite;opacity:0}
 @keyframes ccMuralSh{0%,100%{opacity:0;transform:translateX(-10px)}45%{opacity:.9;transform:translateX(6px)}70%{opacity:.25;transform:translateX(12px)}}
+
+/* ☁️ 구름솜사탕 가게 */
+.ccCottonRoom{position:absolute;inset:0;background:linear-gradient(#fff9fc,#ffeaf4);z-index:30;color:${C.ink};overflow:hidden}.ccCottonRoomTop{height:82px;display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#fff;border-bottom:4px solid ${C.line}}.ccCottonRoomTitle{font-size:22px;font-weight:900}.ccCottonRoomSub{font-size:11px;color:${C.inkSoft};font-weight:700}.ccCottonBack,.ccCottonColor,.ccPowerBtn,.ccDecorButtons button{border:3px solid ${C.line};font-family:inherit;font-weight:900;cursor:pointer}.ccCottonBack{background:#fff6dc;padding:7px 11px}.ccCottonShopScene{height:calc(100% - 82px);display:flex;gap:34px;align-items:center;justify-content:center;padding:28px}.ccCottonBigObject,.ccCottonShelfObject{width:38%;min-width:270px;height:390px;border:5px solid ${C.line};background:#fff;box-shadow:8px 8px 0 rgba(91,74,99,.18)}.ccCottonBigObject{cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}.ccCottonMachineIcon{position:relative;width:230px;height:230px}.ccMachineBowl{position:absolute;left:20px;top:20px;width:190px;height:190px;border-radius:50%;background:radial-gradient(circle,#fff 0 40%,#a9b2ba 41% 47%,#f7f8f9 48% 66%,#929ca4 67% 72%,#fff 73%);border:5px solid ${C.line};box-shadow:inset 0 0 20px #7775}.ccMachineBowl:after{content:"";position:absolute;left:60px;top:60px;width:60px;height:60px;border-radius:50%;background:#fff7fb;border:5px solid #9da6ad}.ccMachinePole{position:absolute;left:103px;top:175px;width:24px;height:50px;background:#9da6ad;border:4px solid ${C.line};border-top:0}.ccShelfCanopy{font-size:20px;font-weight:900;padding:18px;background:#ffd9ea;border-bottom:4px solid ${C.line};text-align:center}.ccShelfRows{padding:28px 24px}.ccShelfRow{height:82px;border-bottom:5px solid ${C.line};display:flex;gap:12px;align-items:flex-end}.ccShelfSlot{flex:1;height:62px;border:3px solid ${C.line};display:flex;align-items:center;justify-content:center}.ccMiniCotton{width:48px;height:42px;border-radius:50%;filter:blur(1px)}.ccCottonMachineStage{height:calc(100% - 82px);display:flex;flex-direction:column;align-items:center;padding:16px 22px;overflow:auto}.ccCottonColorBar{display:flex;align-items:center;gap:9px;border:4px solid ${C.line};background:#fff;padding:7px 10px}.ccCottonColor{width:30px;height:30px;border-radius:50%;box-shadow:2px 2px 0 #7775}.ccCottonColor.on{transform:scale(1.15);box-shadow:inset 0 0 0 3px #fff}.ccCottonColorBar span{font-size:10px;color:${C.inkSoft}}.ccCottonMachine{width:min(620px,92%);min-height:480px;margin-top:12px;background:linear-gradient(#eef1f4,#adb6be);border:6px solid ${C.line};box-shadow:8px 8px 0 #7774;padding:18px}.ccCottonMachine.powered{animation:ccMachineVibrate .11s steps(2,end) infinite}.ccMachineLabel{text-align:center;font-weight:900;font-size:12px}.ccMachineRingArea{position:relative;width:420px;height:360px;max-width:100%;margin:auto;touch-action:none;cursor:crosshair}.ccSteelRing{position:absolute;left:50%;top:48%;transform:translate(-50%,-50%);width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,#eef1f3 0 49%,#929da5 50% 54%,#fff 55% 68%,#89949d 69% 73%,#dce1e5 74%);border:6px solid ${C.line};box-shadow:inset 0 0 22px #7774}.ccSteelHole{position:absolute;inset:80px;border-radius:50%;background:#fff0f7;border:5px solid #9da6ad}.ccCottonCloud{position:absolute;left:50%;top:48%;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff 0 10%,rgba(255,255,255,.65) 42%,rgba(255,255,255,0) 72%);border:2px solid;overflow:hidden;transition:width .18s,height .18s;z-index:4}.ccCottonCloud i{position:absolute;width:20px;height:20px;border-radius:50%;filter:blur(3px);transform:translate(-50%,-50%);opacity:.9}.ccCottonStick{position:absolute;left:50%;top:70%;width:20px;height:115px;background:#fff;border:4px solid ${C.line};transform:translateX(-50%)}.ccPowerRow{display:flex;align-items:center;justify-content:center;gap:12px;font-size:10px;font-weight:800;color:${C.inkSoft}}.ccPowerBtn{background:#fff;padding:9px 15px}.ccPowerBtn.on{background:#8fe3c9}.ccCottonFinish{margin-top:8px;background:#ff8fb6}.ccCottonFinish:disabled{opacity:.4}@keyframes ccMachineVibrate{0%,100%{transform:translate(0)}25%{transform:translate(1px,-1px)}50%{transform:translate(-1px,1px)}75%{transform:translate(1px,1px)}}.ccCottonDecorStage{height:calc(100% - 82px);display:flex;gap:30px;align-items:center;justify-content:center;padding:24px}.ccDecorPreview{width:52%;height:78%;min-height:360px;border:5px solid ${C.line};background:#eef8ff;display:flex;align-items:center;justify-content:center}.ccDecorCloud{position:relative;flex:none}.ccDecorPanel{width:330px;border:5px solid ${C.line};background:#fff;padding:20px;box-shadow:7px 7px 0 #7774}.ccDecorPanel h3{margin:0 0 8px;font-size:20px}.ccDecorPanel p{font-size:11px;color:${C.inkSoft};font-weight:700}.ccDecorButtons{display:flex;flex-direction:column;gap:8px;margin:16px 0}.ccDecorButtons button{background:#fff6dc;padding:10px;font-size:13px}.ccDecorCount{font-size:11px;font-weight:800;color:${C.inkSoft};margin-bottom:10px}.ccCottonDone{width:100%;background:#8fe3c9}.ccSprinkle{position:absolute;z-index:8}.ccSprinkle-star{width:20px;height:20px;background:#ffd45e;clip-path:polygon(50% 0,61% 36%,98% 36%,68% 58%,79% 96%,50% 73%,21% 96%,32% 58%,2% 36%,39% 36%)}.ccSprinkle-bar{width:9px;height:28px;background:#ff8fb6;border:2px solid ${C.line};border-radius:3px}.ccSprinkle-heart{width:22px;height:20px;background:#ff6f9e;clip-path:polygon(50% 100%,0 35%,12% 8%,35% 8%,50% 28%,65% 8%,88% 8%,100% 35%)}.ccCottonConfirmWrap{position:absolute;inset:0;background:#5b4a6377;display:flex;align-items:center;justify-content:center;z-index:80}.ccCottonConfirm{width:min(390px,88%);padding:26px;text-align:center}.ccCottonConfirmIcon{font-size:48px}.ccCottonConfirm h2{margin:8px 0}.ccCottonConfirm p{font-size:12px;font-weight:700;color:${C.inkSoft}}.ccCottonConfirmBtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}.ccCottonOverlay{z-index:2}
 
 /* 방 내부 */
 .ccRoomBg{position:absolute;inset:0;overflow:hidden}
