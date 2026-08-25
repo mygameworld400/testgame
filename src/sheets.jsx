@@ -20,6 +20,9 @@ const ERR = {
 const msgOf = (r) => ERR[r?.error] || ERR.server_error;
 
 const SFX_LABEL = { splash: "물소리", key: "타건음", sand: "모래소리", ball: "왁뿌볼소리" };
+const BGM_PREFIX = "bgm:";
+const isBgm = (t) => (t?.title || "").startsWith(BGM_PREFIX);
+const bgmName = (t) => (t?.title || "").slice(BGM_PREFIX.length);
 
 const PACK_COLORS = ["#ff9ec4", "#8fe3c9", "#ffd45e", "#b6a6f0", "#7fc8f5"];
 
@@ -325,8 +328,9 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const songs = (list || []).filter((t) => !isSfx(t) && !isVid(t) && !isKar(t));
+  const songs = (list || []).filter((t) => !isSfx(t) && !isVid(t) && !isKar(t) && !isBgm(t));
   const sfx = (list || []).filter(isSfx);
+  const bgms = (list || []).filter(isBgm);
 
   /* 플레이리스트별로 묶기 */
   const groups = [];
@@ -342,7 +346,8 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
   const add = async () => {
     if (!chosen) { setErr("파일을 골라주세요."); return; }
     setBusy(true);
-    const r = await uploadTrack(hostCode, chosen, sfxKind ? SFX_PREFIX + sfxKind : title, pl);
+    const uploadTitle = sfxKind === "bgm" ? BGM_PREFIX + (title || chosen?.name?.replace(/\.[^.]+$/, "") || "방 BGM").slice(0, 40) : (sfxKind ? SFX_PREFIX + sfxKind : title);
+    const r = await uploadTrack(hostCode, chosen, uploadTitle, pl);
     setBusy(false);
     if (!r?.ok) { setErr(msgOf(r)); return; }
     setChosen(null);
@@ -383,10 +388,15 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
 
       {isHost && !adding && (
         <div className="ccRow ccHostRow ccHostTop">
-          <button className="ccBtn ccMiniBtn ccAddBtn" onClick={() => setAdding(true)}>+ 곡 · 효과음 추가</button>
+          <button className="ccBtn ccMiniBtn ccAddBtn" onClick={() => setAdding(true)}>+ 곡 · 효과음 · 방 BGM 추가</button>
           {sfx.map((t) => (
             <button key={t.id} className="ccMini ccDanger" onClick={() => remove(t.id)} disabled={busy}>
               {SFX_LABEL[t.title.replace(SFX_PREFIX, "")] || t.title} 삭제
+            </button>
+          ))}
+          {bgms.map((t) => (
+            <button key={t.id} className="ccMini ccDanger" onClick={() => remove(t.id)} disabled={busy}>
+              🎵 {bgmName(t)} 삭제
             </button>
           ))}
         </div>
@@ -524,7 +534,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
             <button className="ccBtn ccMiniBtn" onClick={add} disabled={busy}>{busy ? "올리는 중…" : "올리기"}</button>
             <button className="ccMini" onClick={() => { setAdding(false); setChosen(null); }}>취소</button>
           </div>
-          <div className="ccFieldLabel">효과음으로 쓰기 (곡 목록에는 안 보여요)</div>
+          <div className="ccFieldLabel">파일 용도</div>
           <div className="ccRow ccSizes">
             {[
               ["", "일반 곡"],
@@ -532,6 +542,7 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
               ["key", "키보드 타건음"],
               ["sand", "모래 밟는 소리"],
               ["ball", "왁뿌볼 소리"],
+              ["bgm", "🎵 방 BGM"],
             ].map(([k, label]) => (
               <button
                 key={k || "song"}
@@ -542,10 +553,58 @@ export function MusicSheet({ hostCode, isHost, onClose, onPlay, playingId }) {
               </button>
             ))}
           </div>
-          <p className="ccSheetNote">mp3 · m4a · wav — 한 개당 20MB 까지</p>
+          <p className="ccSheetNote">방 BGM은 여기 올려두고, 게임 안에서 방마다 호스트가 선택해요. mp3 · m4a · wav — 한 개당 20MB 까지</p>
         </div>
       )}
 
+      {err && <div className="ccErr">{err}</div>}
+    </div>
+  );
+}
+
+
+/* ============================ 방 BGM 선택 ============================ */
+
+export function BgmSheet({ roomName, current, onSelect, onClose }) {
+  const [list, setList] = useState(null);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const r = await trackList();
+      if (!alive) return;
+      if (Array.isArray(r)) setList(r.filter(isBgm));
+      else { setList([]); setErr(msgOf(r)); }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  return (
+    <div className="ccPanel ccModal ccBgmSheet" onClick={(e) => e.stopPropagation()}>
+      <div className="ccSheetHead">
+        <h2 className="ccSheetTitle">🎵 {roomName || "방"} BGM 설정</h2>
+        <button className="ccX" onClick={onClose}>✕</button>
+      </div>
+      <p className="ccSheetNote">이 방에서 모두에게 들릴 배경음악을 고르세요.</p>
+      <button className={"ccBgmItem" + (!current ? " ccBgmOn" : "")} onClick={() => onSelect(null)}>
+        <span>🔇 BGM 끄기</span>
+        {!current && <b>현재</b>}
+      </button>
+      {list === null && <p className="ccSheetNote">불러오는 중…</p>}
+      {list?.length === 0 && <p className="ccSheetNote">등록된 방 BGM이 없어요. 설정 → LP바의 사운드 추가에서 먼저 올려주세요.</p>}
+      <div className="ccBgmList">
+        {(list || []).map((t) => {
+          const url = trackUrl(t.path);
+          const on = current?.id === t.id;
+          return (
+            <button key={t.id} className={"ccBgmItem" + (on ? " ccBgmOn" : "")} onClick={() => onSelect({ id: t.id, title: bgmName(t), url })}>
+              <span>🎵 {bgmName(t)}</span>
+              {on && <b>현재</b>}
+            </button>
+          );
+        })}
+      </div>
       {err && <div className="ccErr">{err}</div>}
     </div>
   );
