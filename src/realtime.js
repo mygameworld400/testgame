@@ -27,10 +27,6 @@ export function joinChannel({
   onFx,
   onLive,
 }) {
-  /* =========================================================
-     Supabase가 없는 경우
-     ========================================================= */
-
   if (!supabase) {
     return {
       stop: () => {},
@@ -42,10 +38,6 @@ export function joinChannel({
       live: () => false,
     };
   }
-
-  /* =========================================================
-     기본 상태
-     ========================================================= */
 
   const peers = new Map();
 
@@ -84,8 +76,6 @@ export function joinChannel({
     },
     ({ payload }) => {
       if (!payload?.id) return;
-
-      /* 내 메시지는 받지 않음 */
       if (payload.id === me.id) return;
 
       const prev = peers.get(payload.id);
@@ -212,11 +202,22 @@ export function joinChannel({
          ----------------------------------------------- */
 
       if (payload.scene) {
+        const bgm =
+          payload.bgm && typeof payload.bgm === "object"
+            ? {
+                ...payload.bgm,
+                url:
+                  payload.bgm.url ||
+                  payload.bgm.path ||
+                  "",
+              }
+            : null;
+
         onFx?.({
           id: payload.id,
           t: "roomBgm",
           scene: payload.scene,
-          bgm: payload.bgm || null,
+          bgm,
         });
       }
     }
@@ -331,7 +332,6 @@ export function joinChannel({
   function onStatus(status) {
     if (dead) return;
 
-    /* 연결 실패 */
     if (status !== "SUBSCRIBED") {
       setLive(false);
 
@@ -344,7 +344,6 @@ export function joinChannel({
       return;
     }
 
-    /* 연결 성공 */
     retry = 0;
 
     setLive(true);
@@ -369,14 +368,6 @@ export function joinChannel({
       const now = Date.now();
 
       const sig = JSON.stringify(pose);
-
-      /*
-       * 움직이지 않았다면 계속 보내지 않음.
-       *
-       * 단, 3초가 지나면 한 번 다시 보냄.
-       * 늦게 들어온 게스트가 호스트 상태를 받을 수 있도록
-       * 하기 위한 처리.
-       */
 
       if (
         sig === lastSig &&
@@ -421,8 +412,6 @@ export function joinChannel({
       let changed = false;
 
       peers.forEach((p, id) => {
-        /* 오래 접속하지 않은 플레이어 제거 */
-
         if (
           now - (p.at || 0) >
           STALE_MS
@@ -433,8 +422,6 @@ export function joinChannel({
 
           return;
         }
-
-        /* 말풍선 제거 */
 
         if (
           p.msg &&
@@ -458,11 +445,8 @@ export function joinChannel({
     /* =======================================================
        게스트가 접속하면 현재 방 BGM 요청
 
-       이 부분이 중요함.
-
-       게스트가 방에 들어왔을 때
        호스트가 이미 BGM을 틀고 있다면
-       그 상태를 바로 받아옴.
+       현재 상태를 바로 받아옴.
        ======================================================= */
 
     if (me.role !== "host") {
@@ -693,6 +677,17 @@ export function joinChannel({
         return false;
       }
 
+      const normalized =
+        bgm && typeof bgm === "object"
+          ? {
+              ...bgm,
+              url:
+                bgm.url ||
+                bgm.path ||
+                "",
+            }
+          : null;
+
       ch.send({
         type: "broadcast",
 
@@ -703,7 +698,7 @@ export function joinChannel({
 
           scene,
 
-          bgm: bgm || null,
+          bgm: normalized,
         },
       });
 
@@ -712,8 +707,6 @@ export function joinChannel({
 
     /* =======================================================
        현재 방 BGM 요청
-
-       게스트가 방 입장 직후 호출.
        ======================================================= */
 
     requestRoomBgm() {
