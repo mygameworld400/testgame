@@ -905,8 +905,6 @@ function Town({ me, setMe, onKick }) {
       return true;
     }
   });
-  /* 브라우저/사파리 오디오 자동재생 해제를 위한 최초 1회 사용자 확인 */
-  const [soundGate, setSoundGate] = useState(true);
   const [setOpen, setSetOpen] = useState(false);   // 설정 패널
   const [riding, setRiding] = useState(false);     // 미끄럼틀 타는 중
   const [lying, setLying] = useState(false);       // 천문대에서 눕기
@@ -1899,7 +1897,7 @@ function Town({ me, setMe, onKick }) {
     if (!hasServer || me.role === "solo" || !me.round) return undefined;
     const chan = joinChannel({
       round: me.round,
-      me: { id: deviceId(), name: me.name, slot: me.slot, role: me.role },
+      me: { id: deviceId(), name: me.name, slot: me.slot },
       getPose: () => ({
         x: Math.round(posRef.current.x),
         y: Math.round(posRef.current.y),
@@ -1922,24 +1920,6 @@ function Town({ me, setMe, onKick }) {
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
       onFx: (e) => {
         if (!e) return;
-
-        /* 방 BGM — 호스트가 바꾼 즉시 모든 게스트에게 반영 */
-        if (e.t === "roomBgm") {
-          if (
-            e.scene === "__ALL__" &&
-            e.bgmMap &&
-            typeof e.bgmMap === "object"
-          ) {
-            setHostBgmMap(e.bgmMap);
-          } else if (e.scene) {
-            setHostBgmMap((m) => ({
-              ...m,
-              [e.scene]: e.bgm || null,
-            }));
-          }
-          return;
-        }
-
         if (e.t === "ball") {
           if (sceneRef.current === "flower") popBall(e.i, false);
           return;
@@ -2026,144 +2006,51 @@ function Town({ me, setMe, onKick }) {
     ? (me.role === "host" ? roomBgmMap[scene] : hostBgmMap[scene]) || null
     : null;
 
-  /* 방 BGM이 시작되면 LP 음악은 무조건 먼저 끊습니다. */
-  useEffect(() => {
-    if (!currentBgm?.url) return;
-
-    const lp = audio.current;
-    if (lp) {
-      lp.pause();
-      try { lp.currentTime = 0; } catch {}
-    }
-
-    setQueue((q) => (q.length ? [] : q));
-    setQi(0);
-    setPlName("");
-  }, [currentBgm?.url]);
-
-  /* 방 BGM 재생 */
   useEffect(() => {
     const a = bgmAudio.current;
     if (!a) return;
-
     const url = currentBgm?.url || "";
-
     if (!url) {
       a.pause();
       a.removeAttribute("src");
       a.load();
       return;
     }
-
-    a.loop = true;
-    a.preload = "auto";
-    a.volume = muted ? 0 : vol;
-
     if (a.src !== url) {
-      a.pause();
       a.src = url;
-      a.load();
-    }
-
-    const tryPlay = () => {
-      if (!bgmAudio.current) return;
-      if (bgmAudio.current.src !== url) return;
-
-      const p = bgmAudio.current.play();
-      if (p?.catch) p.catch(() => {});
-    };
-
-    tryPlay();
-    a.addEventListener("canplay", tryPlay, { once: true });
-    a.addEventListener("loadeddata", tryPlay, { once: true });
-
-    return () => {
-      a.removeEventListener("canplay", tryPlay);
-      a.removeEventListener("loadeddata", tryPlay);
-    };
-  }, [currentBgm?.url, scene]);
-
-  useEffect(() => {
-    if (bgmAudio.current) {
-      bgmAudio.current.volume = muted ? 0 : vol;
-    }
-  }, [vol, muted]);
-
-  /* 최초 소리 켜기 버튼에서 실제 사용자 제스처로 HTML audio를 unlock */
-  const enableGameSound = useCallback(() => {
-    try { unlockAudio(); } catch {}
-
-    const a = bgmAudio.current;
-
-    if (a) {
       a.loop = true;
       a.volume = muted ? 0 : vol;
-
-      /*
-       * 방 BGM이 이미 들어와 있다면 그 곡을 바로 사용자 제스처 안에서 재생합니다.
-       * 아직 방 BGM이 없다면 짧은 무음 WAV를 같은 audio element에서 재생해
-       * Safari/Chrome의 사용자 활성화 상태를 확보합니다.
-       */
-      const silent =
-        "data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-
-      const url = currentBgm?.url || silent;
-
-      a.src = url;
-      a.load();
-
       const p = a.play();
-
-      if (p?.then) {
-        p.then(() => {
-          if (!currentBgm?.url) {
-            a.pause();
-            a.src = "";
-          }
-        }).catch(() => {});
-      }
+      if (p?.catch) p.catch(() => {});
+    } else if (a.paused) {
+      const p = a.play();
+      if (p?.catch) p.catch(() => {});
     }
+  }, [currentBgm, scene]);
 
-    setSoundGate(false);
-
-    try {
-      sessionStorage.setItem("ccSoundEnabled", "1");
-    } catch {}
-  }, [currentBgm?.url, muted, vol]);
-
-  /* 사용자가 소리를 켠 뒤에도 BGM이 들어오면 즉시 재생 */
   useEffect(() => {
-    if (soundGate || !currentBgm?.url) return undefined;
+    if (bgmAudio.current) bgmAudio.current.volume = muted ? 0 : vol;
+  }, [vol, muted]);
 
+  /* 모바일은 원격에서 시작한 소리를 막을 수 있어서, 사용자가 게임을 한 번 터치하면
+     현재 방 BGM을 다시 재생해 줍니다. */
+  useEffect(() => {
+    if (!currentBgm) return undefined;
     const wakeBgm = () => {
       const a = bgmAudio.current;
-      if (!a) return;
-
-      a.volume = muted ? 0 : vol;
-
-      if (a.src !== currentBgm.url) {
-        a.pause();
-        a.src = currentBgm.url;
-        a.loop = true;
-        a.load();
-      }
-
-      if (a.paused) {
-        const p = a.play();
-        if (p?.catch) p.catch(() => {});
-      }
+      if (!a || !a.paused) return;
+      const p = a.play();
+      if (p?.catch) p.catch(() => {});
     };
-
-    window.addEventListener("pointerdown", wakeBgm, true);
-    window.addEventListener("touchstart", wakeBgm, { passive: true, capture: true });
-    window.addEventListener("keydown", wakeBgm, true);
-
+    window.addEventListener("pointerdown", wakeBgm);
+    window.addEventListener("touchstart", wakeBgm, { passive: true });
+    window.addEventListener("keydown", wakeBgm);
     return () => {
-      window.removeEventListener("pointerdown", wakeBgm, true);
-      window.removeEventListener("touchstart", wakeBgm, true);
-      window.removeEventListener("keydown", wakeBgm, true);
+      window.removeEventListener("pointerdown", wakeBgm);
+      window.removeEventListener("touchstart", wakeBgm);
+      window.removeEventListener("keydown", wakeBgm);
     };
-  }, [soundGate, currentBgm?.url, muted, vol]);
+  }, [currentBgm]);
 
   /* 음량 — 슬라이더를 움직이면 바로 반영하고 기기에 기억해둡니다 */
   useEffect(() => {
@@ -2312,17 +2199,13 @@ function Town({ me, setMe, onKick }) {
               pressed={pressed}
               skin={scene === "candy" ? QUIZ_SKIN[quizMode] : null}
             />
-            {me.role === "host" ? (
+            {me.role === "host" && (
               <button
                 className="ccRoomBgmBtn"
                 onClick={(e) => { e.stopPropagation(); setBgmOpen(true); }}
               >
                 🎵 BGM 설정
               </button>
-            ) : (
-              <div className="ccRoomBgmBtn ccRoomBgmGuest">
-                🎵 {currentBgm ? currentBgm.title : "방 BGM 없음"}
-              </div>
             )}
             {currentBgm && (
               <div className="ccRoomBgmNow">🎵 {currentBgm.title}</div>
@@ -2381,8 +2264,7 @@ function Town({ me, setMe, onKick }) {
                     <span className="ccKaraokeRemoteMini">장르</span>
                   </div>
                   <div className="ccKaraokeRemoteMiniRow">
-                    <span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">예약</span>
-                    <span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">신곡</span>
+                          <span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">신곡</span>
                     <span className="ccKaraokeRemoteMini ccKaraokeRemoteYellow">검색</span>
                   </div>
                   <div className="ccKaraokeRemoteMain">
@@ -2393,9 +2275,6 @@ function Town({ me, setMe, onKick }) {
                   </div>
                   <div className="ccKaraokeRemoteNav">
                     <i className="l">◀</i><i className="r">▶</i><i className="d">▼</i>
-                  </div>
-                  <div className="ccKaraokeRemoteAction">
-                    <span className="cancel">선택</span><span className="start">예약</span>
                   </div>
                   <div className="ccKaraokeRemoteHint">선곡표</div>
                 </div>
@@ -2978,10 +2857,6 @@ function Town({ me, setMe, onKick }) {
             onSelect={(next) => {
               if (!scene) return;
               setRoomBgmMap((m) => ({ ...m, [scene]: next }));
-              chanRef.current?.roomBgm?.({
-                scene,
-                bgm: next || null,
-              });
               setBgmOpen(false);
               blip(next ? 820 : 520);
             }}
@@ -3156,44 +3031,7 @@ function Town({ me, setMe, onKick }) {
 
       {sheet === "starview" && <StarViewSheet onClose={() => setSheet(null)} />}
 
-      {soundGate && (
-        <div className="ccWelWrap" style={{ zIndex: 10001 }}>
-          <div className="ccWelCard" onClick={(e) => e.stopPropagation()}>
-            <span className="ccWelPin ccWelPinA" />
-            <span className="ccWelPin ccWelPinB" />
-            <span className="ccWelPin ccWelPinC" />
-            <span className="ccWelPin ccWelPinD" />
-
-            <div style={{ fontSize: 42, lineHeight: 1, margin: "6px 0 14px" }}>
-              🔊
-            </div>
-
-            <div className="ccWelTag">SOUND ON</div>
-
-            <h2 className="ccWelTitle">
-              게임 소리를<br />켜주세요!
-            </h2>
-
-            <p className="ccWelText">
-              방 BGM과 게임 효과음을<br />
-              들으려면 소리를 켜주세요.
-            </p>
-
-            <p className="ccWelBonus">
-              📱 모바일 · 💻 PC 모두 지원
-            </p>
-
-            <button
-              className="ccBtn ccWelBtn"
-              onClick={enableGameSound}
-            >
-              🔊 소리 켜기
-            </button>
-          </div>
-        </div>
-      )}
-
-      {welcome && !soundGate && (
+      {welcome && (
         <div className="ccWelWrap" onClick={closeWelcome}>
           <div className="ccWelCard" onClick={(e) => e.stopPropagation()}>
             <span className="ccWelPin ccWelPinA" />
@@ -3592,395 +3430,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccKaraokeRemoteBlue{background:#a9dcff;color:#3b5970}
 .ccKaraokeRemoteNav{position:absolute;left:10px;bottom:35px;width:43px;height:43px;border:3px solid #5b5562;border-radius:50%;background:#55505c;box-shadow:inset 0 0 0 4px #dddde4}
 .ccKaraokeRemoteNav::before{content:'▲';position:absolute;left:50%;top:2px;transform:translateX(-50%);font-size:8px;color:#fff}
-.ccKaraokeRemoteNav::after{content:'OK';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;background:#f5f5f7;color:#55505c;font-size:7px;font-weight:900;display:flex;align-items:center;justify-content:center}
-.ccKaraokeRemoteNav i{position:absolute;font-style:normal;font-size:8px;color:#fff}
-.ccKaraokeRemoteNav .l{left:4px;top:16px}.ccKaraokeRemoteNav .r{right:4px;top:16px}.ccKaraokeRemoteNav .d{left:17px;bottom:2px}
-.ccKaraokeRemoteAction{position:absolute;right:9px;bottom:38px;display:grid;grid-template-columns:1fr 1fr;gap:4px;width:52px}
-.ccKaraokeRemoteAction span{height:20px;border:2px solid #6b6470;border-radius:5px;background:#fff;font-size:7px;font-weight:900;display:flex;align-items:center;justify-content:center;color:#4b4650}
-.ccKaraokeRemoteAction .start{background:#8ed9f5}.ccKaraokeRemoteAction .cancel{background:#9bd9f4}
-.ccKaraokeRemoteHint{position:absolute;left:50%;bottom:-28px;transform:translateX(-50%);white-space:nowrap;font-size:9px;font-weight:900;color:#fff6dc;text-shadow:2px 2px 0 #5b4a63;opacity:.9}
-.ccYoutubeAdd{display:grid;grid-template-columns:1fr 1fr auto;gap:7px;align-items:center;margin:8px 0}
-@media (max-width:700px){.ccYoutubeAdd{grid-template-columns:1fr}.ccYoutubeAdd .ccBtn{width:100%}}
-
-/* 우측 세로 스택 — 회차 배지 아래로 호스트 도구와 가이드가 쌓입니다 */
-.ccSide{position:absolute;right:30px;top:98px;width:238px;display:flex;flex-direction:column;
-  align-items:stretch;gap:8px;z-index:17}
-
-/* 뉴비 가이드 — 하나씩 해보는 투두 */
-.ccQuest{position:relative;background:#fff;border:4px solid ${C.line};box-shadow:5px 5px 0 rgba(91,74,99,.3)}
-/* 네 모서리 색깔 징 */
-.ccQuestPin{position:absolute;width:9px;height:9px;background:#ff8fb6;border:3px solid ${C.line};z-index:2}
-.ccQuestPinA{left:-9px;top:-9px}
-.ccQuestPinB{right:-9px;top:-9px;background:#ffd45e}
-.ccQuestPinC{left:-9px;bottom:-9px;background:#8fe3c9}
-.ccQuestPinD{right:-9px;bottom:-9px;background:#b6a6f0}
-/* 사탕 줄무늬 머리띠 */
-.ccQuestHead{width:100%;display:flex;align-items:center;gap:7px;border:none;
-  background:repeating-linear-gradient(135deg,#ffe6a0 0 7px,#ffd97a 7px 14px);
-  border-bottom:4px solid ${C.line};font-family:inherit;font-weight:800;font-size:12.5px;color:${C.ink};
-  padding:8px 9px;cursor:pointer;text-align:left}
-.ccQuestMin .ccQuestHead{border-bottom:none}
-.ccQuestStar{flex:none;animation:ccStarF 1.6s steps(3,end) infinite}
-.ccQuestTitle{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ccQuestNum{font-size:10.5px;font-weight:900;color:#c05a86;white-space:nowrap;background:#fff;
-  border:3px solid ${C.line};padding:2px 6px;line-height:1.2}
-.ccQuestArrow{font-size:10px;color:${C.ink};animation:ccQArrow 1.2s steps(2,end) infinite}
-@keyframes ccQArrow{0%,100%{transform:translateY(0)}50%{transform:translateY(2px)}}
-/* 진행바 — 칸을 하나씩 채웁니다 */
-.ccQuestBar{display:flex;gap:2px;padding:5px 6px;background:#fff6dc;border-bottom:3px solid ${C.line}}
-.ccQuestCell{flex:1;height:9px;background:#efe7f2;box-shadow:inset 0 0 0 2px rgba(91,74,99,.22)}
-.ccQuestCellOn{background:#8fe3c9;box-shadow:inset 0 0 0 2px ${C.line}}
-.ccQuestList{list-style:none;margin:0;padding:7px;max-height:min(54vh,430px);overflow:auto;
-  display:flex;flex-direction:column;gap:2px;text-align:left}
-.ccQ{display:flex;gap:7px;align-items:flex-start;padding:5px;font-size:11.5px;font-weight:700;
-  line-height:1.35;color:${C.inkSoft}}
-.ccQBox{flex:none;width:16px;height:16px;border:3px solid ${C.line};background:#fff;margin-top:1px;
-  font-size:10px;line-height:10px;text-align:center;color:${C.ink}}
-.ccQBody{display:flex;flex-direction:column;gap:3px;min-width:0;word-break:keep-all}
-.ccQBody b{font-weight:800}
-.ccQBody em{font-style:normal;font-size:10.5px;font-weight:700;color:${C.inkSoft};line-height:1.5}
-.ccQOk .ccQBox{background:#8fe3c9}
-.ccQOk .ccQBody b{opacity:.5;text-decoration:line-through}
-.ccQNow{color:${C.ink};background:#fff6dc;box-shadow:inset 0 0 0 3px #ffd45e}
-.ccQFlash{animation:ccQFlash .32s steps(2,end) 4}
-@keyframes ccQFlash{0%,100%{background:#fff}50%{background:#a9f0d2}}
-.ccQuestFoot{margin:0;padding:0 10px 9px;font-size:10px;font-weight:700;line-height:1.55;
-  color:${C.inkSoft};text-align:left}
-.ccQuestReset{display:block;width:calc(100% - 20px);margin:0 10px 10px;border:3px solid ${C.line};
-  background:#fff;font-family:inherit;font-size:10.5px;font-weight:700;color:${C.inkSoft};
-  padding:6px;cursor:pointer}
-.ccQuestReset:active{transform:translate(2px,2px)}
-
-.ccBgmSheet{width:min(430px,94vw);padding:16px;max-height:82vh;overflow:auto}
-.ccBgmList{display:flex;flex-direction:column;gap:6px;margin-top:10px}
-.ccBgmItem{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;border:3px solid ${C.line};background:#fff;color:${C.ink};padding:10px 12px;font-family:inherit;font-size:12px;font-weight:800;text-align:left;cursor:pointer;box-shadow:2px 2px 0 rgba(91,74,99,.18)}
-.ccBgmItem:active{transform:translate(2px,2px);box-shadow:none}
-.ccBgmItem.ccBgmOn{background:#fff6dc;box-shadow:inset 0 0 0 3px #ffd45e,2px 2px 0 rgba(91,74,99,.18)}
-.ccBgmItem b{font-size:10px;background:#8fe3c9;border:2px solid ${C.line};padding:2px 5px;white-space:nowrap}
-
-/* 설정 */
-.ccSetBtn{cursor:pointer;align-self:flex-end;background:#fff}
-.ccSetPanel{width:100%;padding:12px}
-.ccSetTitle{font-size:12px;font-weight:900;margin-bottom:8px;text-align:left}
-.ccSetFonts{display:flex;flex-direction:column;gap:5px}
-.ccSetFont{border:3px solid ${C.line};background:#fff;color:${C.ink};font-size:13px;font-weight:700;
-  padding:9px 10px;cursor:pointer;text-align:left;box-shadow:2px 2px 0 rgba(91,74,99,.18)}
-.ccSetFont:active{transform:translate(2px,2px);box-shadow:none}
-.ccSetOn{background:#ffe9a8;box-shadow:inset 0 0 0 3px #ffd45e,2px 2px 0 rgba(91,74,99,.18)}
-.ccSetNote{margin:9px 0 0;font-size:10px;font-weight:700;color:${C.inkSoft};text-align:left;line-height:1.55}
-
-/* 처음 온 사람 환영 팝업 — 픽셀 액자 */
-.ccWelWrap{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
-  padding:28px;background:rgba(91,74,99,.45);animation:ccWelIn .18s steps(2,end)}
-@keyframes ccWelIn{from{opacity:0}to{opacity:1}}
-.ccWelCard{position:relative;width:min(330px,88vw);padding:24px 22px 20px;text-align:center;
-  background:#fff;color:${C.ink};border:5px solid ${C.line};
-  box-shadow:0 0 0 5px #fff,0 0 0 10px ${C.line},10px 10px 0 rgba(91,74,99,.3);
-  animation:ccWelPop .22s steps(3,end)}
-@keyframes ccWelPop{from{transform:translateY(12px) scale(.94)}to{transform:none}}
-.ccWelPin{position:absolute;width:16px;height:16px;background:#ff8fb6;border:4px solid ${C.line};z-index:1;
-  animation:ccWelPin 1.4s steps(2,end) infinite}
-.ccWelPinA{left:-21px;top:-21px}
-.ccWelPinB{right:-21px;top:-21px;background:#ffd45e;animation-delay:.35s}
-.ccWelPinC{left:-21px;bottom:-21px;background:#8fe3c9;animation-delay:.7s}
-.ccWelPinD{right:-21px;bottom:-21px;background:#b6a6f0;animation-delay:1.05s}
-@keyframes ccWelPin{0%,100%{transform:scale(1)}50%{transform:scale(1.22)}}
-.ccWelChars{display:flex;justify-content:center;gap:6px;margin-bottom:10px}
-.ccWelChar{animation:ccWalk .5s steps(2,end) infinite}
-.ccWelChar:nth-child(2){animation-delay:.12s}
-.ccWelChar:nth-child(3){animation-delay:.24s}
-.ccWelChar:nth-child(4){animation-delay:.36s}
-.ccWelTag{display:inline-block;background:#ffd45e;border:3px solid ${C.line};padding:2px 11px;
-  font-size:11px;font-weight:900;letter-spacing:.14em;box-shadow:3px 3px 0 rgba(91,74,99,.25)}
-.ccWelTitle{margin:11px 0 9px;font-size:19px;font-weight:900;line-height:1.55}
-.ccWelText{margin:0;font-size:12.5px;font-weight:700;line-height:1.8;color:${C.inkSoft}}
-.ccWelHi{color:#c05a86}
-.ccWelBtn{width:100%;margin-top:17px}
-.ccHostTitle{font-weight:900;font-size:15px}
-.ccHostCount{font-size:12px;font-weight:700;color:${C.inkSoft};margin-top:3px}
-.ccHostList{list-style:none;margin:9px 0;padding:0;max-height:180px;overflow:auto;font-size:12px;font-weight:700}
-.ccHostList li{display:flex;align-items:baseline;gap:6px;padding:3px 0;border-bottom:2px solid #f3eef5}
-.ccHostList li:last-child{border-bottom:none}
-.ccHostWho{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ccHostWhen{flex:none;font-size:10px;font-weight:700;color:${C.inkSoft};white-space:nowrap}
-.ccHostEmpty{color:${C.inkSoft}}
-.ccRoundRow{display:flex;gap:6px;margin-top:6px}
-.ccRoundInput{width:64px;padding:8px;font-size:14px;text-align:center}
-.ccRoundBtn{flex:1;font-size:11px;padding:8px 6px;background:#ffd45e;color:${C.ink}}
-.ccHostReset{width:100%;margin-top:6px;font-size:11px;padding:8px;background:#fff;color:${C.ink}}
-.ccHostNote{margin:9px 0 0;font-size:10.5px;line-height:1.6;color:${C.inkSoft};font-weight:700}
-
-.ccExitChip{cursor:pointer;background:#ffe9a8}
-.ccFeed{position:absolute;left:16px;bottom:calc(62px + var(--kb, 0px));
-  width:min(380px,52vw);display:flex;flex-direction:column;gap:4px;cursor:pointer;z-index:18}
-.ccFeedLine{background:rgba(255,255,255,.95);border:3px solid ${C.line};padding:5px 9px;font-size:12px;
-  font-weight:700;line-height:1.45;box-shadow:2px 2px 0 rgba(91,74,99,.18);
-  animation:ccFeedFade .6s 3s forwards;word-break:break-all}
-.ccFeedLine b{margin-right:6px;color:${C.inkSoft}}
-.ccFeedMine b{color:#c05a86}
-@keyframes ccFeedFade{to{opacity:.32}}
-.ccFeed:hover .ccFeedLine{opacity:1;animation:none}
-
-.ccHistory{position:absolute;left:16px;bottom:calc(62px + var(--kb, 0px));
-  width:min(400px,58vw);max-height:52vh;display:flex;flex-direction:column;padding:14px 16px;z-index:22}
-.ccHistoryBody{flex:1;overflow:auto;text-align:left;display:flex;flex-direction:column;gap:7px;margin-bottom:8px}
-.ccHistLine{font-size:12px;font-weight:700;line-height:1.5;color:${C.ink}}
-.ccHistWho{margin-right:6px;color:${C.inkSoft}}
-.ccHistMine .ccHistWho{color:#c05a86}
-.ccHistText{margin-left:2px}
-.ccLogBtn{background:#fff}
-.ccLog{position:absolute;left:14px;bottom:150px;display:flex;flex-direction:column;gap:5px;max-width:min(340px,60vw)}
-.ccLogLine{background:rgba(255,255,255,.94);border:3px solid ${C.line};padding:5px 9px;font-size:11.5px;
-  font-weight:700;box-shadow:3px 3px 0 rgba(91,74,99,.2)}
-.ccLogLine b{margin-right:5px}
-.ccLogRoom{background:#ffe9a8;border:2px solid ${C.line};padding:0 5px;margin-right:6px;font-size:10px}
-.ccSheet{width:min(420px,92vw);max-height:86vh;overflow:auto;padding:18px;text-align:center}
-.ccSheetTitle{margin:0 0 12px;font-size:19px;font-weight:900}
-.ccSheetEmpty{margin:0 0 8px;font-size:14px;font-weight:700;color:${C.ink}}
-.ccSheetNote{margin:0 0 18px;font-size:11.5px;line-height:1.6;font-weight:700;color:${C.inkSoft}}
-
-/* 퀴즈상가 모드 버튼 — 고른 쪽은 눌린 것처럼 들어갑니다 */
-.ccModes{position:absolute;left:16px;top:64px;display:flex;flex-direction:column;gap:8px;z-index:12}
-.ccMode{border:4px solid ${C.line};font-family:inherit;font-weight:800;font-size:13px;padding:10px 16px;
-  cursor:pointer;color:#fff;box-shadow:5px 5px 0 rgba(91,74,99,.35);transition:none}
-.ccModeSolo{background:#4aa3e0}
-.ccModeTeam{background:#e05b5b}
-.ccMode.ccModeOn{transform:translate(4px,4px);box-shadow:0 0 0 rgba(0,0,0,0);filter:saturate(1.3)}
-.ccMode:not(.ccModeOn){opacity:.72}
-
-.ccHold{margin-right:4px}
-.ccBalance{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;
-  font-weight:800;background:#fff8ec;border:3px solid ${C.line};padding:8px 12px;margin-bottom:10px}
-.ccHolding{font-size:11px;font-weight:700;color:${C.inkSoft}}
-.ccMenu{display:flex;flex-direction:column;gap:6px;max-height:44vh;overflow:auto;margin-bottom:8px}
-.ccMenuItem{display:flex;align-items:center;gap:10px;border:3px solid ${C.line};background:#fff;
-  font-family:inherit;font-weight:800;font-size:13px;color:${C.ink};padding:10px 12px;cursor:pointer;
-  box-shadow:3px 3px 0 rgba(91,74,99,.18);text-align:left}
-.ccMenuItem:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(91,74,99,.18)}
-.ccMenuNo{opacity:.45}
-.ccMenuEmoji{font-size:20px}
-.ccMenuName{flex:1}
-.ccMenuPrice{font-size:12px;color:#c08a2a}
-.ccFortuneText{margin:10px 4px 16px;font-size:16px;font-weight:800;line-height:1.6;color:${C.ink};
-  background:#fffbe8;border:3px solid ${C.line};padding:14px 12px}
-.ccCookieShake{animation:ccShake .18s steps(2,end) infinite}
-.ccFortunes{display:flex;flex-direction:column;gap:5px;max-height:40vh;overflow:auto;margin:4px 0 10px}
-.ccFortuneRow{display:flex;align-items:center;gap:2px;border-bottom:2px solid #efe7f2;padding:5px 2px}
-.ccFortuneLine{flex:1;font-size:12px;font-weight:700;text-align:left;line-height:1.45}
-.ccFortuneEdit{flex:1;font-size:12px;padding:6px 8px;text-align:left}
-
-/* 떵개방 가챠 */
-.ccGachaBall{animation:ccGachaBall 1.8s ease-in-out infinite}
-@keyframes ccGachaBall{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-.ccGachaBig{font-size:64px;line-height:1;margin:6px 0 4px}
-.ccGachaSpin{animation:ccSpin .5s linear infinite}
-.ccGachaAsk{margin:6px 0 14px;font-size:15px;font-weight:800}
-.ccGachaRoll{margin:10px 0 16px;font-size:26px;font-weight:900;color:${C.inkSoft}}
-.ccGachaPick{margin:2px 0 12px;font-size:34px;font-weight:900;color:#e05b5b}
-.ccFoods{display:flex;flex-wrap:wrap;gap:6px;max-height:38vh;overflow:auto;margin:4px 0 10px}
-.ccFood{display:flex;align-items:center;gap:2px;border:3px solid ${C.line};padding:5px 6px 5px 10px;
-  font-size:12px;font-weight:700;background:#fff}
-.ccFoodName{margin-right:4px}
-.ccFoodEdit{width:110px;font-size:12px;padding:5px 7px}
-
-/* 팀전 */
-.ccLobbyBtn{position:absolute;left:16px;top:172px;border:4px solid ${C.line};background:#ffd8d8;
-  font-family:inherit;font-weight:800;font-size:13px;color:${C.ink};padding:10px 14px;cursor:pointer;
-  box-shadow:5px 5px 0 rgba(91,74,99,.3);display:flex;align-items:center;gap:7px;z-index:12}
-.ccLobbyBtn:active{transform:translate(3px,3px);box-shadow:2px 2px 0 rgba(91,74,99,.3)}
-.ccLobbyN{background:#e05b5b;color:#fff;font-size:11px;padding:1px 6px;border:2px solid ${C.line}}
-.ccWaitTag{white-space:nowrap;text-align:center;font-size:10.5px;font-weight:800;margin-bottom:3px;
-  background:#ffd8d8;border:3px solid ${C.line};padding:2px 7px;color:#b03a3a;
-  box-shadow:2px 2px 0 rgba(91,74,99,.2);animation:ccBlink 1.4s steps(2,end) infinite}
-.ccFieldLabel{font-size:11.5px;font-weight:800;color:${C.inkSoft};text-align:left;margin-top:4px}
-.ccSizes{flex-wrap:wrap;justify-content:flex-start}
-.ccSizeOn{background:#ffd45e}
-.ccGames{display:flex;flex-direction:column;gap:9px;margin:6px 0;max-height:44vh;overflow:auto}
-.ccGame{border:3px solid ${C.line};padding:11px 12px;text-align:left;background:#fff;
-  box-shadow:3px 3px 0 rgba(91,74,99,.18)}
-.ccGamePlay{background:#fff6f6}
-.ccGameTop{display:flex;align-items:center;justify-content:space-between;font-size:13px}
-.ccGameState{font-size:10.5px;font-weight:800;background:#eee;padding:2px 7px;border:2px solid ${C.line}}
-.ccGameOn{background:#ffd8d8;color:#b03a3a}
-.ccGameWho{font-size:11.5px;font-weight:700;color:${C.inkSoft};margin:5px 0 8px;display:flex;
-  justify-content:space-between;gap:8px}
-.ccGameN{flex:none;color:${C.ink}}
-.ccGameBtns{justify-content:flex-start}
-.ccResults{margin-top:10px;border-top:2px solid #efe7f2;padding-top:8px}
-.ccResultLine{display:flex;justify-content:space-between;font-size:12px;font-weight:700;padding:3px 0}
-
-/* 시트(퀴즈·플레이리스트) */
-.ccSheetHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.ccX{border:3px solid ${C.line};background:#fff;font-family:inherit;font-weight:700;cursor:pointer;
-  width:30px;height:30px;font-size:13px;box-shadow:2px 2px 0 rgba(91,74,99,.25)}
-.ccRow{display:flex;gap:6px;align-items:center;justify-content:center}
-.ccHostRow{margin-top:12px;flex-wrap:wrap}
-.ccHostTop{margin:0 0 12px}
-.ccAddBtn{background:#ffd45e;color:${C.line}}
-.ccMini{border:3px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
-  font-size:11.5px;padding:7px 10px;cursor:pointer;box-shadow:2px 2px 0 rgba(91,74,99,.25)}
-.ccMini:active{transform:translate(2px,2px);box-shadow:0 0 0}
-.ccDanger{background:#ffe0e0}
-.ccMiniBtn{font-size:12px;padding:9px 14px}
-.ccPacks{display:grid;grid-template-columns:repeat(auto-fit,minmax(116px,1fr));gap:22px 12px;margin:22px 2px 10px}
-.ccPack{position:relative;border:4px solid ${C.line};font-family:inherit;color:${C.ink};
-  padding:26px 12px 20px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;
-  border-radius:46% 46% 44% 44% / 54% 54% 46% 46%;
-  box-shadow:4px 5px 0 rgba(91,74,99,.28);
-  background-image:
-    radial-gradient(circle at 24% 66%, rgba(255,255,255,.9) 0 4px, transparent 4px),
-    radial-gradient(circle at 72% 74%, rgba(255,255,255,.9) 0 5px, transparent 5px),
-    radial-gradient(circle at 78% 44%, rgba(255,255,255,.85) 0 3px, transparent 3px)}
-.ccPack:active{transform:translate(2px,3px);box-shadow:2px 2px 0 rgba(91,74,99,.28)}
-.ccKnot{position:absolute;top:-15px;left:50%;transform:translateX(-50%);overflow:visible}
-.ccPackName{font-weight:900;font-size:14px;line-height:1.25;text-align:center;word-break:keep-all;
-  text-shadow:1px 1px 0 rgba(255,255,255,.6)}
-.ccPackN{font-size:11px;font-weight:800;color:rgba(91,74,99,.75)}
-.ccPackBar{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px}
-.ccQuizImg{position:relative;border:4px solid ${C.line};background:#f4eef6;margin-bottom:10px}
-.ccQuizImg img{display:block;width:100%;max-height:38vh;object-fit:contain}
-.ccMark{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:10px;background:rgba(255,255,255,.35);z-index:3}
-.ccMarkSign{font-size:76px;font-weight:900;line-height:1;text-shadow:2px 2px 0 #fff,-2px -2px 0 #fff,2px -2px 0 #fff,-2px 2px 0 #fff}
-.ccRedPen{font-size:19px;font-weight:900;color:#e23b3b;background:#fff;
-  border:4px solid #e23b3b;padding:7px 18px;transform:rotate(-5deg);box-shadow:3px 3px 0 rgba(226,59,59,.3)}
-.ccQuizStep{font-weight:800}
-.ccQuizOk{color:${C.inkSoft};font-size:11.5px}
-.ccScore{padding:18px 6px 8px}
-.ccScoreBig{font-size:52px;font-weight:900;color:#2e9e78;line-height:1}
-.ccScoreBig span{font-size:24px;color:${C.inkSoft}}
-.ccScoreMsg{margin:10px 0 16px;font-size:13px;font-weight:700;color:${C.ink}}
-.ccMarkO{color:#2e9e78}
-.ccMarkX{color:#e0685f}
-.ccShake{animation:ccShake .3s steps(2,end) 2}
-@keyframes ccShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
-.ccQuizNav{display:flex;align-items:center;justify-content:center;gap:12px;font-size:12px;font-weight:700;margin-bottom:10px}
-.ccAdd{display:flex;flex-direction:column;gap:8px;align-items:stretch}
-.ccCheck{display:flex;gap:7px;align-items:center;font-size:11.5px;font-weight:700;color:${C.inkSoft};text-align:left}
-.ccFile{font-family:inherit;font-size:11.5px;border:3px dashed ${C.line};padding:9px;background:#fffbe8}
-.ccPreview{width:100%;max-height:30vh;object-fit:contain;border:3px solid ${C.line}}
-.ccTracks{list-style:none;margin:2px 0 6px;padding:0;max-height:42vh;overflow:auto;text-align:left}
-.ccTracks li{display:flex;align-items:center;gap:4px;border-bottom:2px solid #efe7f2}
-.ccTracks li:last-child{border-bottom:none}
-.ccTrackBtn{flex:1;display:flex;align-items:center;gap:10px;text-align:left;border:none;background:none;
-  font-family:inherit;font-weight:700;font-size:13px;color:${C.ink};padding:11px 4px;cursor:pointer}
-.ccTrackNo{font-size:11px;color:${C.inkSoft};min-width:18px}
-.ccTrackName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ccTrackOn .ccTrackBtn{color:#c05a86}
-.ccTrackOn .ccTrackNo{color:#c05a86}
-.ccTrackDel{border:none;background:none;font-family:inherit;font-size:12px;color:${C.inkSoft};
-  padding:8px;cursor:pointer}
-.ccTrackDel:hover{color:#e0685f}
-.ccPlayBar{position:absolute;left:50%;top:14px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;
-  background:#fff;border:4px solid ${C.line};padding:7px 11px;box-shadow:4px 4px 0 rgba(91,74,99,.3);
-  max-width:min(360px,70vw);z-index:20}
-.ccPlayOf{font-size:10px;color:${C.inkSoft};margin-left:6px;font-weight:700}
-.ccPls{display:flex;flex-direction:column;gap:6px;margin:4px 0 8px;max-height:44vh;overflow:auto}
-.ccPl{border-bottom:2px solid #efe7f2}
-.ccPl:last-child{border-bottom:none}
-.ccPlHead{display:flex;align-items:center;gap:6px}
-.ccPlName{flex:1;display:flex;align-items:center;gap:8px;border:none;background:none;font-family:inherit;
-  font-weight:800;font-size:13px;color:${C.ink};padding:11px 2px;cursor:pointer;text-align:left}
-.ccPlTitle{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ccPlEdit{flex:1;font-size:12.5px;padding:8px 10px;text-align:left}
-.ccPlIcon{border:none;background:none;font-family:inherit;font-size:14px;color:${C.inkSoft};
-  padding:6px 4px;cursor:pointer;display:flex;align-items:center;line-height:1}
-.ccPlIcon:hover{color:${C.ink}}
-.ccPlArrow{font-size:11px;color:${C.inkSoft};width:12px}
-.ccPlN{font-size:10.5px;color:${C.inkSoft};font-weight:700}
-.ccPlPlay{border:3px solid ${C.line};background:#ffd45e;font-family:inherit;font-size:12px;
-  width:30px;height:30px;cursor:pointer;box-shadow:2px 2px 0 rgba(91,74,99,.22)}
-.ccPlPlay:active{transform:translate(2px,2px);box-shadow:none}
-.ccPlPick{flex-wrap:wrap;justify-content:flex-start}
-.ccPlayTitle{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ccPlayDisc{animation:ccSpin 2.4s linear infinite;font-size:15px}
-.ccPlayBtn{border:none;background:none;font-family:inherit;font-size:14px;cursor:pointer;padding:2px 3px;line-height:1}
-.ccVol{-webkit-appearance:none;appearance:none;width:76px;height:12px;background:#efe7f2;
-  border:3px solid ${C.line};padding:0;cursor:pointer}
-.ccVol::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;background:#ff8fb6;
-  border:3px solid ${C.line};cursor:pointer}
-.ccVol::-moz-range-thumb{width:12px;height:12px;background:#ff8fb6;border:3px solid ${C.line};
-  border-radius:0;cursor:pointer}
-@keyframes ccSpin{to{transform:rotate(360deg)}}
-
-/* 수영장 노을 벽화 반짝임 */
-.ccMuralStar{animation:ccMuralTw 2.6s steps(3,end) infinite;transform-origin:center}
-@keyframes ccMuralTw{0%,100%{opacity:.15}45%{opacity:1}60%{opacity:.5}}
-.ccMuralGlow{animation:ccMuralGlow 3.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
-@keyframes ccMuralGlow{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:.7;transform:scale(1.12)}}
-.ccMuralShimmer{animation-name:ccMuralSh;animation-timing-function:ease-in-out;animation-iteration-count:infinite;opacity:0}
-@keyframes ccMuralSh{0%,100%{opacity:0;transform:translateX(-10px)}45%{opacity:.9;transform:translateX(6px)}70%{opacity:.25;transform:translateX(12px)}}
-
-/* 방 내부 */
-.ccRoomBg{position:absolute;inset:0;overflow:hidden}
-.ccRoomWrap{position:absolute;left:50%;top:50%;transform-origin:50% 50%}
-.ccRoomSvg{position:absolute;left:0;top:0;image-rendering:auto}
-.ccRoomLayer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
-.ccRoomBgmBtn{position:absolute;right:14px;top:14px;z-index:12;border:3px solid ${C.line};background:#fff6dc;color:${C.ink};padding:7px 10px;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;box-shadow:3px 3px 0 rgba(91,74,99,.28)}
-.ccRoomBgmBtn:active{transform:translate(2px,2px);box-shadow:none}
-.ccRoomBgmNow{position:absolute;left:14px;top:14px;z-index:11;background:rgba(255,255,255,.92);border:3px solid ${C.line};padding:6px 9px;font-size:10.5px;font-weight:800;color:${C.ink};max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* 건물 안은 원근 때문에 아바타가 작아져서, 글씨를 키워 균형을 맞춥니다 */
-.ccRoomLayer .ccTag{font-size:15px;margin-bottom:3px}
-.ccRoomLayer .ccBubble{font-size:16px;line-height:1.45;max-width:230px;padding:11px 18px;margin-bottom:16px}
-.ccRoomLayer .ccWaitTag{font-size:13px}
-.ccRoomLayer .ccHold{font-size:16px}
-.ccZoneHint{position:absolute;left:50%;bottom:86px;transform:translateX(-50%);background:#fff;
-  border:4px solid ${C.line};padding:11px 20px;font-size:16px;font-weight:700;color:${C.ink};
-  font-family:inherit;cursor:pointer;box-shadow:4px 4px 0 rgba(91,74,99,.3);animation:ccBlink 1s steps(2,end) infinite}
-.ccAvatar .ccPix{position:relative;z-index:2}
-/* 튜브 — 뒤쪽 반은 캐릭터 뒤, 앞쪽 반만 앞에 그려서 실제로 끼고 있는 것처럼 보이게 */
-.ccTube{position:absolute;left:50%;bottom:1px;width:80px;height:26px;margin-left:-40px;border-radius:50%;
-  border:6px solid #ff8fb6;box-shadow:0 0 0 3px ${C.line},inset 0 0 0 3px ${C.line};
-  animation:ccSwim .5s steps(2,end) infinite;pointer-events:none}
-.ccTubeBack{z-index:1}
-.ccTubeFront{z-index:3;clip-path:inset(52% -14px -14px -14px)}
-.ccSwim .ccPix{animation:ccSwim .5s steps(2,end) infinite}
-@keyframes ccSwim{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-
-/* 모바일 조작 */
-.ccTouch{display:none}
-.ccStickZone{position:absolute;left:0;bottom:0;width:52%;height:74%;touch-action:none;z-index:6}
-.ccStick{position:absolute;left:20px;bottom:calc(24px + var(--kb, 0px));width:124px;height:124px;border-radius:50%;
-  border:4px solid ${C.line};background:rgba(255,255,255,.6);touch-action:none;opacity:.75;
-  box-shadow:4px 4px 0 rgba(91,74,99,.25);display:flex;align-items:center;justify-content:center}
-.ccStickOn{opacity:1;background:rgba(255,255,255,.85)}
-.ccStickKnob{width:52px;height:52px;border-radius:50%;border:4px solid ${C.line};background:#ffd45e;
-  box-shadow:3px 3px 0 rgba(91,74,99,.25);pointer-events:none;transition:transform .04s linear}
-.ccActs{position:absolute;right:20px;bottom:calc(22px + var(--kb, 0px));display:flex;align-items:flex-end;gap:10px}
-.ccAct{border:4px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
-  font-size:13px;padding:0 14px;height:56px;min-width:56px;box-shadow:4px 4px 0 rgba(91,74,99,.25);
-  touch-action:none;cursor:pointer}
-.ccAct:active{transform:translate(2px,2px);box-shadow:2px 2px 0 rgba(91,74,99,.25)}
-.ccActMain{background:#ff8fb6;color:#fff;height:64px;min-width:96px;font-size:14px}
-
-/* 세로 화면 안내 */
-.ccRotate{display:none;position:fixed;inset:0;z-index:99;background:${C.sky2};
-  flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
-.ccRotateIcon{font-size:56px;animation:ccRot 1.6s steps(4,end) infinite}
-@keyframes ccRot{0%,45%{transform:rotate(0)}55%,100%{transform:rotate(-90deg)}}
-.ccRotateText{font-size:16px;font-weight:900;color:${C.ink}}
-
-/* 터치가 감지되면 미디어쿼리와 무관하게 조작 UI 를 띄웁니다 */
-.ccIsTouch .ccTouch{display:block}
-.ccIsTouch .ccHelp{display:none}
-.ccIsTouch .ccChatBar{left:158px;width:min(300px,42vw)}
-.ccIsTouch .ccFeed{left:158px;width:min(300px,42vw)}
-.ccIsTouch .ccHistory{left:158px;width:min(340px,50vw);max-height:44vh}
-.ccIsTouch .ccSide{width:200px;right:20px;top:84px}
-.ccIsTouch .ccQuestList{max-height:min(34vh,220px)}
-
-@media (hover:none) and (pointer:coarse){
-  .ccTouch{display:block}
-  .ccHelp{display:none}
-  /* 채팅바·피드·기록을 같은 자리에 세로로 쌓습니다 (조이스틱 오른쪽) */
-  .ccChatBar{left:158px;width:min(300px,42vw);bottom:calc(16px + var(--kb, 0px))}
-  .ccFeed{left:158px;width:min(300px,42vw);bottom:calc(62px + var(--kb, 0px))}
-  .ccHistory{left:158px;width:min(340px,50vw);max-height:44vh;bottom:calc(62px + var(--kb, 0px))}
-  .ccHud{max-width:44vw}
-  .ccHud .ccChip{font-size:11px;padding:5px 9px}
-  .ccSide{width:200px;right:20px;top:84px}
-  .ccQuestList{max-height:min(34vh,220px)}
-}
+.ccKaraokeRemoteNav::after{display:none}
 @media (hover:none) and (pointer:coarse) and (orientation:portrait){
   .ccRotate{display:flex}
 }
