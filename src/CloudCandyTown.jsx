@@ -4168,9 +4168,9 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
   font-weight:700;line-height:1.55;color:#c9524a}
 .ccGateBtn{width:100%;margin-top:12px}
 .ccGateNote{margin:11px 0 0;font-size:10.5px;line-height:1.6;color:${C.inkSoft};font-weight:700}
-`;
-
 .ccHistSystem{color:#7d5cc6!important;font-weight:900;background:#f3efff!important}
 .ccHistSystem .ccHistWho,.ccHistSystem .ccLogRoom,.ccHistSystem .ccHistText{color:#7d5cc6!important}
 .ccFeedSystem{color:#7d5cc6!important;font-weight:900;background:rgba(243,239,255,.92)!important}
 .ccFeedSystem b{color:#7d5cc6!important}
+`;
+
