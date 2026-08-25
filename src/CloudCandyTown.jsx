@@ -656,7 +656,7 @@ function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction }) {
 
         <div className="ccSpaInfo">{floor===1?"샤워 → 탕 → 사우나 순서로 천천히 즐겨보세요.":floor===2?"온천석에 앉아 쉬거나 개인탕에서 조용히 쉬어가세요.":"수건 머리에 두르고 식혜 하나 들고 편하게 쉬어보세요."}</div>
         <div className="ccSpaNpcLayer">{npcByFloor.map((n,i)=><div key={i} className="ccSpaNpc" style={{left:n.x,top:n.y}}><span>{["🧖","🧖‍♀️","🥤","😴","🧖","🥚"][n.s]}</span></div>)}</div>
-        <div className="ccSpaPlayerLayer"><Avatar name={me.name} slot={me.slot} x={player.x} y={player.y} facing={1} moving={false} me look={me.look} skin={null}/>{hot && <><div className="ccSpaSteam" style={{left:player.x-18,top:player.y-108}}>〰</div><div className="ccSpaBlush" style={{left:player.x-13,top:player.y-78}}/><div className="ccSpaBlush" style={{left:player.x+4,top:player.y-78}}/></>}{visiblePeers.map(q=><Avatar key={q.id} name={q.name} slot={q.slot} x={q.x} y={q.y} facing={q.f||1} moving={!!q.m} me={false} look={q.lk} skin={null}/>)}</div>
+        <div className="ccSpaPlayerLayer"><Avatar name={me.name} slot={me.slot} x={player.x} y={player.y} facing={1} moving={false} me={true} look={me.look} skin={null}/>{hot && <><div className="ccSpaSteam" style={{left:player.x-18,top:player.y-108}}>〰</div><div className="ccSpaBlush" style={{left:player.x-13,top:player.y-78}}/><div className="ccSpaBlush" style={{left:player.x+4,top:player.y-78}}/></>}{visiblePeers.map(q=><Avatar key={q.id} name={q.name} slot={q.slot} x={q.x} y={q.y} facing={q.f||1} moving={!!q.m} me={false} look={q.lk} skin={null}/>)}</div>
       </div>
     </div>
   </div>;
