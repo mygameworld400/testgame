@@ -2474,6 +2474,38 @@ function Town({ me, setMe, onKick }) {
             <div className="ccPanel ccHostPanel">
               <div className="ccHostTitle">{roundNo}번 테스트</div>
               <div className="ccHostCount">게스트 {room?.taken ?? 0}명 · 최근 순</div>
+              {/* 현재 접속자 위치 — 1명 이상인 장소만 표시 */}
+              {/* 현재 접속자 위치 — 1명 이상인 장소만 표시 */}
+              {(() => {
+                const locationCounts = {};
+
+                // 다른 접속자 위치
+                (peerView || []).forEach((p) => {
+                  const roomId = p.r || "";
+                  const roomName = roomId ? (ROOMS[roomId]?.name || roomId) : "마을";
+                  locationCounts[roomName] = (locationCounts[roomName] || 0) + 1;
+                });
+
+                // 나(호스트)의 현재 위치도 포함
+                const myLocation = scene ? (ROOMS[scene]?.name || scene) : "마을";
+                locationCounts[myLocation] = (locationCounts[myLocation] || 0) + 1;
+
+                const locations = Object.entries(locationCounts)
+                  .filter(([, count]) => count > 0);
+
+                return locations.length > 0 ? (
+                  <div className="ccHostLocations">
+                    <div className="ccHostLocationTitle">📍 현재 접속자 위치</div>
+
+                    {locations.map(([name, count]) => (
+                      <div className="ccHostLocationRow" key={name}>
+                        <span>{name}</span>
+                        <b>{count}명</b>
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
               <ul className="ccHostList">
                 {[...(room?.players || [])]
                   .sort((a, b) => new Date(b.joined || 0) - new Date(a.joined || 0))
