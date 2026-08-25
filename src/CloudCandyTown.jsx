@@ -148,7 +148,7 @@ const QUESTS = [
   { id: "jump", icon: "🤸", name: "방방 뛰어보기", desc: "윗동네 방방에 올라가 신나게 뛰어보세요." },
   { id: "movie", icon: "🎬", name: "영화관에서 영화보기", desc: "윗동네 영화관에 들어가 상영 중인 영화를 감상해보세요." },
   { id: "karaoke", icon: "🎤", name: "노래방에서 선곡 후 마이크 잡고 노래하기", desc: "노래방에서 노래를 선곡한 뒤 마이크를 잡아보세요." },
-  { id: "arcade", icon: "🕹️", name: "미니게임장에서 게임 참여하기", desc: "윗동네 미니게임장에 들어가 게임에 참여해보세요." },
+  { id: "arcade", icon: "🕹️", name: "미니게임장에서 게임 참여하기", desc: "미니게임장에 들어가 게임 화면을 열고 실제로 게임에 참여해보세요." },
   { id: "stargaze", icon: "🔭", name: "천문대에서 별멍하기", desc: "천문대에 가서 편하게 누워 별을 바라보세요." },
 ];
 
@@ -1115,6 +1115,11 @@ function Town({ me, setMe, onKick }) {
     return () => clearInterval(iv);
   }, [scene, loadMovie]);
 
+  /* 영화관에서 실제 상영 중인 영화를 확인하면 뉴비 가이드를 완료합니다. */
+  useEffect(() => {
+    if (scene === "movie" && movie?.playing) doQuestRef.current?.("movie");
+  }, [scene, movie]);
+
   /* 남이 틀면 바로 알아채게 */
   useEffect(() => {
     if (!movie) return undefined;
@@ -1341,8 +1346,6 @@ function Town({ me, setMe, onKick }) {
     setSheet(null);
     setToast(`${ROOMS[id].emoji} ${ROOMS[id].name} — ${ROOMS[id].hint}`);
     if (UP_ROOMS.includes(id)) doQuestRef.current?.("up");
-    if (id === "movie") doQuestRef.current?.("movie");
-    if (id === "arcade") doQuestRef.current?.("arcade");
   }, []);
 
   /* 마을로 */
@@ -1390,7 +1393,11 @@ function Town({ me, setMe, onKick }) {
     if (!id) return;
     if (id === "exit") { exitRoom(); return; }
     if (id === "dress") loadSkins();
-    if (id === "arcade" || id === "starview" || id === "showtime" || id === "songs") { setSheet(id); return; }
+    if (id === "arcade" || id === "starview" || id === "showtime" || id === "songs") {
+      setSheet(id);
+      if (id === "arcade") doQuest("arcade");
+      return;
+    }
     if (id === "lie") {
       if (sceneRef.current === "star") doQuest("stargaze");
       /* 지금 선 자리에 그대로 눕습니다. 한 번 더 누르면 일어나요 */
