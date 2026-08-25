@@ -1,4 +1,4 @@
-/* CloudCandyTown v8 — v5 cotton restoration + spa admission flow + corrected roads */
+/* CloudCandyTown v10 — park road style + two-lane shuttle buses */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
@@ -37,12 +37,25 @@ const AREAS = [
   { x0: 1430, y0: 2290, x1: 1700, y1: 2490 },    // 아랫섬 ↔ 오른쪽 섬 연결길
   { x0: 1600, y0: 250, x1: 2820, y1: 810 },      // 오른쪽 윗섬
   { x0: 1600, y0: 2100, x1: 2820, y1: 2640 },     // 오른쪽 아랫섬
-  { x0: 2200, y0: 780, x1: 2300, y1: 2110 },       // 찜질스파 ↔ 솜사탕 세로 도로
+  { x0: 2160, y0: 780, x1: 2340, y1: 2110 },       // 찜질스파 ↔ 솜사탕 2차선 버스 도로
   { x0: 650, y0: 2620, x1: 930, y1: 2980 },        // 아랫섬 ↔ 구름공원 연결 도로
   { x0: 190, y0: 2910, x1: 1520, y1: 3452 },       // 구름공원
 ];
 const PLAY = { x0: 190, y0: 320, x1: 2820, y1: 3490 };
 const inArea = (x, y) => AREAS.some((a) => x >= a.x0 && x <= a.x1 && y >= a.y0 && y <= a.y1);
+const BUS_ROUTES = {
+  cottonSpa: { id: "cottonSpa", label: "솜사탕 → 찜질스파", laneX: 2290, start: { x: 2290, y: 2070 }, end: { x: 2290, y: 820 }, duration: 6500 },
+  spaCotton: { id: "spaCotton", label: "찜질스파 → 솜사탕", laneX: 2210, start: { x: 2210, y: 820 }, end: { x: 2210, y: 2070 }, duration: 6500 },
+};
+const BUS_IDS = Object.keys(BUS_ROUTES);
+const busPosition = (route, state, now) => {
+  if (!state || state.status === "idle") return { ...route.start };
+  const from = state.status === "return" ? route.end : route.start;
+  const to = state.status === "return" ? route.start : route.end;
+  const elapsed = Math.max(0, now - state.startedAt);
+  const t = Math.min(1, elapsed / (state.status === "return" ? 2200 : route.duration));
+  return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+};
 
 const C = {
   sky1: "#bfe6ff",
@@ -983,7 +996,7 @@ function Ground() {
       {ISLAND6.map((r, i) => slab(r, "i6" + i, { background: C.edge }))}
       {ISLAND6.map((r, i) => slab({ x: r.x, y: r.y, w: r.w, h: Math.max(0, r.h - 8) }, "g6" + i, { backgroundImage: `url(${grass})`, backgroundSize: "48px 48px" }))}
       {PATHS6.map((r, i) => slab(r, "p6" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" }))}
-      <div className="ccParkConnectorRoad" />
+      <div className="ccParkConnectorRoad" style={{ backgroundImage: `url(${road})`, backgroundSize: "48px 48px" }} />
       <div className="ccSpaCottonRoad" />
 
       {/* 기존 섬과 오른쪽 새 섬을 잇는 다리 */}
@@ -1225,6 +1238,8 @@ function Town({ me, setMe, onKick }) {
   const [view, setView] = useState({ w: 1000, h: 700 });
   const [zoom, setZoom] = useState(1);
   const [nearId, setNearId] = useState(null);
+  const [nearBusId, setNearBusId] = useState(null);
+  const [busState, setBusState] = useState(() => Object.fromEntries(BUS_IDS.map(id => [id, { status: "idle", riderId: null, riderName: "" }])));
   const [stars, setStars] = useState(() => unbits(SAVED?.stars, STAR_SPOTS.length));
   const [toast, setToast] = useState("");
   const [room, setRoom] = useState(null);
@@ -1380,6 +1395,10 @@ function Town({ me, setMe, onKick }) {
   const camRef = useRef({ x: 0, y: 0 });
   const keys = useRef({});
   const nearRef = useRef(null);
+  const nearBusRef = useRef(null);
+  const busStateRef = useRef(busState);
+  const ridingBusRef = useRef(null);
+  const busTickAt = useRef(0);
   const openRef = useRef(null);
   const starsRef = useRef(stars);
   const viewRef = useRef(view);
@@ -1445,6 +1464,7 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { peersRef.current = peers; }, [peers]);
   useEffect(() => { brokenRef.current = broken; }, [broken]);
   useEffect(() => { pressedRef.current = pressed; }, [pressed]);
+  useEffect(() => { busStateRef.current = busState; }, [busState]);
   useEffect(() => { welcomeRef.current = welcome; }, [welcome]);
   useEffect(() => { lookRef.current = look; }, [look]);
   useEffect(() => { karaokeMicRef.current = karaokeMic; }, [karaokeMic]);
@@ -1951,6 +1971,23 @@ function Town({ me, setMe, onKick }) {
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
       if (k === " ") {
         if (sheetRef.current) { setSheet(null); return; }
+        if (!sceneRef.current && nearBusRef.current) {
+          const bid = nearBusRef.current;
+          const bs = busStateRef.current[bid];
+          const route = BUS_ROUTES[bid];
+          if (bs?.status === "idle") {
+            const next = { status: "toDest", riderId: deviceId(), riderName: me.name, startedAt: Date.now() };
+            busStateRef.current = { ...busStateRef.current, [bid]: next };
+            setBusState(busStateRef.current);
+            ridingBusRef.current = bid;
+            setRiding(true);
+            setToast(`🚌 ${route.label} 버스가 출발합니다! 부우웅~`);
+            chanRef.current?.fx({ t: "busBoard", busId: bid, riderId: deviceId(), riderName: me.name, startedAt: next.startedAt });
+          } else if (bs?.riderId && bs.riderId !== deviceId()) {
+            setToast("🚌 다른 손님이 버스를 이용 중이에요.");
+          }
+          return;
+        }
         if (sceneRef.current) activateZone(zoneRef.current);
         else if (nearRef.current) openBuilding(nearRef.current);
         return;
@@ -2098,7 +2135,7 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => {
     let raf;
     let last = performance.now();
-    const worldBoxes = [...BUILDINGS.map(blockBox), ...PARK_BLOCKS];
+    const worldBoxes = [...BUILDINGS.map(blockBox), ...PARK_BLOCKS, { x1: 2160, x2: 2340, y1: 780, y2: 2110 }];
     const R = 14;
 
     const step = (now) => {
@@ -2116,7 +2153,7 @@ function Town({ me, setMe, onKick }) {
       if (k.arrowdown || k.s) dy += 1;
       const st = stick.current;
       if (st.x || st.y) { dx = st.x; dy = st.y; }
-      if (openRef.current || sitRef.current != null || rideRef.current || lyingRef.current) { dx = 0; dy = 0; }
+      if (openRef.current || sitRef.current != null || rideRef.current || lyingRef.current || ridingBusRef.current) { dx = 0; dy = 0; }
 
       const bounds = room
         ? { x0: room.play.x0, x1: room.play.x1, y0: room.play.y0, y1: room.play.y1 }
@@ -2131,9 +2168,14 @@ function Town({ me, setMe, onKick }) {
         const sp = speed * dt * Math.min(1, len);
         let { x, y } = posRef.current;
         const nx = clamp(x + (dx / len) * sp, bounds.x0, bounds.x1);
+        const roadAttemptX = !room && nx >= 2160 && nx <= 2340 && y >= 780 && y <= 2110;
         if (!hit(nx, y) && (room || inArea(nx, y))) x = nx;
         const ny = clamp(y + (dy / len) * sp, bounds.y0, bounds.y1);
+        const roadAttemptY = !room && x >= 2160 && x <= 2340 && ny >= 780 && ny <= 2110;
         if (!hit(x, ny) && (room || inArea(x, ny))) y = ny;
+        if ((roadAttemptX || roadAttemptY) && BUS_IDS.some(id => busStateRef.current[id]?.status === "toDest")) {
+          if (now - waitRef.current > 900) { waitRef.current = now; setToast("🚌 잠시 버스를 기다려주세요"); }
+        }
         posRef.current = { x, y };
         setPos({ x, y });
         if (!room) walkRef.current += sp;
@@ -2321,6 +2363,17 @@ function Town({ me, setMe, onKick }) {
       }
       if (best !== nearRef.current) { nearRef.current = best; setNearId(best); }
 
+      let busBest = null;
+      let busBestD = 150;
+      for (const id of BUS_IDS) {
+        const route = BUS_ROUTES[id];
+        const bs = busStateRef.current[id];
+        const bp = busPosition(route, bs, now);
+        const d = Math.hypot(p.x - bp.x, p.y - bp.y);
+        if (d < busBestD) { busBest = id; busBestD = d; }
+      }
+      if (busBest !== nearBusRef.current) { nearBusRef.current = busBest; setNearBusId(busBest); }
+
       const cur = starsRef.current;
       let picked = -1;
       STAR_SPOTS.forEach(([sx, sy], i) => {
@@ -2338,6 +2391,39 @@ function Town({ me, setMe, onKick }) {
 
       /* 가이드 — 조금 걸어보면 체크 */
       if (walkRef.current > 700) doQuest("walk");
+
+      // 🚌 통행버스 애니메이션 / 자동 하차 / 자동 복귀
+      for (const id of BUS_IDS) {
+        const bs = busStateRef.current[id];
+        if (!bs || bs.status !== "toDest") continue;
+        const route = BUS_ROUTES[id];
+        if (now - bs.startedAt >= route.duration) {
+          if (bs.riderId === deviceId()) {
+            posRef.current = { ...route.end };
+            setPos({ ...route.end });
+            ridingBusRef.current = null;
+            setRiding(false);
+            setToast("🚌 도착했습니다! 자동으로 하차합니다.");
+          }
+          const next = { status: "return", riderId: null, riderName: "", startedAt: now };
+          busStateRef.current = { ...busStateRef.current, [id]: next };
+          setBusState(busStateRef.current);
+          chanRef.current?.fx({ t: "busArrive", busId: id, riderId: bs.riderId });
+        }
+      }
+      for (const id of BUS_IDS) {
+        const bs = busStateRef.current[id];
+        if (bs?.status === "return" && now - bs.startedAt >= 2200) {
+          const next = { status: "idle", riderId: null, riderName: "" };
+          busStateRef.current = { ...busStateRef.current, [id]: next };
+          setBusState(busStateRef.current);
+          chanRef.current?.fx({ t: "busReturn", busId: id });
+        }
+      }
+      if (now - busTickAt.current > 80 && BUS_IDS.some(id => busStateRef.current[id]?.status !== "idle")) {
+        busTickAt.current = now;
+        setBusState({ ...busStateRef.current });
+      }
 
       const v = viewRef.current;
       const z = v.z || 1;
@@ -2465,6 +2551,32 @@ function Town({ me, setMe, onKick }) {
           return;
         }
         if (e.t === "karaokeStop") { setKaraoke(null); return; }
+
+        if (e.t === "busBoard" && BUS_ROUTES[e.busId]) {
+          const next = { status: "toDest", riderId: e.riderId || null, riderName: e.riderName || "", startedAt: Number(e.startedAt) || Date.now() };
+          setBusState((m) => { const out = { ...m, [e.busId]: next }; busStateRef.current = out; return out; });
+          if (e.riderId === deviceId()) ridingBusRef.current = e.busId;
+          return;
+        }
+        if (e.t === "busArrive" && BUS_ROUTES[e.busId]) {
+          const route = BUS_ROUTES[e.busId];
+          const riderId = e.riderId || null;
+          if (riderId === deviceId()) {
+            posRef.current = { ...route.end };
+            setPos({ ...route.end });
+            ridingBusRef.current = null;
+            setRiding(false);
+            setToast("🚌 도착했습니다! 자동으로 하차합니다.");
+          }
+          const next = { status: "return", riderId: null, riderName: "", startedAt: Date.now() };
+          setBusState((m) => { const out = { ...m, [e.busId]: next }; busStateRef.current = out; return out; });
+          return;
+        }
+        if (e.t === "busReturn" && BUS_ROUTES[e.busId]) {
+          const next = { status: "idle", riderId: null, riderName: "" };
+          setBusState((m) => { const out = { ...m, [e.busId]: next }; busStateRef.current = out; return out; });
+          return;
+        }
 
         if (e.t === "objectImages" && e.images && typeof e.images === "object") {
           setObjectImages(e.images);
@@ -3249,7 +3361,7 @@ function Town({ me, setMe, onKick }) {
           >
             <Ground />
             <ParkGround />
-            <AsphaltConnector />
+            <div className="ccAsphaltConnector" aria-hidden="true"><div className="ccRoadCenter"/><div className="ccRoadEdge left"/><div className="ccRoadEdge right"/></div>
             <Slide />
 
             {TREES.map(([x, y, col], i) => (
@@ -3272,7 +3384,17 @@ function Town({ me, setMe, onKick }) {
               </div>
             ))}
 
-            {roomPeers.map((p) => (
+            {BUS_IDS.map((id) => {
+              const route = BUS_ROUTES[id];
+              const bs = busState[id];
+              const bp = busPosition(route, bs, Date.now());
+              return <div key={id} className={"ccBus " + (bs?.status === "toDest" ? "moving" : "") + (bs?.riderId ? "occupied" : "")} style={{ left: bp.x, top: bp.y }}>
+                <div className="ccBusBody"><span className="ccBusWindow"/><span className="ccBusWindow second"/><span className="ccBusWheel left"/><span className="ccBusWheel right"/><span className="ccBusLight left"/><span className="ccBusLight right"/></div>
+                {bs?.riderId && <div className="ccBusName">{bs.riderName}</div>}
+              </div>;
+            })}
+
+            {roomPeers.filter(p => !BUS_IDS.some(id => busState[id]?.riderId === p.id)).map((p) => (
               <Avatar
             key={p.id}
             name={p.name}
@@ -3289,7 +3411,7 @@ function Town({ me, setMe, onKick }) {
           />
             ))}
 
-            <Avatar
+            {!ridingBusRef.current && <Avatar
           name={me.name}
           slot={me.slot}
           x={pos.x}
@@ -3305,7 +3427,7 @@ function Town({ me, setMe, onKick }) {
           skin={skinImg(look)}
           mic={scene === "sing" && karaokeMic != null}
           singing={scene === "sing" && karaokeMic != null && !!myMsg}
-        />
+        />}
           </div>
         </>
       )}
@@ -4950,11 +5072,15 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 /* ===== v8: v5 cotton exterior/interior + current exact cotton display ===== */
 .ccShelfMiniCanvas{position:relative;width:82px;height:72px;overflow:hidden;display:flex;align-items:flex-start;justify-content:center}.ccShelfMiniCanvas .ccCottonCanvas{position:absolute!important;left:50%!important;top:0!important;transform:translateX(-50%) scale(.25)!important;transform-origin:top center!important;pointer-events:none!important}
 .ccDisplayCottonWrap{position:relative;width:340px;height:470px;display:flex;align-items:center;justify-content:center;overflow:visible}.ccDisplayStickBack{position:absolute;left:50%;top:240px;transform:translateX(-50%);width:14px;height:180px;background:linear-gradient(90deg,#fff,#d8d8d8);border:3px solid #5b4a63;z-index:1}.ccDisplayCottonWrap .ccCottonCanvas{position:absolute!important;left:50%!important;top:155px!important;transform:translateX(-50%)!important;z-index:3!important}.ccDisplayStickFront{position:absolute;left:50%;top:310px;transform:translateX(-50%);width:14px;height:115px;background:linear-gradient(90deg,#fff,#d8d8d8);border:3px solid #5b4a63;z-index:4}.ccDisplayName{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:14px;font-weight:1000;color:#5b4a63;white-space:nowrap;z-index:6;background:#fff7e8;padding:3px 9px;border:3px solid #5b4a63;box-shadow:3px 3px 0 rgba(91,74,99,.2)}
-.ccSpaCottonRoad{position:absolute;left:2200px;top:810px;width:100px;height:1270px;background:#64676b;z-index:1;border-left:6px solid #4d5053;border-right:6px solid #4d5053;background-image:linear-gradient(to right,transparent 0 46%,#f5e38a 46% 54%,transparent 54% 100%)}
-.ccParkConnectorRoad{position:absolute;left:690px;top:2670px;width:90px;height:300px;background:#64676b;z-index:1;border-left:6px solid #4d5053;border-right:6px solid #4d5053;background-image:linear-gradient(to right,transparent 0 46%,#f5e38a 46% 54%,transparent 54% 100%)}
+.ccSpaCottonRoad{display:none}
+.ccParkConnectorRoad{position:absolute;left:690px;top:2670px;width:90px;height:300px;z-index:1;border-left:4px solid #d8c69e;border-right:4px solid #d8c69e;box-sizing:border-box}
+.ccAsphaltConnector{position:absolute;left:2160px;top:780px;width:180px;height:1330px;background:#64676b;z-index:2;border-left:7px solid #4d5053;border-right:7px solid #4d5053;box-sizing:border-box;box-shadow:inset 9px 0 0 rgba(255,255,255,.08),inset -9px 0 0 rgba(0,0,0,.12)}
+.ccRoadCenter{position:absolute;left:50%;top:0;bottom:0;width:7px;transform:translateX(-50%);background:repeating-linear-gradient(to bottom,#f7e58b 0 44px,transparent 44px 88px)}
+.ccRoadEdge{position:absolute;top:0;bottom:0;width:4px;background:#eee;opacity:.72}.ccRoadEdge.left{left:18px}.ccRoadEdge.right{right:18px}
+.ccBus{position:absolute;z-index:18;width:72px;height:118px;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(4px 5px 0 rgba(91,74,99,.22))}.ccBusBody{position:absolute;inset:0;background:#ffe37a;border:5px solid #5b4a63;border-radius:12px;box-sizing:border-box}.ccBusWindow{position:absolute;left:11px;top:13px;width:50px;height:27px;background:#a9e4ff;border:4px solid #5b4a63;border-radius:5px}.ccBusWindow.second{top:47px}.ccBusWheel{position:absolute;left:-8px;width:12px;height:24px;background:#3f3944;border:3px solid #5b4a63;border-radius:4px}.ccBusWheel.left{top:20px}.ccBusWheel.right{top:75px}.ccBusLight{position:absolute;bottom:-7px;width:15px;height:9px;background:#ff4f5e;border:3px solid #5b4a63;border-radius:4px;opacity:0}.ccBusLight.left{left:8px}.ccBusLight.right{right:8px}.ccBus.occupied .ccBusLight{opacity:1;box-shadow:0 0 10px #ff4f5e}.ccBusName{position:absolute;left:50%;top:-27px;transform:translateX(-50%);white-space:nowrap;background:#fff;border:3px solid #5b4a63;padding:3px 7px;font-size:10px;font-weight:900;color:#5b4a63}.ccBus.moving .ccBusBody{animation:ccBusBump .18s steps(2,end) infinite}@keyframes ccBusBump{50%{transform:translateY(-1px)}}
 .ccParkGround{position:absolute;left:214px;top:2958px;width:1272px;height:470px;z-index:2;pointer-events:none}.ccParkSign{position:absolute;left:50%;top:20px;transform:translateX(-50%);background:#fff4cf;border:5px solid #5b4a63;padding:9px 18px;font-weight:1000;box-shadow:5px 5px 0 rgba(91,74,99,.18);text-align:center}.ccParkSign small{display:block;font-size:8px;opacity:.65}.ccParkPond{position:absolute;left:110px;top:190px;width:280px;height:130px;border:7px solid #5b4a63;border-radius:48%;background:#72c8e8;box-shadow:inset 0 0 0 7px #aee8f5}.ccParkPond span{position:absolute;left:70px;top:42px;font-size:24px}.ccParkPond i{position:absolute;width:16px;height:8px;border-radius:50%;background:#fff;opacity:.65;animation:parkRipple 2s steps(3,end) infinite}.ccParkPond i:nth-child(2){left:140px;top:38px}.ccParkPond i:nth-child(3){left:190px;top:78px;animation-delay:.6s}.ccParkPond i:nth-child(4){left:90px;top:88px;animation-delay:1.1s}
 .ccParkGazebo{position:absolute;left:500px;top:75px;width:260px;height:170px;background:#d9c3a1;border:6px solid #5b4a63;box-shadow:8px 8px 0 rgba(91,74,99,.2);text-align:center}.ccParkGazebo .roof{font-size:54px;height:75px;background:#c88975}.ccParkGazebo .posts{font-size:34px;color:#6f503f;margin-top:12px}.ccParkGazebo b{font-size:10px}.ccParkPlayground{position:absolute;right:70px;top:115px;width:280px;height:170px;background:#e8d1ad;border:6px solid #5b4a63;text-align:center;box-shadow:8px 8px 0 rgba(91,74,99,.2)}.ccParkPlayground .slide,.ccParkPlayground .swing{display:inline-block;font-size:48px;margin:20px 20px 5px}.ccParkPlayground b{display:block;font-size:11px}.ccParkPicnic{position:absolute;left:430px;bottom:38px;width:260px;height:100px;background:#a8d98e;border:5px solid #5b4a63;text-align:center;padding-top:22px}.ccParkPicnic span{font-size:32px;margin:0 20px}.ccParkPicnic b{display:block;font-size:10px}.ccParkFountain{position:absolute;left:790px;bottom:65px;font-size:48px;text-align:center}.ccParkFountain small{display:block;font-size:9px;font-weight:900}.ccParkFlowers{position:absolute;left:80px;bottom:30px;font-size:28px}.ccParkDogRun{position:absolute;right:55px;bottom:20px;width:310px;height:70px;background:#d7c18d;border:5px dashed #5b4a63;text-align:center;padding-top:15px}.ccParkDogRun small{display:block;font-size:9px;font-weight:900}.ccParkDeco{position:absolute;transform:translate(-50%,-100%);font-size:38px;filter:drop-shadow(3px 4px 0 rgba(91,74,99,.18))}.ccParkDeco.bench{font-size:30px}.ccParkDeco.lamp{font-size:24px}
-.ccParkConnectorRoad{position:absolute;left:690px;top:2670px;width:90px;height:300px;background:#64676b;z-index:1;border-left:6px solid #4d5053;border-right:6px solid #4d5053;background-image:linear-gradient(to right,transparent 0 46%,#f5e38a 46% 54%,transparent 54% 100%)}
+
 @keyframes parkRipple{0%,100%{transform:scale(.8);opacity:.3}50%{transform:scale(1.25);opacity:.8}}
 /* ===== v6: pixel-art spa / lobby ===== */
 .ccSpaRoom,.ccSpaLobby{font-family:inherit;image-rendering:pixelated;letter-spacing:.1px}
@@ -5020,6 +5146,9 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccElevatorSwitch{display:flex;align-items:center;gap:14px;margin-top:20px}
 .ccElevatorSwitch button{width:62px;height:62px;border:4px solid #5b4a63;background:#fff6dc;font-size:26px;font-weight:900;cursor:pointer}
 .ccElevatorSwitch button:hover{background:#ffd45e}.ccElevatorSwitch span{font-weight:900}
+
+.ccParkConnectorRoad{position:absolute;left:690px;top:2670px;width:90px;height:300px;z-index:1;border-left:4px solid #d8c69e;border-right:4px solid #d8c69e;box-sizing:border-box;background-repeat:repeat}
+.ccAsphaltConnector{position:absolute;left:2160px;top:780px;width:180px;height:1330px;background:#64676b;z-index:2;border-left:7px solid #4d5053;border-right:7px solid #4d5053;box-sizing:border-box}
 
 `;
 
