@@ -148,7 +148,7 @@ const QUESTS = [
   { id: "jump", icon: "🤸", name: "방방 뛰어보기", desc: "윗동네 방방에 올라가 신나게 뛰어보세요." },
   { id: "movie", icon: "🎬", name: "영화관에서 영화보기", desc: "윗동네 영화관에 들어가 상영 중인 영화를 감상해보세요." },
   { id: "karaoke", icon: "🎤", name: "노래방에서 선곡 후 마이크 잡고 노래하기", desc: "노래방에서 노래를 선곡한 뒤 마이크를 잡아보세요." },
-  { id: "arcade", icon: "🕹️", name: "미니게임장에서 게임 참여하기", desc: "미니게임장에 들어가 게임 화면을 열고 실제로 게임에 참여해보세요." },
+  { id: "arcade", icon: "🕹️", name: "미니게임장에서 게임 참여하기", desc: "윗동네 미니게임장에 들어가 게임에 참여해보세요." },
   { id: "stargaze", icon: "🔭", name: "천문대에서 별멍하기", desc: "천문대에 가서 편하게 누워 별을 바라보세요." },
 ];
 
@@ -887,10 +887,20 @@ function Town({ me, setMe, onKick }) {
   const [roundInput, setRoundInput] = useState(String((me.round ?? 1) + 1));
   const [resetting, setResetting] = useState(false);
   /* 뉴비 가이드 — 해본 항목은 기기에 남습니다 */
+  const QUEST_PROGRESS_VERSION = 3;
   const [quests, setQuests] = useState(() => {
     try {
+      const version = Number(localStorage.getItem("ccQuestsVersion") || 0);
       const v = JSON.parse(localStorage.getItem("ccQuests"));
-      return Array.isArray(v) ? v : [];
+      const valid = new Set(QUESTS.map((q) => q.id));
+      const list = Array.isArray(v) ? v.filter((id) => valid.has(id)) : [];
+      /* 이전 버전에서 이 3개는 '입장/착석'만으로 잘못 체크될 수 있었으므로
+         실제 행동 판정으로 바꾸면서 해당 체크만 무효화합니다. 나머지 진행도는 유지합니다. */
+      if (version !== QUEST_PROGRESS_VERSION) {
+        localStorage.setItem("ccQuestsVersion", String(QUEST_PROGRESS_VERSION));
+        return list.filter((id) => !["cafeTalk", "movie", "arcade"].includes(id));
+      }
+      return list;
     } catch {
       return [];
     }
@@ -1115,11 +1125,6 @@ function Town({ me, setMe, onKick }) {
     return () => clearInterval(iv);
   }, [scene, loadMovie]);
 
-  /* 영화관에서 실제 상영 중인 영화를 확인하면 뉴비 가이드를 완료합니다. */
-  useEffect(() => {
-    if (scene === "movie" && movie?.playing) doQuestRef.current?.("movie");
-  }, [scene, movie]);
-
   /* 남이 틀면 바로 알아채게 */
   useEffect(() => {
     if (!movie) return undefined;
@@ -1204,7 +1209,7 @@ function Town({ me, setMe, onKick }) {
   }, []);
 
   /* 앉으면 직원이 말을 겁니다. 카페에서는 테이블까지 걸어와요 */
-  const startSeatTalk = useCallback((roomId, chair) => {
+  const startSeatTalk = useCallback((roomId, chair, done) => {
     const pool = SEAT_TALK[roomId];
     if (!pool?.length) return;
     const pick = [...pool].sort(() => Math.random() - 0.5).slice(0, 2);
@@ -1222,11 +1227,12 @@ function Town({ me, setMe, onKick }) {
     }
     runTalk(script, delay, () => {
       if (home) staffTo.current = { ...home };   // 끝나면 자리로 돌아가요
+      done?.();
     });
   }, [runTalk]);
 
   /* 한 테이블에 둘이 앉으면 저희끼리 스몰토크 */
-  const startPairTalk = useCallback((myChair, mateChair) => {
+  const startPairTalk = useCallback((myChair, mateChair, done) => {
     if (talking.current) return;
     /* 직원은 자리로 돌려보내고 둘이 이야기합니다 */
     const home = ROOMS.cafe?.staff;
@@ -1243,7 +1249,8 @@ function Town({ me, setMe, onKick }) {
         { who: first, text: t.c },
         { who: second, text: t.d },
       ],
-      900
+      900,
+      done
     );
   }, [runTalk]);
 
@@ -1319,6 +1326,7 @@ function Town({ me, setMe, onKick }) {
     welcomeRef.current = true;
     try {
       localStorage.removeItem("ccQuests");
+      localStorage.setItem("ccQuestsVersion", String(QUEST_PROGRESS_VERSION));
       localStorage.removeItem("ccWelcome");
       localStorage.removeItem(BONUS_KEY);
     } catch {
@@ -1394,8 +1402,8 @@ function Town({ me, setMe, onKick }) {
     if (id === "exit") { exitRoom(); return; }
     if (id === "dress") loadSkins();
     if (id === "arcade" || id === "starview" || id === "showtime" || id === "songs") {
-      setSheet(id);
       if (id === "arcade") doQuest("arcade");
+      setSheet(id);
       return;
     }
     if (id === "lie") {
@@ -1422,9 +1430,10 @@ function Town({ me, setMe, onKick }) {
       posRef.current = { x: c.x, y: c.y };
       setPos({ x: c.x, y: c.y });
       blip(760);
-      startSeatTalk(sceneRef.current, i);
+      startSeatTalk(sceneRef.current, i, () => {
+        if (sceneRef.current === "cafe") doQuest("cafeTalk");
+      });
       if (sceneRef.current === "cake") doQuest("sit");
-      if (sceneRef.current === "cafe") doQuest("cafeTalk");
       return;
     }
     setSheet(id);
@@ -1450,7 +1459,7 @@ function Town({ me, setMe, onKick }) {
     if (pairRef.current === key) return;   // 이 사람과는 이미 했어요
     if (talking.current) return;           // 직원이 말하는 중 — 끝나면 다시 옵니다
     pairRef.current = key;
-    startPairTalk(sit, key);
+    startPairTalk(sit, key, () => doQuest("cafeTalk"));
   }, [scene, sit, peerView, startPairTalk]);
 
   const openBuilding = useCallback((id) => {
@@ -2567,7 +2576,7 @@ function Town({ me, setMe, onKick }) {
               })()}
 
               {scene === "movie" && movie && (
-                <div className="ccScreenWrap" style={{ width: 520, height: 300 }}>
+                <div className="ccScreenWrap">
                   <video
                     ref={vidRef}
                     className="ccScreenVid"
@@ -2575,6 +2584,7 @@ function Town({ me, setMe, onKick }) {
                     autoPlay
                     playsInline
                     muted={muted2}
+                    onPlay={() => doQuest("movie")}
                     onLoadedMetadata={(e) => {
                       /* 늦게 들어와도 같은 지점부터 */
                       const at = movie.at + (Date.now() - movie.got) / 1000;
@@ -3691,7 +3701,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 /* 🎬 스크린 위 영상 */
 .ccScreenWrap{position:absolute;left:168px;top:38px;width:664px;height:228px;pointer-events:auto;
   background:#000;overflow:hidden}
-.ccScreenVid{width:100%;height:100%;object-fit:contain;display:block;background:#000}
+.ccScreenVid{width:100%;height:100%;object-fit:cover;display:block;background:#000}
 .ccScreenBar{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:8px;
   padding:6px 9px;background:rgba(14,12,24,.72)}
 .ccScreenTitle{flex:1;font-size:13px;font-weight:800;color:#ffe9a8;overflow:hidden;
