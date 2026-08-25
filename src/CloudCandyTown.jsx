@@ -3,7 +3,7 @@ import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHost
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CAFE_CHAIRS, CAFE_TABLES, CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, SMALL_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
 import { blip, boing, crack, crunch, keyclick, splash, swoosh, unlockAudio } from "./sfx.js";
-import { ArcadeSheet, DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, IDEA_BOX, MenuSheet, MovieSheet, MusicSheet, QuizSheet, SkinSheet, SongbookSheet, StarViewSheet, TeamLobby, WISH_BOX, WishSheet } from "./sheets.jsx";
+import { ArcadeSheet, BgmSheet, DressSheet, FeedbackSheet, FortuneSheet, GachaSheet, IDEA_BOX, MenuSheet, MovieSheet, MusicSheet, QuizSheet, SkinSheet, SongbookSheet, StarViewSheet, TeamLobby, WISH_BOX, WishSheet } from "./sheets.jsx";
 import { findSfx, movieNow, quizPacks, skinList, trackList, trackUrl } from "./content.js";
 
 function youtubeId(url) {
@@ -917,6 +917,16 @@ function Town({ me, setMe, onKick }) {
   const [movie, setMovie] = useState(null);        // 지금 상영 중인 것
   const [muted2, setMuted2] = useState(true);
   const [karaoke, setKaraoke] = useState(null);   // 모두에게 보이는 YouTube 노래방      // 영화 소리 (자동재생 때문에 처음엔 꺼둠)
+  const [roomBgmMap, setRoomBgmMap] = useState(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem("ccRoomBgm") || "{}");
+      return v && typeof v === "object" ? v : {};
+    } catch {
+      return {};
+    }
+  });
+  const [hostBgmMap, setHostBgmMap] = useState({});
+  const [bgmOpen, setBgmOpen] = useState(false);
 
   const [starPop, setStarPop] = useState(false);   // 별 개수가 바뀌면 통 튑니다
   /* 꾸미기 — 고른 모습과 사둔 것들 */
@@ -973,6 +983,8 @@ function Town({ me, setMe, onKick }) {
   const sfxUrl = useRef({});
   const chairRef = useRef(null);
   const audio = useRef(null);
+  const bgmAudio = useRef(null);
+  const roomBgmRef = useRef(roomBgmMap);
   const chatBox = useRef(null);
   const histBox = useRef(null);
   const questRef = useRef(quests);
@@ -1006,6 +1018,10 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => { pressedRef.current = pressed; }, [pressed]);
   useEffect(() => { welcomeRef.current = welcome; }, [welcome]);
   useEffect(() => { lookRef.current = look; }, [look]);
+  useEffect(() => {
+    roomBgmRef.current = roomBgmMap;
+    try { localStorage.setItem("ccRoomBgm", JSON.stringify(roomBgmMap)); } catch { /* 무시 */ }
+  }, [roomBgmMap]);
 
   /* 직원 걸음 — 목표가 정해지면 한 걸음씩 다가갑니다 */
   useEffect(() => {
@@ -1892,8 +1908,14 @@ function Town({ me, setMe, onKick }) {
         w: waitRef.current,
         hd: holdRef.current,
         lk: lookRef.current,
+        role: me.role,
+        bgmMap: me.role === "host" ? roomBgmRef.current : undefined,
       }),
-      onPeers: setPeers,
+      onPeers: (list) => {
+        setPeers(list);
+        const host = list.find((p) => p.role === "host");
+        if (host?.bgmMap && typeof host.bgmMap === "object") setHostBgmMap(host.bgmMap);
+      },
       onLive: setLive,
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
       onFx: (e) => {
@@ -1977,6 +1999,58 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => {
     if (logOpen && histBox.current) histBox.current.scrollTop = histBox.current.scrollHeight;
   }, [logOpen, history]);
+
+  /* 방 BGM — 호스트가 정한 곡을 방에 있는 모든 사람에게 재생합니다.
+     호스트의 bgmMap은 Realtime pose에 같이 실려서 늦게 들어온 사람도 받을 수 있습니다. */
+  const currentBgm = scene
+    ? (me.role === "host" ? roomBgmMap[scene] : hostBgmMap[scene]) || null
+    : null;
+
+  useEffect(() => {
+    const a = bgmAudio.current;
+    if (!a) return;
+    const url = currentBgm?.url || "";
+    if (!url) {
+      a.pause();
+      a.removeAttribute("src");
+      a.load();
+      return;
+    }
+    if (a.src !== url) {
+      a.src = url;
+      a.loop = true;
+      a.volume = muted ? 0 : vol;
+      const p = a.play();
+      if (p?.catch) p.catch(() => {});
+    } else if (a.paused) {
+      const p = a.play();
+      if (p?.catch) p.catch(() => {});
+    }
+  }, [currentBgm, scene]);
+
+  useEffect(() => {
+    if (bgmAudio.current) bgmAudio.current.volume = muted ? 0 : vol;
+  }, [vol, muted]);
+
+  /* 모바일은 원격에서 시작한 소리를 막을 수 있어서, 사용자가 게임을 한 번 터치하면
+     현재 방 BGM을 다시 재생해 줍니다. */
+  useEffect(() => {
+    if (!currentBgm) return undefined;
+    const wakeBgm = () => {
+      const a = bgmAudio.current;
+      if (!a || !a.paused) return;
+      const p = a.play();
+      if (p?.catch) p.catch(() => {});
+    };
+    window.addEventListener("pointerdown", wakeBgm);
+    window.addEventListener("touchstart", wakeBgm, { passive: true });
+    window.addEventListener("keydown", wakeBgm);
+    return () => {
+      window.removeEventListener("pointerdown", wakeBgm);
+      window.removeEventListener("touchstart", wakeBgm);
+      window.removeEventListener("keydown", wakeBgm);
+    };
+  }, [currentBgm]);
 
   /* 음량 — 슬라이더를 움직이면 바로 반영하고 기기에 기억해둡니다 */
   useEffect(() => {
@@ -2125,6 +2199,17 @@ function Town({ me, setMe, onKick }) {
               pressed={pressed}
               skin={scene === "candy" ? QUIZ_SKIN[quizMode] : null}
             />
+            {me.role === "host" && (
+              <button
+                className="ccRoomBgmBtn"
+                onClick={(e) => { e.stopPropagation(); setBgmOpen(true); }}
+              >
+                🎵 BGM 설정
+              </button>
+            )}
+            {currentBgm && (
+              <div className="ccRoomBgmNow">🎵 {currentBgm.title}</div>
+            )}
             <div className="ccRoomLayer">
               {scene === "sing" && karaoke && youtubeId(karaoke.url) && (
                 <div className="ccKaraokeRoomScreen">
@@ -2568,6 +2653,14 @@ function Town({ me, setMe, onKick }) {
             />
             <span>픽셀 커서 쓰기</span>
           </label>
+          {scene && me.role === "host" && (
+            <button
+              className="ccSetFont ccSetSkinBtn"
+              onClick={() => { setBgmOpen(true); setSetOpen(false); blip(760); }}
+            >
+              🎵 이 방 BGM 설정
+            </button>
+          )}
           <button
             className="ccSetFont ccSetSkinBtn"
             onClick={() => { setSheet("skins"); setSetOpen(false); loadSkins(); blip(760); }}
@@ -2716,6 +2809,22 @@ function Town({ me, setMe, onKick }) {
         <div className="ccRotateText">가로로 돌려주세요</div>
       </div>
 
+
+      {bgmOpen && me.role === "host" && (
+        <div className="ccModalWrap" onClick={() => setBgmOpen(false)}>
+          <BgmSheet
+            roomName={ROOMS[scene]?.name || "방"}
+            current={scene ? roomBgmMap[scene] || null : null}
+            onSelect={(next) => {
+              if (!scene) return;
+              setRoomBgmMap((m) => ({ ...m, [scene]: next }));
+              setBgmOpen(false);
+              blip(next ? 820 : 520);
+            }}
+            onClose={() => setBgmOpen(false)}
+          />
+        </div>
+      )}
 
       {sheet && (
         <div className="ccModalWrap" onClick={() => setSheet(null)}>
@@ -2958,6 +3067,7 @@ function Town({ me, setMe, onKick }) {
           onError={() => setToast("곡을 재생하지 못했어요")}
         />
       )}
+      <audio ref={bgmAudio} loop preload="auto" />
 
       {/* 모바일 조작 — 왼쪽 조이스틱, 오른쪽 액션 */}
       <div className="ccTouch">
@@ -3310,6 +3420,13 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
   padding:6px;cursor:pointer}
 .ccQuestReset:active{transform:translate(2px,2px)}
 
+.ccBgmSheet{width:min(430px,94vw);padding:16px;max-height:82vh;overflow:auto}
+.ccBgmList{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.ccBgmItem{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;border:3px solid ${C.line};background:#fff;color:${C.ink};padding:10px 12px;font-family:inherit;font-size:12px;font-weight:800;text-align:left;cursor:pointer;box-shadow:2px 2px 0 rgba(91,74,99,.18)}
+.ccBgmItem:active{transform:translate(2px,2px);box-shadow:none}
+.ccBgmItem.ccBgmOn{background:#fff6dc;box-shadow:inset 0 0 0 3px #ffd45e,2px 2px 0 rgba(91,74,99,.18)}
+.ccBgmItem b{font-size:10px;background:#8fe3c9;border:2px solid ${C.line};padding:2px 5px;white-space:nowrap}
+
 /* 설정 */
 .ccSetBtn{cursor:pointer;align-self:flex-end;background:#fff}
 .ccSetPanel{width:100%;padding:12px}
@@ -3568,6 +3685,9 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccRoomWrap{position:absolute;left:50%;top:50%;transform-origin:50% 50%}
 .ccRoomSvg{position:absolute;left:0;top:0;image-rendering:auto}
 .ccRoomLayer{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+.ccRoomBgmBtn{position:absolute;right:14px;top:14px;z-index:12;border:3px solid ${C.line};background:#fff6dc;color:${C.ink};padding:7px 10px;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;box-shadow:3px 3px 0 rgba(91,74,99,.28)}
+.ccRoomBgmBtn:active{transform:translate(2px,2px);box-shadow:none}
+.ccRoomBgmNow{position:absolute;left:14px;top:14px;z-index:11;background:rgba(255,255,255,.92);border:3px solid ${C.line};padding:6px 9px;font-size:10.5px;font-weight:800;color:${C.ink};max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* 건물 안은 원근 때문에 아바타가 작아져서, 글씨를 키워 균형을 맞춥니다 */
 .ccRoomLayer .ccTag{font-size:15px;margin-bottom:3px}
 .ccRoomLayer .ccBubble{font-size:16px;line-height:1.45;max-width:230px;padding:11px 18px;margin-bottom:16px}
