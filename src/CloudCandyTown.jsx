@@ -934,6 +934,7 @@ function Town({ me, setMe, onKick }) {
   });
   const [hostBgmMap, setHostBgmMap] = useState({});
   const [bgmOpen, setBgmOpen] = useState(false);
+  const [bgmStatus, setBgmStatus] = useState("");
 
   const [starPop, setStarPop] = useState(false);   // 별 개수가 바뀌면 통 튑니다
   /* 꾸미기 — 고른 모습과 사둔 것들 */
@@ -992,6 +993,8 @@ function Town({ me, setMe, onKick }) {
   const audio = useRef(null);
   const bgmAudio = useRef(null);
   const roomBgmRef = useRef(roomBgmMap);
+  const bgmUnlockedRef = useRef(false);
+  const bgmUrlRef = useRef("");
   const chatBox = useRef(null);
   const histBox = useRef(null);
   const questRef = useRef(quests);
@@ -1933,7 +1936,17 @@ function Town({ me, setMe, onKick }) {
       onPeers: (list) => {
         setPeers(list);
         const host = list.find((p) => p.role === "host");
-        if (host?.bgmMap && typeof host.bgmMap === "object") setHostBgmMap(host.bgmMap);
+        if (host?.bgmMap && typeof host.bgmMap === "object") {
+          const normalizedMap = Object.fromEntries(
+            Object.entries(host.bgmMap).map(([id, bgm]) => [
+              id,
+              bgm && typeof bgm === "object"
+                ? { ...bgm, url: bgm.url || (bgm.path ? trackUrl(bgm.path) : "") }
+                : null,
+            ])
+          );
+          setHostBgmMap(normalizedMap);
+        }
       },
       onLive: setLive,
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
@@ -2171,7 +2184,9 @@ function Town({ me, setMe, onKick }) {
      방 BGM
      - 호스트: roomBgmMap
      - 게스트: hostBgmMap
-     - url / path 둘 다 지원
+     - URL/path 정규화
+     - 첫 사용자 입력에서 오디오를 unlock
+     - play() 실패 원인을 상태로 기록
      ========================================================= */
   const currentBgm = scene
     ? (me.role === "host" ? roomBgmMap[scene] : hostBgmMap[scene]) || null
@@ -2179,72 +2194,132 @@ function Town({ me, setMe, onKick }) {
 
   const currentBgmUrl =
     currentBgm?.url ||
-    currentBgm?.path ||
+    (currentBgm?.path ? trackUrl(currentBgm.path) : "") ||
     "";
 
+  const playRoomBgm = useCallback(async (reason = "state") => {
+    const a = bgmAudio.current;
+    const url = bgmUrlRef.current || currentBgmUrl;
+    if (!a || !url) return false;
+
+    try {
+      a.loop = true;
+      a.volume = muted ? 0 : vol;
+      a.muted = false;
+
+      if (a.src !== url) {
+        a.pause();
+        a.src = url;
+        a.load();
+      }
+
+      await a.play();
+      bgmUnlockedRef.current = true;
+      setBgmStatus("재생 중");
+      return true;
+    } catch (err) {
+      const name = err?.name || "UnknownError";
+      const msg = name === "NotAllowedError"
+        ? "브라우저 자동재생 차단 — 화면을 한 번 클릭하면 재생됩니다."
+        : `BGM 재생 실패: ${name}`;
+      setBgmStatus(msg);
+      console.warn("[CloudCandyTown BGM]", { reason, url, error: err });
+      return false;
+    }
+  }, [currentBgmUrl, muted, vol]);
+
+  useEffect(() => {
+    bgmUrlRef.current = currentBgmUrl;
+  }, [currentBgmUrl]);
+
+  /* 방 이동/호스트 변경/새 BGM 수신 시 즉시 교체하고 재생 */
   useEffect(() => {
     const a = bgmAudio.current;
     if (!a) return;
 
-    const url = currentBgmUrl;
-
-    if (!url) {
+    if (!currentBgmUrl) {
       a.pause();
       a.removeAttribute("src");
       a.load();
+      setBgmStatus("");
       return;
     }
 
     a.loop = true;
     a.volume = muted ? 0 : vol;
+    a.muted = false;
+    bgmUrlRef.current = currentBgmUrl;
 
-    if (a.src !== url) {
+    if (a.src !== currentBgmUrl) {
       a.pause();
-      a.src = url;
+      a.src = currentBgmUrl;
       a.load();
     }
 
-    if (a.paused) {
-      const p = a.play();
-      if (p?.catch) p.catch(() => {});
-    }
-  }, [currentBgmUrl, scene, muted, vol]);
+    void playRoomBgm("bgm-change");
+  }, [currentBgmUrl, scene, muted, vol, playRoomBgm]);
 
+  /*
+     게스트가 처음 게임 화면을 클릭/터치/키입력하는 순간을 반드시 잡습니다.
+     방에 들어가는 클릭이어도 이 이벤트가 먼저 실행됩니다.
+  */
   useEffect(() => {
-    if (bgmAudio.current) bgmAudio.current.volume = muted ? 0 : vol;
-  }, [vol, muted]);
-
-  /* 브라우저 자동재생 정책으로 재생이 막힌 경우 사용자 입력 때 재시도 */
-  useEffect(() => {
-    if (!currentBgmUrl) return undefined;
-
-    const wakeBgm = () => {
+    const unlockBgm = async () => {
       const a = bgmAudio.current;
       if (!a) return;
 
-      if (a.src !== currentBgmUrl) {
-        a.src = currentBgmUrl;
+      const map = me.role === "host" ? roomBgmMap : hostBgmMap;
+      const fallbackBgm = Object.values(map || {}).find((bgm) => bgm && typeof bgm === "object" && (bgm.url || bgm.path));
+      const url = bgmUrlRef.current || currentBgmUrl || fallbackBgm?.url || (fallbackBgm?.path ? trackUrl(fallbackBgm.path) : "");
+      try {
         a.loop = true;
+        a.muted = true;
+        a.volume = 0;
+
+        if (url) {
+          if (a.src !== url) {
+            a.src = url;
+            a.load();
+          }
+          await a.play();
+          a.pause();
+          a.currentTime = 0;
+        } else {
+          /* src가 없어도 사용자 제스처를 오디오 요소에 연결 */
+          try { await a.play(); } catch { /* src 없음은 무시 */ }
+          a.pause();
+        }
+
+        a.muted = false;
         a.volume = muted ? 0 : vol;
-        a.load();
-      }
+        bgmUnlockedRef.current = true;
+        setBgmStatus("오디오 잠금 해제됨");
 
-      if (a.paused) {
-        const p = a.play();
-        if (p?.catch) p.catch(() => {});
+        if (url) void playRoomBgm("user-unlock");
+      } catch (err) {
+        a.muted = false;
+        a.volume = muted ? 0 : vol;
+        setBgmStatus(`BGM unlock 실패: ${err?.name || "UnknownError"}`);
+        console.warn("[CloudCandyTown BGM unlock]", err);
       }
     };
 
-    window.addEventListener("pointerdown", wakeBgm);
-    window.addEventListener("touchstart", wakeBgm, { passive: true });
-    window.addEventListener("keydown", wakeBgm);
-
+    window.addEventListener("pointerdown", unlockBgm, { passive: true });
+    window.addEventListener("touchstart", unlockBgm, { passive: true });
+    window.addEventListener("keydown", unlockBgm);
     return () => {
-      window.removeEventListener("pointerdown", wakeBgm);
-      window.removeEventListener("touchstart", wakeBgm);
-      window.removeEventListener("keydown", wakeBgm);
+      window.removeEventListener("pointerdown", unlockBgm);
+      window.removeEventListener("touchstart", unlockBgm);
+      window.removeEventListener("keydown", unlockBgm);
     };
-  }, [currentBgmUrl, muted, vol]);
+  }, [currentBgmUrl, muted, vol, playRoomBgm, me.role, roomBgmMap, hostBgmMap]);
+
+  useEffect(() => {
+    if (bgmAudio.current) {
+      bgmAudio.current.volume = muted ? 0 : vol;
+      bgmAudio.current.muted = false;
+    }
+  }, [vol, muted]);
 
   /* 음량 — 슬라이더를 움직이면 바로 반영하고 기기에 기억해둡니다 */
   useEffect(() => {
@@ -2402,7 +2477,10 @@ function Town({ me, setMe, onKick }) {
               </button>
             )}
             {currentBgm && (
-              <div className="ccRoomBgmNow">🎵 {currentBgm.title}</div>
+              <div className="ccRoomBgmNow">
+                🎵 {currentBgm.title}
+                {bgmStatus ? <span style={{ marginLeft: 8, opacity: 0.72, fontSize: 11 }}>{bgmStatus}</span> : null}
+              </div>
             )}
             <div className="ccRoomLayer" ref={karaokeLayerRef}>
               {scene === "sing" && karaoke && youtubeId(karaoke.url) && (
@@ -3059,10 +3137,30 @@ function Town({ me, setMe, onKick }) {
                   }
                 : null;
 
+              /* LP바에서 틀던 곡은 방 BGM이 우선합니다. */
+              if (audio.current) {
+                audio.current.pause();
+                audio.current.currentTime = 0;
+              }
+              setQueue([]);
+              setQi(0);
+              setPlName("");
+
               setRoomBgmMap((m) => ({
                 ...m,
                 [scene]: normalized,
               }));
+
+              /* 호스트 자신의 BGM도 즉시 교체 */
+              bgmUrlRef.current = normalized?.url || "";
+              if (normalized?.url) {
+                void playRoomBgm("host-select");
+              } else if (bgmAudio.current) {
+                bgmAudio.current.pause();
+                bgmAudio.current.removeAttribute("src");
+                bgmAudio.current.load();
+                setBgmStatus("BGM 꺼짐");
+              }
 
               /* 호스트가 선택한 BGM을 게스트에게 즉시 전송 */
               chanRef.current?.roomBgm({
