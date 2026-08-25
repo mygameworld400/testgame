@@ -3353,15 +3353,15 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccHostToggleBody{padding:4px 2px}
 .ccHostLocationRow{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;font-size:12px;font-weight:700}
 .ccHostLocationRow b{font-weight:900}
-.ccKaraokeRoomScreen{position:absolute;left:168px;top:24px;width:664px;height:270px;z-index:30;pointer-events:auto}
+.ccKaraokeRoomScreen{position:absolute;left:100px;top:18px;width:800px;height:360px;z-index:30;pointer-events:auto}
 .ccKaraokeRoomFrame{width:100%;height:100%;box-sizing:border-box;background:#171327;border:8px solid #ff9fc9;border-radius:14px;box-shadow:0 8px 0 #5b4a63,0 12px 22px rgba(0,0,0,.28);overflow:hidden}
-.ccKaraokeRoomTop{height:34px;box-sizing:border-box;padding:5px 10px;display:flex;align-items:center;gap:12px;background:#302454;color:#ffe8a9;font-size:12px;font-weight:900;border-bottom:3px solid #5b4a63}
+.ccKaraokeRoomTop{height:38px;box-sizing:border-box;padding:5px 10px;display:flex;align-items:center;gap:12px;background:#302454;color:#ffe8a9;font-size:12px;font-weight:900;border-bottom:3px solid #5b4a63}
 .ccKaraokeRoomTop span{font-size:14px;white-space:nowrap}
 .ccKaraokeRoomTop b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
-.ccKaraokeRoomVideo{width:100%;height:calc(100% - 60px);background:#000}
+.ccKaraokeRoomVideo{width:100%;height:calc(100% - 66px);background:#000}
 .ccKaraokeRoomVideo iframe{display:block;width:100%;height:100%;border:0}
-.ccKaraokeRoomWho{height:26px;box-sizing:border-box;padding:4px 8px;text-align:center;background:#201a35;color:#ffe9a8;font-size:11px;font-weight:800}
-.ccKaraokeCushions{position:absolute;left:110px;right:110px;bottom:92px;height:110px;z-index:18;pointer-events:none}
+.ccKaraokeRoomWho{height:28px;box-sizing:border-box;padding:4px 8px;text-align:center;background:#201a35;color:#ffe9a8;font-size:11px;font-weight:800}
+.ccKaraokeCushions{position:absolute;left:80px;right:80px;bottom:78px;height:110px;z-index:18;pointer-events:none}
 .ccKaraokeCushion{position:absolute;width:105px;height:42px;border-radius:22px 22px 16px 16px;background:#ffb5d4;border:4px solid #5b4a63;box-shadow:inset 0 -8px 0 rgba(91,74,99,.22),0 5px 0 rgba(0,0,0,.16)}
 .ccKaraokeCushion::after{content:"";position:absolute;left:14px;right:14px;top:8px;height:5px;border-radius:8px;background:rgba(255,255,255,.35)}
 .ccKaraokeCushion.c1{left:0;top:42px;transform:rotate(-3deg)}
