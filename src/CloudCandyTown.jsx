@@ -24,7 +24,7 @@ import { Pix } from "./pix.jsx";
    방향키(또는 WASD)로 걷고, 건물 앞에서 Space, Enter 로 채팅해요.
    =========================================================== */
 
-const WORLD = { w: 3000, h: 2820 };
+const WORLD = { w: 3000, h: 3600 };
 
 /* 걸어다닐 수 있는 구역들 — 윗동네 · 가운데섬 · 아랫섬.
    이 사각형들 밖으로는 못 나갑니다. 섬끼리는 미끄럼틀로만 오갑니다.
@@ -38,7 +38,7 @@ const AREAS = [
   { x0: 1600, y0: 250, x1: 2820, y1: 810 },      // 오른쪽 윗섬
   { x0: 1600, y0: 2100, x1: 2820, y1: 2640 },     // 오른쪽 아랫섬
 ];
-const PLAY = { x0: 190, y0: 320, x1: 2820, y1: 2640 };
+const PLAY = { x0: 190, y0: 320, x1: 2820, y1: 3490 };
 const inArea = (x, y) => AREAS.some((a) => x >= a.x0 && x <= a.x1 && y >= a.y0 && y <= a.y1);
 
 const C = {
@@ -386,6 +386,33 @@ const PATHS5 = [
   { x: 2700, y: 2340, w: 64, h: 200 },
 ];
 
+/* 구름카페 아래 새 공원 맵 — 기존 섬에서 길을 따라 바로 내려갈 수 있습니다. */
+const ISLAND6 = [
+  { x: 300, y: 2910, w: 1100, h: 24 },
+  { x: 250, y: 2934, w: 1200, h: 24 },
+  { x: 214, y: 2958, w: 1272, h: 470 },
+  { x: 250, y: 3428, w: 1200, h: 24 },
+  { x: 300, y: 3452, w: 1100, h: 24 },
+];
+const SOIL6 = [
+  { x: 340, y: 3476, w: 1020, h: 34 },
+  { x: 430, y: 3510, w: 840, h: 28 },
+];
+const PATHS6 = [
+  { x: 350, y: 3150, w: 1000, h: 54 },
+  { x: 780, y: 2980, w: 58, h: 170 },
+  { x: 780, y: 3200, w: 58, h: 170 },
+];
+const PARK_DECO = [
+  {x:420,y:3050,t:'tree'}, {x:600,y:3040,t:'tree'}, {x:1030,y:3045,t:'tree'}, {x:1230,y:3060,t:'tree'},
+  {x:400,y:3340,t:'tree'}, {x:1180,y:3350,t:'tree'}, {x:1330,y:3290,t:'tree'},
+  {x:520,y:3250,t:'bench'}, {x:1080,y:3260,t:'bench'}, {x:740,y:3070,t:'lamp'}, {x:880,y:3070,t:'lamp'},
+];
+const PARK_BLOCKS = [
+  {x1:690,x2:930,y1:3120,y2:3230},
+  {x1:850,x2:1120,y1:3190,y2:3290},
+];
+
 const POND = [
   { x: 1360, y: 1560, w: 168, h: 24 },
   { x: 1336, y: 1584, w: 216, h: 64 },
@@ -575,7 +602,7 @@ function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction }) {
   );
   const lockerCols = Array.from({length:12});
   const showerCols = Array.from({length:8});
-  const hot = floor === 1 ? 41 : floor === 2 ? 40.5 : 38;
+  const waterTemp = floor === 1 ? 41 : floor === 2 ? 40.5 : 38;
   const clouds = floor === 2 ? Array.from({length:10},(_,i)=>({x:400+(i*137)%980,y:330+(i*83)%430})) : [];
   const visiblePeers = peers.filter(q => q.id !== me.id);
   const npcByFloor = floor === 1
@@ -602,7 +629,7 @@ function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction }) {
         {floor===1 && <>
           <div className="ccSpaArea lockerArea"><h3>👟 탈의실 / 사물함</h3><div className="ccLockerGrid">{lockerCols.map((_,i)=><div key={i} className="ccLocker">{String(i+1).padStart(2,"0")}</div>)}</div><div className="ccBench">나무 벤치 · 거울 · 체중계 · 드라이어</div></div>
           <div className="ccSpaArea showerArea"><h3>🚿 샤워실</h3><div className="ccShowerGrid">{showerCols.map((_,i)=><div key={i} className="ccShower"><span>🚿</span><small>샴푸 · 바디워시</small></div>)}</div><div className="ccDrain">배수구　•　•　•　•　•</div></div>
-          <div className="ccSpaArea bathArea"><h3>🛁 대욕장</h3><button className="ccBath bigBath" onClick={()=>{ setHot(true); onAction("♨️ 온탕에 몸을 담갔어요. 물 온도 41°C."); setTimeout(()=>setHot(false), 4200); }}><div className="ccWater"><span>♨</span><span>♨</span><span>♨</span></div><b>{hot}°C 온탕</b></button><button className="ccBath smallBath cold" onClick={()=>{setHot(false);onAction("❄ 냉탕은 생각보다 훨씬 차가워요!")}}><b>❄ 냉탕<br/>17°C</b></button><button className="ccBath smallBath bubble" onClick={()=>{setHot(false);onAction("🫧 거품이 보글보글 올라와요.")}}><b>🫧 거품탕<br/>39°C</b></button><div className="ccBath smallBath med"><b>🌿 약탕<br/>40°C</b></div><div className="ccBath smallBath electric"><b>⚡ 전기탕<br/>38°C</b></div><div className="ccTowelRack">수건 · 바가지 · 물 온도계</div></div>
+          <div className="ccSpaArea bathArea"><h3>🛁 대욕장</h3><button className="ccBath bigBath" onClick={()=>{ setHot(true); onAction("♨️ 온탕에 몸을 담갔어요. 물 온도 41°C."); setTimeout(()=>setHot(false), 4200); }}><div className="ccWater"><span>♨</span><span>♨</span><span>♨</span></div><b>{waterTemp}°C 온탕</b></button><button className="ccBath smallBath cold" onClick={()=>{setHot(false);onAction("❄ 냉탕은 생각보다 훨씬 차가워요!")}}><b>❄ 냉탕<br/>17°C</b></button><button className="ccBath smallBath bubble" onClick={()=>{setHot(false);onAction("🫧 거품이 보글보글 올라와요.")}}><b>🫧 거품탕<br/>39°C</b></button><div className="ccBath smallBath med"><b>🌿 약탕<br/>40°C</b></div><div className="ccBath smallBath electric"><b>⚡ 전기탕<br/>38°C</b></div><div className="ccTowelRack">수건 · 바가지 · 물 온도계</div></div>
           <div className="ccSpaArea saunaArea"><h3>🔥 사우나 구역</h3><div className="ccSauna dry"><b>건식 사우나</b><span>86°C</span><div className="ccSaunaBench"/></div><div className="ccSauna kiln"><b>🔥 불가마</b><span>90°C</span><div className="ccFire"/></div><div className="ccSauna salt"><b>🧂 소금방</b><span>소금 결정 벽</span></div><div className="ccSauna clay"><b>🟤 황토방</b><span>따뜻한 황토 벽</span></div></div>
           {p(1120,1030,170,90,"ccSpaStairs",()=>onFloor("spa2"),"2층 온천으로")}
         </>}
@@ -814,12 +841,12 @@ function CottonShopRoom({step,color,powered,tufts,decor,shelf,nickname,onMachine
 
   return <div className="ccCottonRoom">
     <div className="ccCottonRoomTop"><div><div className="ccCottonRoomTitle">☁️ 구름솜사탕 가게</div><div className="ccCottonRoomSub">{step==="shop"?"기계에서 솜사탕을 만들어보세요":step==="machine"?"색을 고르고 전원을 켠 뒤 스테인리스 원을 따라 천천히 빙글빙글!":"스프링클을 선택한 뒤 솜사탕 위를 클릭해보세요!"}</div></div><button className="ccCottonBack" onClick={onBack}>← 나가기</button></div>
-    {step==="shop"&&<div className="ccCottonShopScene ccCottonShop3D"><button className="ccCottonBigObject ccCottonMachineDisplay" onClick={onMachine}><div className="ccObjectShadow"/><div className="ccCottonMachineIcon"><span className="ccMachineBowl"/><span className="ccMachinePole"/></div><b>솜사탕 기계</b><small>눌러서 만들기</small></button><button className="ccCottonShelfObject ccCottonShelfDisplay" onClick={()=>shelf?.length&&setShelfIndex(0)}><div className="ccShelfCanopy">☁️ 솜사탕 진열대</div><div className="ccShelfRows">{[0,1,2].map(r=><div className="ccShelfRow" key={r}>{[0,1,2].map(i=><div className="ccShelfSlot" key={i}>{shelf?.[r*3+i]&&<span className="ccMiniCotton" style={{background:shelf[r*3+i].color}}/>}</div>)}</div>)}</div><small>{shelf?.length?`${shelf.length}개 진열됨 · 눌러서 보기`:"아직 진열된 솜사탕이 없어요"}</small></button></div>}
-    {step==="machine"&&<div className="ccCottonMachineStage"><div className="ccCottonColorBar"><b>색상</b>{colors.map(c=><button key={c.id} className={"ccCottonColor"+(color===c.id?" on":"")} style={{background:c.c}} onClick={()=>onColor(c.id)} title={c.n}/>)}<span>설탕실 {tufts.length}회</span></div><div className={"ccCottonMachine"+(powered?" powered":"")}><div className="ccMachineLabel">CLOUD COTTON · {powered ? "설탕실이 회전판에서 날리고 있어요" : "전원을 켜주세요"}</div><div ref={ring} className="ccMachineRingArea" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}><div className={"ccSteelRing" + (powered ? " spinning" : "")}><div className="ccSteelHole"/></div><CottonCanvas fibers={tufts} activeColor={active.c}/><div className="ccCottonStick"/></div><div className="ccPowerRow"><button className={"ccPowerBtn"+(powered?" on":"")} onClick={onPower}>{powered?"⏻ 작동 중":"⏻ 전원"}</button><span>{powered?"원형을 따라 천천히 돌리면 중심에서 바깥으로 실이 감겨요":"먼저 전원을 켜주세요"}</span></div></div><button className="ccBtn ccCottonFinish" disabled={tufts.length<12} onClick={onFinish}>솜사탕 완성 → 꾸미기</button></div>}
+    {step==="shop"&&<div className="ccCottonShopScene ccCottonShop3D"><button className="ccCottonBigObject ccCottonMachineDisplay" onClick={onMachine}><div className="ccObjectShadow"/><div className="ccCottonMachineIcon ccReferenceMachine"><span className="ccShopCanopy"/><span className="ccShopGlass"><i/><i/><i/></span><span className="ccMachineBowl"/><span className="ccMachinePole"/><span className="ccShopBase"><i/><i/><i/><b>⏻</b></span></div><b>솜사탕 기계</b><small>눌러서 만들기</small></button><button className="ccCottonShelfObject ccCottonShelfDisplay" onClick={()=>shelf?.length&&setShelfIndex(0)}><div className="ccShelfCanopy">☁️ 솜사탕 진열대</div><div className="ccShelfRows">{[0,1,2].map(r=><div className="ccShelfRow" key={r}>{[0,1,2].map(i=><div className="ccShelfSlot" key={i}>{shelf?.[r*3+i]&&<div className="ccShelfMiniCanvas"><CottonCanvas fibers={shelf[r*3+i].fibers||[]} decorations={shelf[r*3+i].decorations||[]} activeColor={shelf[r*3+i].fibers?.[shelf[r*3+i].fibers.length-1]?.color||"#ff8fbe"}/></div>}</div>)}</div>)}</div><small>{shelf?.length?`${shelf.length}개 진열됨 · 눌러서 보기`:"아직 진열된 솜사탕이 없어요"}</small></button></div>}
+    {step==="machine"&&<div className="ccCottonMachineStage"><div className="ccCottonColorBar"><b>색상</b>{colors.map(c=><button key={c.id} className={"ccCottonColor"+(color===c.id?" on":"")} style={{background:c.c}} onClick={()=>onColor(c.id)} title={c.n}/>)}<span>설탕실 {tufts.length}회</span></div><div className={"ccCottonMachine"+(powered?" powered":"")}><div className="ccMachineLabel">CLOUD COTTON · {powered ? "설탕실이 회전판에서 날리고 있어요" : "전원을 켜주세요"}</div><div ref={ring} className="ccMachineRingArea" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}><div className="ccMachineCanopy"><div className="ccCanopyGrill"/></div><div className="ccMachineGlass"><span className="ccGlassDisc d1"/><span className="ccGlassDisc d2"/><span className="ccGlassDisc d3"/></div><div className={"ccSteelRing" + (powered ? " spinning" : "")}><div className="ccSteelHole"/><div className="ccSteelHub"/></div><div className="ccCottonStickMachine"/><CottonCanvas fibers={tufts} activeColor={active.c}/><div className="ccMachineBase"><i/><i/><i/><i/><b>⏻</b></div></div><div className="ccPowerRow"><button className={"ccPowerBtn"+(powered?" on":"")} onClick={onPower}>{powered?"⏻ 작동 중":"⏻ 전원"}</button><span>{powered?"원형을 따라 천천히 돌리면 중심에서 바깥으로 실이 감겨요":"먼저 전원을 켜주세요"}</span></div></div><button className="ccBtn ccCottonFinish" disabled={tufts.length<12} onClick={onFinish}>솜사탕 완성 → 꾸미기</button></div>}
     {step==="decorate"&&<div className="ccCottonDecorStage"><div className="ccDecorPreview"><div className="ccDecorCottonWrap"><CottonCanvas fibers={tufts} decorations={decor} activeColor={active.c} decorateMode={true} selectedDecor={selectedDecor} onDecor={onDecor}/><div className="ccDecorStick"/><div className="ccCottonOwnerName">{nickname || "손님"}</div></div></div><div className="ccDecorPanel"><h3>✨ 솜사탕 꾸미기</h3><p>{selectedDecor?"선택한 스프링클을 솜사탕 위 원하는 곳에 클릭하세요.":"먼저 스프링클을 하나 선택하세요."}</p><div className="ccDecorButtons"><button className={selectedDecor==="star"?"ccDecorSelected":""} onClick={()=>setSelectedDecor("star")}>★ 별모양 스프링클</button><button className={selectedDecor==="bar"?"ccDecorSelected":""} onClick={()=>setSelectedDecor("bar")}>▮ 길쭉한 네모 스프링클</button><button className={selectedDecor==="heart"?"ccDecorSelected":""} onClick={()=>setSelectedDecor("heart")}>♥ 하트 스프링클</button></div><div className="ccDecorCount">장식 {decor.length}개{selectedDecor?` · ${selectedDecor} 선택됨`:""}</div><button className="ccBtn ccCottonDone" onClick={onDone}>완료</button></div></div>}
-    {confirm&&<div className="ccCottonConfirmWrap"><div className="ccCottonConfirm ccPanel"><div className="ccCottonConfirmIcon">🍭</div><h2>진열하시겠습니다?</h2><p>완성한 솜사탕을 가게 진열대에 올릴까요?</p><div className="ccCottonConfirmBtns"><button className="ccBtn" onClick={()=>onConfirm(true)}>예, 진열할게요</button><button className="ccMini" onClick={()=>onConfirm(false)}>아니오, 그냥 나가기</button></div></div></div>}
-    {step==="shop"&&shelfIndex!==null&&shelf?.length>0&&<div className="ccShelfViewer" onClick={()=>setShelfIndex(null)}><div className="ccShelfViewerCard" onClick={e=>e.stopPropagation()}><button className="ccShelfClose" onClick={()=>setShelfIndex(null)}>×</button><h2>🍭 진열된 솜사탕</h2><div className="ccShelfViewerStage"><button className="ccShelfArrow" onClick={()=>setShelfIndex(i=>(i-1+shelf.length)%shelf.length)}>‹</button><div className="ccDisplayCottonWrap"><div className="ccDisplayCotton" style={{background:shelf[shelfIndex ?? 0]?.color||"#ff8fbe"}}/><div className="ccDisplayStick"/><div className="ccDisplayName">{shelf[shelfIndex ?? 0]?.name||"손님"}</div></div><button className="ccShelfArrow" onClick={()=>setShelfIndex(i=>(i+1)%shelf.length)}>›</button></div><div className="ccShelfPage">{(shelfIndex??0)+1} / {shelf.length}</div></div></div>}
-    {guideOpen&&<div className="ccCottonGuideOverlay"><div className="ccCottonGuide"><div className="ccCottonGuideIcon">🍭</div><h2>솜사탕 만들기</h2><p>흰색 부분을 따라<br/><b>원을 그리며 천천히 움직여보세요!</b></p><div className="ccGuideCircle">↻</div><button className="ccBtn" onClick={onCloseGuide}>알겠어요!</button></div></div>}
+    {confirm&&<div className="ccCottonConfirmWrap"><div className="ccCottonConfirm ccPanel"><div className="ccCottonConfirmIcon">🍭</div><h2>진열하시겠습니다?</h2><p>완성한 솜사탕을 가게 진열대에 올릴까요?</p><div className="ccCottonConfirmBtns"><button className="ccBtn" onClick={()=>onConfirm(true)}>예, 진열하고 나가기</button><button className="ccMini" onClick={()=>onConfirm(false)}>아니오, 가게에 둘게요</button></div></div></div>}
+    {step==="shop"&&shelfIndex!==null&&shelf?.length>0&&<div className="ccShelfViewer" onClick={()=>setShelfIndex(null)}><div className="ccShelfViewerCard" onClick={e=>e.stopPropagation()}><button className="ccShelfClose" onClick={()=>setShelfIndex(null)}>×</button><h2>🍭 진열된 솜사탕</h2><div className="ccShelfViewerStage"><button className="ccShelfArrow" onClick={()=>setShelfIndex(i=>(i-1+shelf.length)%shelf.length)}>‹</button><div className="ccDisplayCottonWrap"><div className="ccDisplayStickBack"/><CottonCanvas fibers={shelf[shelfIndex ?? 0]?.fibers||[]} decorations={shelf[shelfIndex ?? 0]?.decorations||[]} activeColor={shelf[shelfIndex ?? 0]?.fibers?.[shelf[shelfIndex ?? 0]?.fibers?.length-1]?.color||"#ff8fbe"}/><div className="ccDisplayStickFront"/><div className="ccDisplayName">{shelf[shelfIndex ?? 0]?.name||"손님"}</div></div><button className="ccShelfArrow" onClick={()=>setShelfIndex(i=>(i+1)%shelf.length)}>›</button></div><div className="ccShelfPage">{(shelfIndex??0)+1} / {shelf.length}</div></div></div>}
+    {guideOpen&&<div className="ccCottonGuideOverlay"><div className="ccCottonGuide"><div className="ccCottonGuideIcon">🍭</div><h2>솜사탕 만들기</h2><p>기계 가운데 <b>흰색 원형 스뎅 부분</b>을 따라<br/><b>원을 그리며 천천히 움직여보세요!</b></p><div className="ccGuideCircle">↻</div><button className="ccBtn" onClick={onCloseGuide}>알겠어요!</button></div></div>}
   </div>;
 }
 
@@ -832,12 +859,14 @@ function Building({ b, near }) {
   return (
     <div className="ccBuilding" style={{ left: b.x - w / 2, top: b.y - h, width: w }}>
       {b.id === "cotton" ? (
-        <div className={"ccCottonShop" + (near ? " ccNear" : "")}>
-          <div className="ccCottonRoof">🍭</div>
+        <div className={"ccCottonShop ccCottonShopExterior" + (near ? " ccNear" : "")}>
+          <div className="ccCottonRoof">☁️ 🍭 구름솜사탕</div>
           <div className="ccCottonAwning"><i /><i /><i /><i /><i /></div>
           <div className="ccCottonBody">
-            <div className="ccCottonWindow" />
+            <div className="ccCottonWindow left" />
+            <div className="ccCottonWindow right" />
             <div className="ccCottonDoor" />
+            <div className="ccCottonCounterShadow" />
           </div>
         </div>
       ) : b.id === "spa" ? (
@@ -982,6 +1011,20 @@ function AsphaltConnector(){
   return <div className="ccAsphaltConnector" aria-hidden="true"><div className="ccRoadCenter"/><div className="ccRoadEdge left"/><div className="ccRoadEdge right"/></div>;
 }
 
+function ParkGround(){
+  return <div className="ccParkGround" aria-label="구름공원">
+    <div className="ccParkSign">🌳 구름공원 <small>Cloud Park</small></div>
+    <div className="ccParkPond"><span>🦆</span><i/><i/><i/></div>
+    <div className="ccParkGazebo"><div className="roof">⛺</div><div className="posts">▥　▥　▥</div><b>그늘 정자</b></div>
+    <div className="ccParkPlayground"><div className="slide">🛝</div><div className="swing">♜</div><b>어린이 놀이터</b></div>
+    <div className="ccParkPicnic"><span>🧺</span><span>🧺</span><b>피크닉 잔디</b></div>
+    <div className="ccParkFountain">⛲<small>작은 분수</small></div>
+    <div className="ccParkFlowers">🌷 🌼 🌷 🌼 🌷</div>
+    <div className="ccParkDogRun">🐕　🐕<small>강아지 산책길</small></div>
+    {PARK_DECO.map((d,i)=><div key={i} className={`ccParkDeco ${d.t}`} style={{left:d.x,top:d.y}}>{d.t==='tree'?'🌳':d.t==='bench'?'🪑':'💡'}</div>)}
+  </div>;
+}
+
 function Ground() {
   const grass = useMemo(() => grassTile(C.grass, C.grassDark, C.grassLight), []);
   const road = useMemo(() => pathTile(C.path, C.pathDark), []);
@@ -1053,6 +1096,13 @@ function Ground() {
       {PATHS5.map((r, i) =>
         slab(r, "p5" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" })
       )}
+
+      {/* 구름카페 아래 새 공원 섬 */}
+      {SOIL6.map((r, i) => slab(r, "s6" + i, { background: i % 2 ? C.soilDark : C.soil }))}
+      {ISLAND6.map((r, i) => slab(r, "i6" + i, { background: C.edge }))}
+      {ISLAND6.map((r, i) => slab({ x: r.x, y: r.y, w: r.w, h: Math.max(0, r.h - 8) }, "g6" + i, { backgroundImage: `url(${grass})`, backgroundSize: "48px 48px" }))}
+      {PATHS6.map((r, i) => slab(r, "p6" + i, { backgroundImage: `url(${road})`, backgroundSize: "48px 48px" }))}
+      <div className="ccParkConnectorRoad" />
 
       {/* 기존 섬과 오른쪽 새 섬을 잇는 다리 */}
       <div className="ccBridge" style={{ left: 1450, top: 485, width: 190, height: 42 }} />
@@ -2162,7 +2212,7 @@ function Town({ me, setMe, onKick }) {
   useEffect(() => {
     let raf;
     let last = performance.now();
-    const worldBoxes = BUILDINGS.map(blockBox);
+    const worldBoxes = [...BUILDINGS.map(blockBox), ...PARK_BLOCKS];
     const R = 14;
 
     const step = (now) => {
@@ -2951,7 +3001,30 @@ function Town({ me, setMe, onKick }) {
   const cottonStartMachine = useCallback(() => { setCottonStep("machine"); setCottonPowered(false); setCottonTufts([]); setCottonDecor([]); setCottonGuideOpen(true); blip(760); }, []);
   const cottonStroke = useCallback((t) => setCottonTufts(list => list.length > 720 ? [...list.slice(-719), t] : [...list, t]), []);
   const cottonDecorate = useCallback((type, x, y) => { setCottonDecor(list => [...list, {x, y, r:Math.round(Math.random()*70-35),type}]); blip(760); }, []);
-  const cottonConfirmDone = useCallback((yes) => { if (yes) { setCottonShelf(list => [...list, {color:cottonTufts[cottonTufts.length-1]?.color||cottonTufts[0]?.color||"#ff8fbe",decor:cottonDecor.length,name:me.name,at:Date.now()}]); setToast("🍭 완성한 솜사탕을 진열대에 진열했어요!"); } setCottonConfirm(false); exitRoom(); }, [cottonTufts,cottonDecor,exitRoom]);
+  const cottonConfirmDone = useCallback((yes) => {
+    if (yes) {
+      setCottonShelf(list => [...list, {
+        fibers: cottonTufts.map(f => ({...f})),
+        decorations: cottonDecor.map(d => ({...d})),
+        name: me.name,
+        at: Date.now(),
+      }]);
+      setCottonConfirm(false);
+      setCottonStep("shop");
+      setCottonTufts([]);
+      setCottonDecor([]);
+      setCottonPowered(false);
+      setToast("🍭 진열 완료! 가게를 나갑니다.");
+      exitRoom();
+    } else {
+      setCottonConfirm(false);
+      setCottonStep("shop");
+      setCottonTufts([]);
+      setCottonDecor([]);
+      setCottonPowered(false);
+      setToast("가게 안에 보관했어요. 진열대에서 다시 볼 수 있어요.");
+    }
+  }, [cottonTufts, cottonDecor, me.name, exitRoom]);
 
   const ordered = useMemo(() => [...BUILDINGS].sort((a, b) => a.y - b.y), []);
   const questDone = QUESTS.filter((q) => quests.includes(q.id)).length;
@@ -3252,6 +3325,7 @@ function Town({ me, setMe, onKick }) {
             }}
           >
             <Ground />
+            <ParkGround />
             <AsphaltConnector />
             <Slide />
 
@@ -4644,8 +4718,8 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccCottonMachineDisplay:hover,.ccCottonShelfDisplay:hover{transform:translateY(-7px) rotateX(4deg)}
 .ccObjectShadow{position:absolute;bottom:30px;width:220px;height:30px;border-radius:50%;background:#6b536055;filter:blur(7px)}
 .ccCottonShelfDisplay{cursor:pointer;font-family:inherit}
-.ccCottonOwnerName{position:absolute;left:50%;top:calc(100% + 12px);transform:translateX(-50%);font-size:15px;font-weight:900;color:${C.line};background:#fff;border:3px solid ${C.line};padding:4px 10px;white-space:nowrap;z-index:12}
-.ccDecorStick{position:absolute;left:50%;top:70%;width:22px;height:145px;background:linear-gradient(90deg,#eee,#fff,#ddd);border:4px solid ${C.line};transform:translateX(-50%);z-index:2;border-radius:4px}
+.ccCottonOwnerName{position:absolute;left:50%;top:calc(100% + 58px);transform:translateX(-50%);font-size:15px;font-weight:900;color:${C.line};background:#fff;border:3px solid ${C.line};padding:4px 10px;white-space:nowrap;z-index:12}
+.ccDecorStick{position:absolute;left:50%;top:248px;width:22px;height:150px;background:linear-gradient(90deg,#eee,#fff,#ddd);border:4px solid ${C.line};transform:translateX(-50%);z-index:2;border-radius:4px}
 .ccDisplayCottonWrap{position:relative;width:230px;height:390px;display:flex;justify-content:center;align-items:flex-start;padding-top:38px}
 .ccDisplayCotton{width:210px;height:230px;border-radius:50% 50% 46% 48%;filter:blur(3px);opacity:.82;box-shadow:0 0 28px rgba(255,255,255,.8),inset 0 0 28px rgba(255,255,255,.7)}
 .ccDisplayStick{position:absolute;top:230px;width:22px;height:125px;background:linear-gradient(90deg,#eee,#fff,#ddd);border:4px solid ${C.line};border-radius:4px}
@@ -4924,6 +4998,44 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340px;height:340px;display:flex;align-items:center;justify-content:center}.ccSpaClickable{pointer-events:auto}.ccSpaClickable .ccBuilding{pointer-events:auto}
 
 
+.ccShelfMiniCanvas{position:relative;width:82px;height:72px;overflow:hidden;display:flex;align-items:flex-start;justify-content:center}.ccShelfMiniCanvas .ccCottonCanvas{position:absolute!important;left:50%!important;top:0!important;transform:translateX(-50%) scale(.25)!important;transform-origin:top center!important;pointer-events:none!important}
+/* v7 interior scale + photo-inspired tabletop machine */
+.ccCottonShop3D{gap:42px!important;padding:34px!important}
+.ccCottonBigObject,.ccCottonShelfObject{width:46%!important;min-width:360px!important;height:460px!important}
+.ccReferenceMachine{position:relative!important;width:290px!important;height:330px!important}
+.ccReferenceMachine .ccShopCanopy{position:absolute;left:50%;top:8px;transform:translateX(-50%);width:245px;height:55px;border:5px solid #5b4a63;border-radius:50% 50% 42% 42%;background:repeating-linear-gradient(90deg,#ff98bf 0 6px,#ffc4da 6px 11px);z-index:6;box-shadow:0 7px 0 rgba(91,74,99,.14)}
+.ccReferenceMachine .ccShopCanopy:after{content:"";position:absolute;left:50%;top:8px;transform:translateX(-50%);width:165px;height:26px;border-radius:50%;background:repeating-radial-gradient(ellipse at center,#fff 0 2px,#e886ac 2px 5px);opacity:.7}
+.ccReferenceMachine .ccShopGlass{position:absolute;left:50%;top:54px;transform:translateX(-50%);width:255px;height:205px;border-left:4px solid #7b8790;border-right:4px solid #7b8790;background:linear-gradient(90deg,rgba(255,255,255,.35),rgba(255,255,255,.05),rgba(255,255,255,.35));z-index:2}.ccReferenceMachine .ccShopGlass i{position:absolute;top:65px;width:38px;height:38px;border-radius:50%;border:2px solid rgba(91,74,99,.25);background:rgba(255,172,201,.3)}.ccReferenceMachine .ccShopGlass i:nth-child(1){left:26px}.ccReferenceMachine .ccShopGlass i:nth-child(2){left:105px}.ccReferenceMachine .ccShopGlass i:nth-child(3){right:26px}
+.ccReferenceMachine .ccMachineBowl{left:35px;top:166px;width:220px;height:120px;border-radius:50%;background:radial-gradient(ellipse at 50% 25%,#fff 0 26%,#aeb8bf 27% 34%,#f7f8f9 35% 57%,#858f97 58% 66%,#fff 67%);border:5px solid #5b4a63;z-index:5}.ccReferenceMachine .ccMachineBowl:after{left:76px;top:35px;width:60px;height:30px;border-radius:50%;background:#667177;border:4px solid #454d51}
+.ccReferenceMachine .ccMachinePole{left:134px;top:160px;width:18px;height:110px;background:#aeb6ba;border:4px solid #5b4a63;z-index:4}
+.ccReferenceMachine .ccShopBase{position:absolute;left:32px;bottom:5px;width:226px;height:58px;background:linear-gradient(#ff9fc6,#dd6e9d);border:5px solid #5b4a63;border-radius:22px 22px 10px 10px;z-index:8;display:flex;align-items:center;justify-content:flex-end;gap:13px;padding-right:14px}.ccReferenceMachine .ccShopBase i{width:11px;height:11px;border-radius:50%;background:#fff;border:2px solid #5b4a63}.ccReferenceMachine .ccShopBase b{font-size:18px}
+.ccCottonShelfDisplay{overflow:hidden}.ccCottonShelfDisplay .ccShelfRows{padding:34px 30px}.ccCottonShelfDisplay .ccShelfRow{height:94px}.ccCottonShelfDisplay .ccShelfSlot{height:72px}.ccCottonShelfDisplay .ccMiniCotton{width:58px;height:54px}
+/* ===== v7: giant cotton shop + exact display + cloud park ===== */
+.ccCottonShopExterior{width:340px!important;height:280px!important;background:#f6d9e8!important;border:6px solid #5b4a63!important;box-shadow:12px 12px 0 rgba(91,74,99,.22)!important;overflow:hidden;position:relative}
+.ccCottonShopExterior .ccCottonRoof{height:62px!important;background:#ff9fc6!important;border-bottom:5px solid #5b4a63!important;display:flex;align-items:center;justify-content:center;font-size:16px!important;font-weight:1000!important;color:#5b4a63!important;text-shadow:2px 2px 0 #fff}
+.ccCottonShopExterior .ccCottonBody{height:190px!important;position:relative;background:linear-gradient(180deg,#fff5fa 0 72%,#e4a5c0 73% 100%)!important}
+.ccCottonShopExterior .ccCottonAwning{top:62px!important}
+.ccCottonShopExterior .ccCottonWindow{position:absolute!important;top:28px!important;width:82px!important;height:92px!important;background:linear-gradient(#9fe1f4 0 58%,#f8c7dc 59%)!important;border:5px solid #5b4a63!important;box-shadow:inset 0 0 0 5px rgba(255,255,255,.4)!important}
+.ccCottonShopExterior .ccCottonWindow.left{left:28px!important}.ccCottonShopExterior .ccCottonWindow.right{right:28px!important}
+.ccCottonShopExterior .ccCottonDoor{position:absolute!important;left:50%!important;bottom:0!important;transform:translateX(-50%)!important;width:72px!important;height:118px!important;background:#b9e7f1!important;border:5px solid #5b4a63!important}
+.ccCottonCounterShadow{position:absolute;left:18px;right:18px;bottom:12px;height:20px;background:rgba(91,74,99,.22);border-radius:50%}
+.ccCottonMachineStage{position:relative;overflow:auto}
+.ccMachineRingArea{position:relative!important;width:430px!important;height:470px!important;margin:0 auto!important;overflow:hidden!important;background:linear-gradient(#f7fbff,#d8e0e5)!important;border:5px solid #5b4a63!important;box-shadow:inset 0 0 0 6px #eef5f8,10px 10px 0 rgba(91,74,99,.18)!important}
+.ccMachineCanopy{position:absolute;left:50%;top:32px;transform:translateX(-50%);width:310px;height:76px;border:6px solid #5b4a63;border-radius:50% 50% 44% 44%;background:repeating-linear-gradient(90deg,#ff9fc6 0 7px,#ffc5da 7px 13px);z-index:12;box-shadow:0 8px 0 rgba(91,74,99,.15)}
+.ccCanopyGrill{position:absolute;left:50%;top:12px;transform:translateX(-50%);width:210px;height:34px;border-radius:50%;background:repeating-radial-gradient(ellipse at center,#fff 0 2px,#f28fb5 2px 5px);opacity:.75}
+.ccMachineGlass{position:absolute;left:50%;top:92px;transform:translateX(-50%);width:330px;height:250px;border-left:4px solid rgba(91,74,99,.4);border-right:4px solid rgba(91,74,99,.4);z-index:3;background:linear-gradient(90deg,rgba(255,255,255,.28),rgba(255,255,255,.05),rgba(255,255,255,.28))}
+.ccGlassDisc{position:absolute;top:70px;width:48px;height:48px;border-radius:50%;border:2px solid rgba(91,74,99,.25);background:rgba(255,173,201,.28)}.ccGlassDisc.d1{left:34px}.ccGlassDisc.d2{left:141px}.ccGlassDisc.d3{right:34px}
+.ccSteelRing{position:absolute!important;left:50%!important;top:215px!important;transform:translate(-50%,-50%)!important;width:310px!important;height:160px!important;border-radius:50%!important;background:radial-gradient(ellipse at 50% 35%,#fafafa 0 25%,#c6cdd0 26% 31%,#8d989d 32% 39%,#dfe4e6 40% 58%,#727b80 59% 63%,#e8ecee 64%)!important;border:6px solid #5b4a63!important;z-index:10!important;box-shadow:inset 0 -12px 0 rgba(70,70,70,.2),0 6px 0 rgba(91,74,99,.2)!important}
+.ccSteelHole{position:absolute!important;left:50%!important;top:50%!important;transform:translate(-50%,-50%)!important;width:82px!important;height:42px!important;border-radius:50%!important;background:#657075!important;border:5px solid #434a4e!important}.ccSteelHub{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:28px;height:16px;border-radius:50%;background:#b9c0c3;border:3px solid #5b4a63}
+.ccCottonStickMachine{position:absolute;left:50%;top:222px;transform:translateX(-50%);width:12px;height:230px;background:linear-gradient(90deg,#f8f8f8,#d5d5d5);border:3px solid #5b4a63;z-index:8;box-shadow:3px 0 0 rgba(91,74,99,.18)}
+.ccMachineBase{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:310px;height:74px;background:linear-gradient(#f7a3c2,#dc709d);border:6px solid #5b4a63;border-radius:24px 24px 12px 12px;z-index:14;display:flex;align-items:center;justify-content:flex-end;gap:18px;padding:0 24px}.ccMachineBase i{width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #5b4a63}.ccMachineBase b{font-size:20px}
+.ccCottonCanvas{z-index:9!important}.ccCottonCanvasDecor{z-index:5!important}.ccCottonStick{display:none!important}
+.ccDisplayCottonWrap{position:relative;width:340px;height:470px;display:flex;align-items:center;justify-content:center;overflow:visible}.ccDisplayStickBack{position:absolute;left:50%;top:240px;transform:translateX(-50%);width:14px;height:180px;background:linear-gradient(90deg,#fff,#d8d8d8);border:3px solid #5b4a63;z-index:1}.ccDisplayCottonWrap .ccCottonCanvas{position:absolute!important;left:50%!important;top:155px!important;transform:translateX(-50%)!important;z-index:3!important}.ccDisplayStickFront{position:absolute;left:50%;top:310px;transform:translateX(-50%);width:14px;height:115px;background:linear-gradient(90deg,#fff,#d8d8d8);border:3px solid #5b4a63;z-index:4}.ccDisplayName{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:14px;font-weight:1000;color:#5b4a63;white-space:nowrap;z-index:6;background:#fff7e8;padding:3px 9px;border:3px solid #5b4a63;box-shadow:3px 3px 0 rgba(91,74,99,.2)}
+.ccShelfViewerStage{min-height:520px!important}.ccShelfViewerCard{min-width:min(760px,92vw)!important}
+.ccParkGround{position:absolute;left:214px;top:2958px;width:1272px;height:470px;z-index:2;pointer-events:none}.ccParkSign{position:absolute;left:50%;top:20px;transform:translateX(-50%);background:#fff4cf;border:5px solid #5b4a63;padding:9px 18px;font-weight:1000;box-shadow:5px 5px 0 rgba(91,74,99,.18);text-align:center}.ccParkSign small{display:block;font-size:8px;opacity:.65}.ccParkPond{position:absolute;left:110px;top:190px;width:280px;height:130px;border:7px solid #5b4a63;border-radius:48%;background:#72c8e8;box-shadow:inset 0 0 0 7px #aee8f5}.ccParkPond span{position:absolute;left:70px;top:42px;font-size:24px}.ccParkPond i{position:absolute;width:16px;height:8px;border-radius:50%;background:#fff;opacity:.65;animation:parkRipple 2s steps(3,end) infinite}.ccParkPond i:nth-child(2){left:140px;top:38px}.ccParkPond i:nth-child(3){left:190px;top:78px;animation-delay:.6s}.ccParkPond i:nth-child(4){left:90px;top:88px;animation-delay:1.1s}
+.ccParkGazebo{position:absolute;left:500px;top:75px;width:260px;height:170px;background:#d9c3a1;border:6px solid #5b4a63;box-shadow:8px 8px 0 rgba(91,74,99,.2);text-align:center}.ccParkGazebo .roof{font-size:54px;height:75px;background:#c88975}.ccParkGazebo .posts{font-size:34px;color:#6f503f;margin-top:12px}.ccParkGazebo b{font-size:10px}.ccParkPlayground{position:absolute;right:70px;top:115px;width:280px;height:170px;background:#e8d1ad;border:6px solid #5b4a63;text-align:center;box-shadow:8px 8px 0 rgba(91,74,99,.2)}.ccParkPlayground .slide,.ccParkPlayground .swing{display:inline-block;font-size:48px;margin:20px 20px 5px}.ccParkPlayground b{display:block;font-size:11px}.ccParkPicnic{position:absolute;left:430px;bottom:38px;width:260px;height:100px;background:#a8d98e;border:5px solid #5b4a63;text-align:center;padding-top:22px}.ccParkPicnic span{font-size:32px;margin:0 20px}.ccParkPicnic b{display:block;font-size:10px}.ccParkFountain{position:absolute;left:790px;bottom:65px;font-size:48px;text-align:center}.ccParkFountain small{display:block;font-size:9px;font-weight:900}.ccParkFlowers{position:absolute;left:80px;bottom:30px;font-size:28px}.ccParkDogRun{position:absolute;right:55px;bottom:20px;width:310px;height:70px;background:#d7c18d;border:5px dashed #5b4a63;text-align:center;padding-top:15px}.ccParkDogRun small{display:block;font-size:9px;font-weight:900}.ccParkDeco{position:absolute;transform:translate(-50%,-100%);font-size:38px;filter:drop-shadow(3px 4px 0 rgba(91,74,99,.18))}.ccParkDeco.bench{font-size:30px}.ccParkDeco.lamp{font-size:24px}
+.ccParkConnectorRoad{position:absolute;left:690px;top:2670px;width:90px;height:300px;background:#64676b;z-index:1;border-left:6px solid #4d5053;border-right:6px solid #4d5053;background-image:repeating-linear-gradient(to bottom,transparent 0 42px,#f5e38a 42px 50px,transparent 50px 84px)}
+@keyframes parkRipple{0%,100%{transform:scale(.8);opacity:.3}50%{transform:scale(1.25);opacity:.8}}
 /* ===== v6: pixel-art spa / lobby ===== */
 .ccSpaRoom,.ccSpaLobby{font-family:inherit;image-rendering:pixelated;letter-spacing:.1px}
 .ccSpaRoom{background:#d7c9ae!important}
