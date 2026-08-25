@@ -916,7 +916,9 @@ function Town({ me, setMe, onKick }) {
   const [live, setLive] = useState(true);          // 실시간 연결 상태
   const [movie, setMovie] = useState(null);        // 지금 상영 중인 것
   const [muted2, setMuted2] = useState(true);
-  const [karaoke, setKaraoke] = useState(null);   // 모두에게 보이는 YouTube 노래방      // 영화 소리 (자동재생 때문에 처음엔 꺼둠)
+  const [karaoke, setKaraoke] = useState(null);   // 모두에게 보이는 YouTube 노래방
+  // 노래방 리모콘 위치/크기: 호스트가 조절하고 Realtime으로 전원에게 동기화
+  const [karaokeRemote, setKaraokeRemote] = useState({ x: 50, y: 66, scale: 1 });
   const [roomBgmMap, setRoomBgmMap] = useState(() => {
     try {
       const v = JSON.parse(localStorage.getItem("ccRoomBgm") || "{}");
@@ -985,6 +987,9 @@ function Town({ me, setMe, onKick }) {
   const audio = useRef(null);
   const bgmAudio = useRef(null);
   const roomBgmRef = useRef(roomBgmMap);
+  const karaokeRemoteRef = useRef(karaokeRemote);
+  const karaokeRemoteDragRef = useRef(null);
+  const karaokeRemoteDidDragRef = useRef(false);
   const chatBox = useRef(null);
   const histBox = useRef(null);
   const questRef = useRef(quests);
@@ -1022,6 +1027,52 @@ function Town({ me, setMe, onKick }) {
     roomBgmRef.current = roomBgmMap;
     try { localStorage.setItem("ccRoomBgm", JSON.stringify(roomBgmMap)); } catch { /* 무시 */ }
   }, [roomBgmMap]);
+
+  useEffect(() => {
+    karaokeRemoteRef.current = karaokeRemote;
+  }, [karaokeRemote]);
+
+  const updateKaraokeRemote = useCallback((next, broadcast = true) => {
+    const safe = {
+      x: clamp(Number(next?.x) || 0, 8, 92),
+      y: clamp(Number(next?.y) || 0, 12, 88),
+      scale: clamp(Number(next?.scale) || 1, 0.55, 1.8),
+    };
+    karaokeRemoteRef.current = safe;
+    setKaraokeRemote(safe);
+    if (broadcast && me.role === "host") {
+      chanRef.current?.fx({ t: "karaokeRemote", remote: safe });
+    }
+  }, [me.role]);
+
+  /* 노래방 리모콘 드래그/크기 조절 — 호스트만 */
+  useEffect(() => {
+    const onMove = (e) => {
+      const d = karaokeRemoteDragRef.current;
+      if (!d || me.role !== "host") return;
+      const rect = d.layer?.getBoundingClientRect();
+      if (!rect?.width || !rect?.height) return;
+
+      if (d.mode === "move") {
+        const dx = ((e.clientX - d.startX) / rect.width) * 100;
+        const dy = ((e.clientY - d.startY) / rect.height) * 100;
+        if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 3) {
+          karaokeRemoteDidDragRef.current = true;
+        }
+        updateKaraokeRemote({ x: d.start.x + dx, y: d.start.y + dy, scale: d.start.scale });
+      } else {
+        const delta = (e.clientX - d.startX + e.clientY - d.startY) / 220;
+        updateKaraokeRemote({ x: d.start.x, y: d.start.y, scale: d.start.scale + delta });
+      }
+    };
+    const onUp = () => { karaokeRemoteDragRef.current = null; };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [me.role, updateKaraokeRemote]);
 
   /* 직원 걸음 — 목표가 정해지면 한 걸음씩 다가갑니다 */
   useEffect(() => {
@@ -1910,16 +1961,35 @@ function Town({ me, setMe, onKick }) {
         lk: lookRef.current,
         role: me.role,
         bgmMap: me.role === "host" ? roomBgmRef.current : undefined,
+        karaokeRemote: me.role === "host" ? karaokeRemoteRef.current : undefined,
       }),
       onPeers: (list) => {
         setPeers(list);
         const host = list.find((p) => p.role === "host");
         if (host?.bgmMap && typeof host.bgmMap === "object") setHostBgmMap(host.bgmMap);
+        if (host?.karaokeRemote && typeof host.karaokeRemote === "object") {
+          updateKaraokeRemote(host.karaokeRemote, false);
+        }
       },
       onLive: setLive,
       /* 다른 방에 있는 사람의 채팅은 말풍선 대신 목록으로 */
       onFx: (e) => {
         if (!e) return;
+
+        if (e.t === "roomBgm") {
+          if (e.scene === "__ALL__" && e.bgmMap && typeof e.bgmMap === "object") {
+            setHostBgmMap(e.bgmMap);
+          } else if (e.scene) {
+            setHostBgmMap((m) => ({ ...m, [e.scene]: e.bgm || null }));
+          }
+          return;
+        }
+
+        if (e.t === "karaokeRemote") {
+          if (e.remote && typeof e.remote === "object") updateKaraokeRemote(e.remote, false);
+          return;
+        }
+
         if (e.t === "ball") {
           if (sceneRef.current === "flower") popBall(e.i, false);
           return;
@@ -2211,27 +2281,6 @@ function Town({ me, setMe, onKick }) {
               <div className="ccRoomBgmNow">🎵 {currentBgm.title}</div>
             )}
             <div className="ccRoomLayer">
-              {scene === "sing" && karaoke && youtubeId(karaoke.url) && (
-                <div className="ccKaraokeRoomScreen">
-                  <div className="ccKaraokeRoomFrame">
-                    <div className="ccKaraokeRoomTop">
-                      <span>🎤 구름노래방</span>
-                      <b>{karaoke.title}</b>
-                    </div>
-                    <div className="ccKaraokeRoomVideo">
-                      <iframe
-                        src={`https://www.youtube.com/embed/${youtubeId(karaoke.url)}?autoplay=1&playsinline=1&rel=0`}
-                        title={karaoke.title}
-                        allow="autoplay; encrypted-media; picture-in-picture; web-share"
-                        referrerPolicy="strict-origin-when-cross-origin"
-                        allowFullScreen
-                      />
-                    </div>
-                    <div className="ccKaraokeRoomWho">🎤 {karaoke.by}님이 선곡했어요</div>
-                  </div>
-                </div>
-              )}
-
               {scene === "sing" && (
                 <div className="ccKaraokeCushions" aria-hidden="true">
                   <span className="ccKaraokeCushion c1" />
@@ -2242,12 +2291,51 @@ function Town({ me, setMe, onKick }) {
               )}
               {scene === "sing" && (
                 <div
-                  className="ccKaraokeRemote"
+                  className={"ccKaraokeRemote" + (me.role === "host" ? " ccKaraokeRemoteHost" : "")}
                   role="button"
                   tabIndex={0}
                   aria-label="노래방 선곡표 열기"
-                  onClick={(e) => { e.stopPropagation(); setSheet("songs"); blip(760); }}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setSheet("songs"); blip(760); } }}
+                  style={{
+                    left: `${karaokeRemote.x}%`,
+                    top: `${karaokeRemote.y}%`,
+                    transform: `translate(-50%,-50%) scale(${karaokeRemote.scale})`,
+                  }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    if (me.role !== "host") return;
+                    e.currentTarget.setPointerCapture?.(e.pointerId);
+                    karaokeRemoteDidDragRef.current = false;
+                    karaokeRemoteDragRef.current = {
+                      mode: "move",
+                      startX: e.clientX,
+                      startY: e.clientY,
+                      start: { ...karaokeRemoteRef.current },
+                      layer: e.currentTarget.parentElement,
+                    };
+                  }}
+                  onPointerUp={(e) => {
+                    e.stopPropagation();
+                    if (me.role === "host" && !karaokeRemoteDidDragRef.current) {
+                      setSheet("songs");
+                      blip(760);
+                    }
+                    karaokeRemoteDragRef.current = null;
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (me.role !== "host") {
+                      setSheet("songs");
+                      blip(760);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSheet("songs");
+                      blip(760);
+                    }
+                  }}
                 >
                   <div className="ccKaraokeRemoteHead">
                     <span className="ccKaraokeRemoteLogo">KY KARAOKE</span>
@@ -2273,10 +2361,27 @@ function Town({ me, setMe, onKick }) {
                     <span className="ccKaraokeRemoteNum">0</span>
                     <span className="ccKaraokeRemoteNum ccKaraokeRemoteBlue">시작</span>
                   </div>
-                  <div className="ccKaraokeRemoteNav">
-                    <i className="l">◀</i><i className="r">▶</i><i className="d">▼</i>
-                  </div>
                   <div className="ccKaraokeRemoteHint">선곡표</div>
+
+                  {me.role === "host" && (
+                    <span
+                      className="ccKaraokeRemoteResize"
+                      title="드래그해서 크기 조절"
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        e.currentTarget.setPointerCapture?.(e.pointerId);
+                        karaokeRemoteDidDragRef.current = true;
+                        karaokeRemoteDragRef.current = {
+                          mode: "resize",
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          start: { ...karaokeRemoteRef.current },
+                          layer: e.currentTarget.parentElement?.parentElement,
+                        };
+                      }}
+                    />
+                  )}
                 </div>
               )}
 
@@ -2856,9 +2961,13 @@ function Town({ me, setMe, onKick }) {
             current={scene ? roomBgmMap[scene] || null : null}
             onSelect={(next) => {
               if (!scene) return;
-              setRoomBgmMap((m) => ({ ...m, [scene]: next }));
+              const normalized = next
+                ? { ...next, url: next.url || (next.path ? trackUrl(next.path) : "") }
+                : null;
+              setRoomBgmMap((m) => ({ ...m, [scene]: normalized }));
+              chanRef.current?.roomBgm({ scene, bgm: normalized });
               setBgmOpen(false);
-              blip(next ? 820 : 520);
+              blip(normalized ? 820 : 520);
             }}
             onClose={() => setBgmOpen(false)}
           />
@@ -3392,14 +3501,6 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccHostToggleBody{padding:4px 2px}
 .ccHostLocationRow{display:flex;align-items:center;justify-content:space-between;padding:6px 8px;font-size:12px;font-weight:700}
 .ccHostLocationRow b{font-weight:900}
-.ccKaraokeRoomScreen{position:absolute;left:100px;top:18px;width:800px;height:360px;z-index:30;pointer-events:auto}
-.ccKaraokeRoomFrame{width:100%;height:100%;box-sizing:border-box;background:#171327;border:8px solid #ff9fc9;border-radius:14px;box-shadow:0 8px 0 #5b4a63,0 12px 22px rgba(0,0,0,.28);overflow:hidden}
-.ccKaraokeRoomTop{height:38px;box-sizing:border-box;padding:5px 10px;display:flex;align-items:center;gap:12px;background:#302454;color:#ffe8a9;font-size:12px;font-weight:900;border-bottom:3px solid #5b4a63}
-.ccKaraokeRoomTop span{font-size:14px;white-space:nowrap}
-.ccKaraokeRoomTop b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
-.ccKaraokeRoomVideo{width:100%;height:calc(100% - 66px);background:#000}
-.ccKaraokeRoomVideo iframe{display:block;width:100%;height:100%;border:0}
-.ccKaraokeRoomWho{height:28px;box-sizing:border-box;padding:4px 8px;text-align:center;background:#201a35;color:#ffe9a8;font-size:11px;font-weight:800}
 .ccKaraokeCushions{position:absolute;left:80px;right:80px;bottom:78px;height:110px;z-index:18;pointer-events:none}
 .ccKaraokeCushion{position:absolute;width:105px;height:42px;border-radius:22px 22px 16px 16px;background:#ffb5d4;border:4px solid #5b4a63;box-shadow:inset 0 -8px 0 rgba(91,74,99,.22),0 5px 0 rgba(0,0,0,.16)}
 .ccKaraokeCushion::after{content:"";position:absolute;left:14px;right:14px;top:8px;height:5px;border-radius:8px;background:rgba(255,255,255,.35)}
@@ -3412,6 +3513,8 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccKaraokeRemote{
   position:absolute;left:50%;top:66%;transform:translate(-50%,-50%);
   width:128px;height:194px;z-index:24;pointer-events:auto;cursor:pointer;
+  transform-origin:center center;
+  touch-action:none;
   border:4px solid #342b43;border-radius:12px 12px 16px 16px;
   background:linear-gradient(135deg,#ffffff 0%,#f5f4f8 58%,#dedde5 100%);
   box-shadow:5px 6px 0 rgba(35,27,48,.45),inset -5px -7px 0 rgba(91,74,99,.12),inset 3px 3px 0 rgba(255,255,255,.95);
@@ -3428,15 +3531,14 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccKaraokeRemoteMain{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:6px}
 .ccKaraokeRemoteNum{height:20px;border:2px solid #5d5862;border-radius:5px;background:#f8f8fb;box-shadow:inset 0 -2px 0 #d8d6df;font-size:10px;font-weight:900;color:#3e3945;display:flex;align-items:center;justify-content:center}
 .ccKaraokeRemoteBlue{background:#a9dcff;color:#3b5970}
-.ccKaraokeRemoteNav{position:absolute;left:10px;bottom:35px;width:43px;height:43px;border:3px solid #5b5562;border-radius:50%;background:#55505c;box-shadow:inset 0 0 0 4px #dddde4}
-.ccKaraokeRemoteNav::before{content:'▲';position:absolute;left:50%;top:2px;transform:translateX(-50%);font-size:8px;color:#fff}
-.ccKaraokeRemoteNav::after{display:none}
-.ccKaraokeRemoteNav i{position:absolute;font-style:normal;font-size:8px;color:#fff}
-.ccKaraokeRemoteNav .l{left:4px;top:16px}.ccKaraokeRemoteNav .r{right:4px;top:16px}.ccKaraokeRemoteNav .d{left:17px;bottom:2px}
 .ccKaraokeRemoteAction{position:absolute;right:9px;bottom:38px;display:grid;grid-template-columns:1fr 1fr;gap:4px;width:52px}
 .ccKaraokeRemoteAction span{height:20px;border:2px solid #6b6470;border-radius:5px;background:#fff;font-size:7px;font-weight:900;display:flex;align-items:center;justify-content:center;color:#4b4650}
 .ccKaraokeRemoteAction .start{background:#8ed9f5}.ccKaraokeRemoteAction .cancel{background:#9bd9f4}
 .ccKaraokeRemoteHint{position:absolute;left:50%;bottom:-28px;transform:translateX(-50%);white-space:nowrap;font-size:9px;font-weight:900;color:#fff6dc;text-shadow:2px 2px 0 #5b4a63;opacity:.9}
+.ccKaraokeRemoteHost{cursor:grab}
+.ccKaraokeRemoteHost:active{cursor:grabbing}
+.ccKaraokeRemoteResize{position:absolute;right:-10px;bottom:-10px;width:20px;height:20px;border:3px solid #5b4a63;border-radius:5px;background:#ffd45e;box-shadow:2px 2px 0 rgba(91,74,99,.35);cursor:nwse-resize;z-index:5}
+.ccKaraokeRemoteResize::after{content:'↘';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:#5b4a63}
 .ccYoutubeAdd{display:grid;grid-template-columns:1fr 1fr auto;gap:7px;align-items:center;margin:8px 0}
 @media (max-width:700px){.ccYoutubeAdd{grid-template-columns:1fr}.ccYoutubeAdd .ccBtn{width:100%}}
 
