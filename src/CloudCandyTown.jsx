@@ -5135,7 +5135,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccAsphaltConnector{position:absolute;left:2060px;top:560px;width:260px;height:1800px;background:#64676b;border-left:8px solid #4d5053;border-right:8px solid #4d5053;z-index:1;box-shadow:inset 8px 0 0 rgba(255,255,255,.08),inset -8px 0 0 rgba(0,0,0,.12)}
 .ccAsphaltConnector:before,.ccAsphaltConnector:after{content:"";position:absolute;top:0;bottom:0;width:5px;background:#eee;opacity:.7}.ccAsphaltConnector:before{left:16px}.ccAsphaltConnector:after{right:16px}.ccRoadCenter{position:absolute;left:50%;top:0;bottom:0;width:8px;transform:translateX(-50%);background:repeating-linear-gradient(to bottom,#f7e58b 0 44px,transparent 44px 88px)}
 .ccRoadEdge{position:absolute;top:0;bottom:0;width:12px;background:#777b7f;opacity:.55}.ccRoadEdge.left{left:-28px}.ccRoadEdge.right{right:-28px}
-x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340px;height:340px;display:flex;align-items:center;justify-content:center}.ccSpaClickable{pointer-events:auto}.ccSpaClickable .ccBuilding{pointer-events:auto}
+x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340px;height:340px;display:flex;align-items:center;justify-content:center}.ccSpaClickable{pointer-events:none}.ccSpaClickable .ccBuilding{pointer-events:auto}
 
 
 .ccShelfMiniCanvas{position:relative;width:82px;height:72px;overflow:hidden;display:flex;align-items:flex-start;justify-content:center}.ccShelfMiniCanvas .ccCottonCanvas{position:absolute!important;left:50%!important;top:0!important;transform:translateX(-50%) scale(.25)!important;transform-origin:top center!important;pointer-events:none!important}
