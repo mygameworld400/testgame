@@ -2247,6 +2247,32 @@ function Town({ me, setMe, onKick }) {
     }
   }, [me.name]);
 
+  /* PC의 SPACE와 모바일 액션 버튼이 완전히 같은 동작을 사용합니다.
+     모바일 브라우저/인앱 브라우저에서 pointer 이벤트가 누락되는 경우를 대비해
+     터치도 직접 처리하고, 한 번의 터치가 두 번 실행되지 않도록 짧은 가드를 둡니다. */
+  const mobileActionLockRef = useRef(false);
+  const performPrimaryAction = useCallback(() => {
+    if (sheetRef.current) { setSheet(null); return; }
+    if (!sceneRef.current && nearBusRef.current) {
+      boardBus(nearBusRef.current);
+      return;
+    }
+    if (sceneRef.current) {
+      activateZone(zoneRef.current);
+      return;
+    }
+    if (nearRef.current) openBuilding(nearRef.current);
+  }, [boardBus, activateZone, openBuilding]);
+
+  const performMobilePrimaryAction = useCallback((e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (mobileActionLockRef.current) return;
+    mobileActionLockRef.current = true;
+    performPrimaryAction();
+    window.setTimeout(() => { mobileActionLockRef.current = false; }, 280);
+  }, [performPrimaryAction]);
+
   /* 키 입력 */
   useEffect(() => {
     const down = (e) => {
@@ -2259,13 +2285,7 @@ function Town({ me, setMe, onKick }) {
       }
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
       if (k === " ") {
-        if (sheetRef.current) { setSheet(null); return; }
-        if (!sceneRef.current && nearBusRef.current) {
-          boardBus(nearBusRef.current);
-          return;
-        }
-        if (sceneRef.current) activateZone(zoneRef.current);
-        else if (nearRef.current) openBuilding(nearRef.current);
+        performPrimaryAction();
         return;
       }
       if (k === "enter" || k === "c" || k === "ㅊ") {
@@ -2289,7 +2309,7 @@ function Town({ me, setMe, onKick }) {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, [openBuilding, activateZone, closeWelcome]);
+  }, [performPrimaryAction, closeWelcome]);
 
   /* 키보드 — 밟으면 쑥 들어갔다가 1.5초 뒤에 올라옵니다 */
   const pressKey = useCallback((i, mine) => {
@@ -3840,7 +3860,9 @@ function Town({ me, setMe, onKick }) {
               const route = BUS_ROUTES[id];
               const bs = busState[id];
               const bp = busPosition(route, bs, Date.now());
-              return <div key={id} data-cc-bus={id} className={"ccBus " + (bs?.status === "toDest" ? "moving" : "") + (bs?.riderId ? "occupied" : "")} style={{ left: bp.x, top: bp.y }} onPointerDown={(e) => { e.stopPropagation(); boardBus(id); }} onClick={(e) => { e.stopPropagation(); boardBus(id); }}>
+              return <div key={id} data-cc-bus={id} className={"ccBus " + (bs?.status === "toDest" ? "moving" : "") + (bs?.riderId ? "occupied" : "")} style={{ left: bp.x, top: bp.y }} onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); boardBus(id); }}
+                onTouchStart={(e) => { e.preventDefault(); e.stopPropagation(); boardBus(id); }}
+                onClick={(e) => { e.stopPropagation(); }}>
                 {objectImages[id === "cottonSpa" ? "bus:spa" : "bus:cotton"] ? <img src={objectImages[id === "cottonSpa" ? "bus:spa" : "bus:cotton"]} alt="" className="ccBusCustomImage" /> : <div className="ccBusBody"><span className="ccBusWindow"/><span className="ccBusWindow second"/><span className="ccBusWheel left"/><span className="ccBusWheel right"/><span className="ccBusLight left"/><span className="ccBusLight right"/></div>}
                 {bs?.riderId && <div className="ccBusName">{bs.riderName}</div>}
               </div>;
@@ -4212,11 +4234,9 @@ function Town({ me, setMe, onKick }) {
         <div className="ccActs">
           <button
             className="ccAct ccActMain"
-            onPointerDown={() => {
-              if (sheet) { setSheet(null); return; }
-              if (sceneRef.current) { activateZone(zoneRef.current || "exit"); return; }
-              if (nearRef.current) openBuilding(nearRef.current);
-            }}
+            onPointerDown={performMobilePrimaryAction}
+            onTouchStart={performMobilePrimaryAction}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
           >
             {sheet
               ? "닫기"
@@ -4584,11 +4604,9 @@ function Town({ me, setMe, onKick }) {
         <div className="ccActs">
           <button
             className="ccAct ccActMain"
-            onPointerDown={() => {
-              if (sheet) { setSheet(null); return; }
-              if (sceneRef.current) { activateZone(zoneRef.current || "exit"); return; }
-              if (nearRef.current) openBuilding(nearRef.current);
-            }}
+            onPointerDown={performMobilePrimaryAction}
+            onTouchStart={performMobilePrimaryAction}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
           >
             {sheet
               ? "닫기"
@@ -5276,7 +5294,8 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 @keyframes ccSwim{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 
 /* 모바일 조작 */
-.ccTouch{display:none}
+.ccTouch{display:none;position:relative;z-index:180;pointer-events:none}
+.ccTouch .ccStickZone,.ccTouch .ccActs{pointer-events:auto}
 .ccStickZone{position:absolute;left:0;bottom:0;width:52%;height:74%;touch-action:none;z-index:6}
 .ccStick{position:absolute;left:20px;bottom:calc(24px + var(--kb, 0px));width:124px;height:124px;border-radius:50%;
   border:4px solid ${C.line};background:rgba(255,255,255,.6);touch-action:none;opacity:.75;
@@ -5285,7 +5304,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccStickKnob{width:52px;height:52px;border-radius:50%;border:4px solid ${C.line};background:#ffd45e;
   box-shadow:3px 3px 0 rgba(91,74,99,.25);pointer-events:none;transition:transform .04s linear}
 .ccActs{position:absolute;right:20px;bottom:calc(22px + var(--kb, 0px));display:flex;align-items:flex-end;gap:10px}
-.ccAct{border:4px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
+.ccAct{position:relative;z-index:200;border:4px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
   font-size:13px;padding:0 14px;height:56px;min-width:56px;box-shadow:4px 4px 0 rgba(91,74,99,.25);
   touch-action:none;cursor:pointer}
 .ccAct:active{transform:translate(2px,2px);box-shadow:2px 2px 0 rgba(91,74,99,.25)}
