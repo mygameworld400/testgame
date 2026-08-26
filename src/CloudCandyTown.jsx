@@ -1,4 +1,4 @@
-/* CloudCandyTown v9 — mobile joystick moved 20px left and 50px up */
+/* CloudCandyTown v10 — mobile UI layout editor (F8) */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
@@ -1447,11 +1447,140 @@ function JoinGate({ onJoined, notice }) {
   );
 }
 
+
+/* ============================ 모바일 UI 배치 편집기 ============================ */
+const MOBILE_UI_LAYOUT_KEY = "ccMobileUILayoutV1";
+const MOBILE_UI_CANVAS = { w: 960, h: 540 };
+const MOBILE_UI_DEFAULTS = {
+  joystick: { label: "조이스틱", x: 38, y: 258, w: 154, h: 154 },
+  action: { label: "행동 버튼", x: 764, y: 454, w: 96, h: 64 },
+  chat: { label: "채팅 버튼", x: 870, y: 462, w: 56, h: 56 },
+};
+
+function readMobileUILayout() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(MOBILE_UI_LAYOUT_KEY) || "null");
+    return Object.fromEntries(Object.entries(MOBILE_UI_DEFAULTS).map(([id, d]) => [
+      id, { ...d, ...(raw?.[id] || {}) },
+    ]));
+  } catch {
+    return Object.fromEntries(Object.entries(MOBILE_UI_DEFAULTS).map(([id, d]) => [id, { ...d }]));
+  }
+}
+
+function applyMobileUILayout(layout) {
+  const root = document.documentElement;
+  Object.entries(layout).forEach(([id, v]) => {
+    root.style.setProperty(`--ccMobile${id[0].toUpperCase()}${id.slice(1)}X`, `${v.x}px`);
+    root.style.setProperty(`--ccMobile${id[0].toUpperCase()}${id.slice(1)}Y`, `${v.y}px`);
+    root.style.setProperty(`--ccMobile${id[0].toUpperCase()}${id.slice(1)}W`, `${v.w}px`);
+    root.style.setProperty(`--ccMobile${id[0].toUpperCase()}${id.slice(1)}H`, `${v.h}px`);
+  });
+}
+
+function MobileUILayoutEditor({ open, onClose }) {
+  const [layout, setLayout] = useState(() => readMobileUILayout());
+  const [selected, setSelected] = useState("joystick");
+
+  useEffect(() => {
+    if (!open) return;
+    const next = readMobileUILayout();
+    setLayout(next);
+    applyMobileUILayout(next);
+  }, [open]);
+
+  if (!open) return null;
+
+  const current = layout[selected];
+  const update = (key, value) => {
+    const n = Math.max(0, Math.round(Number(value) || 0));
+    setLayout((prev) => ({ ...prev, [selected]: { ...prev[selected], [key]: n } }));
+  };
+  const apply = () => {
+    localStorage.setItem(MOBILE_UI_LAYOUT_KEY, JSON.stringify(layout));
+    applyMobileUILayout(layout);
+  };
+  const reset = () => {
+    const next = Object.fromEntries(Object.entries(MOBILE_UI_DEFAULTS).map(([id, d]) => [id, { ...d }]));
+    setLayout(next);
+    localStorage.setItem(MOBILE_UI_LAYOUT_KEY, JSON.stringify(next));
+    applyMobileUILayout(next);
+  };
+
+  return (
+    <div className="ccMobileEditorOverlay" role="dialog" aria-label="모바일 UI 배치 편집 모드">
+      <div className="ccMobileEditorPanel">
+        <div className="ccMobileEditorHead">
+          <div>
+            <b>모바일 UI 배치 편집 모드</b>
+            <small>F8로 열고 닫기 · 기준 화면 960 × 540 · 좌상단이 (0,0)</small>
+          </div>
+          <button onClick={onClose} aria-label="닫기">×</button>
+        </div>
+
+        <div className="ccMobileEditorBody">
+          <div className="ccMobileBlueprintWrap">
+            <div className="ccMobileBlueprint" style={{ aspectRatio: `${MOBILE_UI_CANVAS.w}/${MOBILE_UI_CANVAS.h}` }}>
+              <div className="ccMobileAxisX">X →</div>
+              <div className="ccMobileAxisY">Y ↓</div>
+              <div className="ccMobileOrigin">(0,0)</div>
+              <div className="ccMobileBlueprintLabel">MOBILE 960 × 540</div>
+              {Object.entries(layout).map(([id, v]) => (
+                <button
+                  key={id}
+                  className={`ccMobileBox ${selected === id ? "on" : ""}`}
+                  style={{ left: `${v.x / MOBILE_UI_CANVAS.w * 100}%`, top: `${v.y / MOBILE_UI_CANVAS.h * 100}%`, width: `${v.w / MOBILE_UI_CANVAS.w * 100}%`, height: `${v.h / MOBILE_UI_CANVAS.h * 100}%` }}
+                  onClick={() => setSelected(id)}
+                >
+                  <span>{v.label}</span>
+                  <em>{v.x},{v.y}</em>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="ccMobileEditorControls">
+            <div className="ccMobileTargetTabs">
+              {Object.entries(layout).map(([id, v]) => (
+                <button key={id} className={selected === id ? "on" : ""} onClick={() => setSelected(id)}>{v.label}</button>
+              ))}
+            </div>
+            <div className="ccMobileSelectedTitle">선택: <strong>{current.label}</strong></div>
+            <label>X <input type="number" value={current.x} onChange={(e) => update("x", e.target.value)} /><span>px</span></label>
+            <label>Y <input type="number" value={current.y} onChange={(e) => update("y", e.target.value)} /><span>px</span></label>
+            <label>W <input type="number" value={current.w} onChange={(e) => update("w", e.target.value)} /><span>px</span></label>
+            <label>H <input type="number" value={current.h} onChange={(e) => update("h", e.target.value)} /><span>px</span></label>
+            <div className="ccMobileEditorHint">화면의 실제 기준 좌표는 960×540입니다. 브라우저 크기가 달라도 같은 비율로 배치됩니다.</div>
+            <div className="ccMobileEditorBtns">
+              <button className="primary" onClick={apply}>적용 · 저장</button>
+              <button onClick={reset}>전체 초기화</button>
+              <button onClick={onClose}>닫기</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ============================ 메인 ============================ */
 
 export default function CloudCandyTown() {
   const [me, setMe] = useState(null);
   const [notice, setNotice] = useState("");
+  const [mobileEditorOpen, setMobileEditorOpen] = useState(false);
+
+  useEffect(() => {
+    applyMobileUILayout(readMobileUILayout());
+    const onKey = (e) => {
+      if (e.key === "F8") {
+        e.preventDefault();
+        setMobileEditorOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   /* 회차가 바뀌면 이전 회차 사람들은 전부 입장 화면으로 나옵니다 */
   const kick = useCallback((msg) => {
@@ -1464,10 +1593,16 @@ export default function CloudCandyTown() {
       <>
         <style>{CSS}</style>
         <JoinGate notice={notice} onJoined={(v) => { setNotice(""); setMe(v); }} />
+        <MobileUILayoutEditor open={mobileEditorOpen} onClose={() => setMobileEditorOpen(false)} />
       </>
     );
   }
-  return <Town me={me} setMe={setMe} onKick={kick} />;
+  return (
+    <>
+      <Town me={me} setMe={setMe} onKick={kick} />
+      <MobileUILayoutEditor open={mobileEditorOpen} onClose={() => setMobileEditorOpen(false)} />
+    </>
+  );
 }
 
 function Town({ me, setMe, onKick }) {
@@ -4919,21 +5054,35 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 /* 모바일 조작 */
 .ccTouch{display:none;position:fixed;inset:0;width:100vw;height:100vh;z-index:180;pointer-events:none}
 .ccTouch .ccStickZone,.ccTouch .ccActs{pointer-events:auto}
-.ccStickZone{position:absolute;left:38px;bottom:calc(128px + var(--kb, 0px));width:154px;height:154px;
+.ccStickZone{position:absolute;left:calc(var(--ccMobileJoystickX, 38px) * 100vw / 960);top:calc(var(--ccMobileJoystickY, 258px) * 100vh / 540 - var(--kb, 0px));width:calc(var(--ccMobileJoystickW, 154px) * 100vw / 960);height:calc(var(--ccMobileJoystickH, 154px) * 100vh / 540);
   touch-action:none;z-index:6}
-.ccStick{position:absolute;left:77px;top:77px;width:154px;height:154px;border-radius:50%;
+.ccStick{position:absolute;left:50%;top:50%;width:100%;height:100%;transform:translate(-50%,-50%);border-radius:50%;
   border:4px solid ${C.line};background:rgba(255,255,255,.6);touch-action:none;opacity:.75;
   box-shadow:4px 4px 0 rgba(91,74,99,.25);display:flex;align-items:center;justify-content:center}
 .ccStickOn{opacity:1;background:rgba(255,255,255,.9)}
 .ccStickZone,.ccStick{overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .ccStickKnob{width:64px;height:64px;border-radius:50%;border:4px solid ${C.line};background:#ffd45e;
   box-shadow:3px 3px 0 rgba(91,74,99,.25);pointer-events:none;transition:transform .04s linear}
-.ccActs{position:absolute;right:20px;bottom:calc(22px + var(--kb, 0px));display:flex;align-items:flex-end;gap:10px}
+.ccActs{position:absolute;left:calc(var(--ccMobileActionX, 764px) * 100vw / 960);top:calc(var(--ccMobileActionY, 454px) * 100vh / 540 - var(--kb, 0px));width:calc(var(--ccMobileActionW, 96px) * 100vw / 960);height:calc(var(--ccMobileActionH, 64px) * 100vh / 540);display:flex;align-items:flex-end;gap:10px}
 .ccAct{position:relative;z-index:200;border:4px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
   font-size:13px;padding:0 14px;height:56px;min-width:56px;box-shadow:4px 4px 0 rgba(91,74,99,.25);
   touch-action:none;cursor:pointer}
 .ccAct:active{transform:translate(2px,2px);box-shadow:2px 2px 0 rgba(91,74,99,.25)}
-.ccActMain{background:#ff8fb6;color:#fff;height:64px;min-width:96px;font-size:14px}
+.ccActMain{background:#ff8fb6;color:#fff;height:100%;min-width:100%;font-size:14px}.ccActs .ccAct:not(.ccActMain){position:absolute;left:calc((var(--ccMobileChatX, 870px) - var(--ccMobileActionX, 764px)) * 100vw / 960);top:calc((var(--ccMobileChatY, 462px) - var(--ccMobileActionY, 454px)) * 100vh / 540);width:calc(var(--ccMobileChatW, 56px) * 100vw / 960);height:calc(var(--ccMobileChatH, 56px) * 100vh / 540);min-width:0;padding:0}
+
+/* F8 모바일 UI 배치 편집기 */
+.ccMobileEditorOverlay{position:fixed;inset:0;z-index:10000;background:rgba(30,24,36,.72);display:flex;align-items:center;justify-content:center;padding:24px;font-family:var(--ccFont,"NeoDunggeunmo",system-ui,sans-serif)}
+.ccMobileEditorPanel{width:min(1180px,96vw);max-height:92vh;overflow:auto;background:#fff8ef;border:5px solid #5b4a63;box-shadow:12px 12px 0 rgba(0,0,0,.25);color:#5b4a63}
+.ccMobileEditorHead{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:4px solid #5b4a63;background:#ffe8f2}
+.ccMobileEditorHead b{display:block;font-size:20px}.ccMobileEditorHead small{display:block;margin-top:5px;font-size:11px;opacity:.75}.ccMobileEditorHead button{width:42px;height:42px;border:3px solid #5b4a63;background:#fff;font-size:26px;font-weight:900;cursor:pointer}
+.ccMobileEditorBody{display:grid;grid-template-columns:minmax(520px,1fr) 300px;gap:18px;padding:18px}
+.ccMobileBlueprintWrap{display:flex;align-items:center;justify-content:center;min-height:430px;background:#eee7f0;border:3px dashed #9d86a3;padding:18px}
+.ccMobileBlueprint{position:relative;width:min(760px,100%);background:linear-gradient(rgba(91,74,99,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(91,74,99,.07) 1px,transparent 1px),#dff4ff;background-size:5% 9.259%;border:5px solid #5b4a63;overflow:hidden}
+.ccMobileBlueprintLabel{position:absolute;right:10px;top:8px;font-size:11px;font-weight:900;background:#fff;padding:4px 7px;border:2px solid #5b4a63}
+.ccMobileAxisX{position:absolute;left:42px;top:8px;font-size:11px;font-weight:900}.ccMobileAxisY{position:absolute;left:8px;top:42px;font-size:11px;font-weight:900}.ccMobileOrigin{position:absolute;left:8px;top:8px;font-size:10px;font-weight:900}
+.ccMobileBox{position:absolute;border:3px solid #5b4a63;background:rgba(255,143,182,.72);box-shadow:3px 3px 0 rgba(91,74,99,.2);cursor:pointer;font-family:inherit;color:#5b4a63;font-weight:900;overflow:hidden}.ccMobileBox:nth-of-type(4){background:rgba(255,212,94,.78)}.ccMobileBox:nth-of-type(5){background:rgba(169,228,255,.82)}.ccMobileBox.on{outline:4px solid #fff;box-shadow:0 0 0 4px #5b4a63,5px 5px 0 rgba(91,74,99,.25);z-index:5}.ccMobileBox span{display:block;font-size:10px;white-space:nowrap}.ccMobileBox em{display:block;font-style:normal;font-size:9px;margin-top:3px}
+.ccMobileEditorControls{border:4px solid #5b4a63;background:#fff;padding:14px;align-self:start}.ccMobileTargetTabs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px}.ccMobileTargetTabs button{border:3px solid #5b4a63;background:#fff;padding:6px 8px;font-family:inherit;font-weight:900;cursor:pointer}.ccMobileTargetTabs button.on{background:#ffd45e}.ccMobileSelectedTitle{font-size:15px;padding:8px 0 12px;border-bottom:2px solid #eee}.ccMobileEditorControls label{display:grid;grid-template-columns:24px 1fr 24px;gap:7px;align-items:center;margin-top:10px;font-weight:900}.ccMobileEditorControls input{width:100%;height:38px;border:3px solid #5b4a63;padding:4px 7px;font:inherit;font-weight:900}.ccMobileEditorControls label span{font-size:10px;opacity:.65}.ccMobileEditorHint{margin-top:14px;padding:9px;background:#fff7d6;border:2px solid #d5b96b;font-size:10px;line-height:1.5;font-weight:700}.ccMobileEditorBtns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:12px}.ccMobileEditorBtns button{border:3px solid #5b4a63;background:#fff;padding:8px 4px;font-family:inherit;font-weight:900;cursor:pointer}.ccMobileEditorBtns .primary{background:#ff8fb6;color:#fff}
+@media (max-width:850px){.ccMobileEditorBody{grid-template-columns:1fr}.ccMobileBlueprintWrap{min-height:0}.ccMobileEditorPanel{max-height:96vh}.ccMobileEditorBtns{grid-template-columns:1fr}}
 
 /* 세로 화면 안내 */
 .ccRotate{display:none;position:fixed;inset:0;z-index:99;background:${C.sky2};
