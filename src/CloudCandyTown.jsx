@@ -1,4 +1,4 @@
-/* CloudCandyTown v24 — jjimjilspa lobby photo uses Vite BASE_URL for local/Vercel/GitHub Pages compatibility */
+/* CloudCandyTown v2 — mobile bus/elevator/spa controls + Pixelify Sans */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
@@ -200,6 +200,7 @@ const FONTS = [
   { id: "pixel", name: "둥근모", css: '"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui,sans-serif' },
   { id: "jua", name: "주아 Jua", css: '"Jua","DungGeunMo","Malgun Gothic",system-ui,sans-serif' },
   { id: "single", name: "싱글데이 Single Day", css: '"Single Day","DungGeunMo","Malgun Gothic",cursive' },
+  { id: "pixelify", name: "Pixelify Sans", css: '"Pixelify Sans","DungGeunMo","Malgun Gothic",system-ui,sans-serif' },
 ];
 const FONT_DEFAULT = "coding";
 
@@ -717,8 +718,8 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
         </button>}
 
         <div className="ccLobbyActions">
-          {step === "welcome" && <div className="ccLobbyYesNo"><button onClick={yes}>네</button><button onClick={no}>아니오</button></div>}
-          {step === "confirm" && <div className="ccLobbyYesNo"><button onClick={confirm}>네</button></div>}
+          {step === "welcome" && <div className="ccLobbyYesNo"><button onPointerDown={(e)=>e.stopPropagation()} onClick={(e)=>{e.preventDefault();e.stopPropagation();yes();}}>네</button><button onPointerDown={(e)=>e.stopPropagation()} onClick={(e)=>{e.preventDefault();e.stopPropagation();no();}}>아니오</button></div>}
+          {step === "confirm" && <div className="ccLobbyYesNo"><button onPointerDown={(e)=>e.stopPropagation()} onClick={(e)=>{e.preventDefault();e.stopPropagation();confirm();}}>네</button></div>}
           {step === "paid" && !(inventory.bill && inventory.key) && <div className="ccSpaCollectHint">이용권과 락커키를 눌러 인벤토리에 넣어주세요.</div>}
         </div>
       </>}
@@ -756,7 +757,7 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
         <button className="ccElevatorSwitchHotspot" aria-label="엘리베이터 층 선택" onClick={()=>setFloorPicker(true)} />
         <div className="ccElevatorHint">버튼을 눌러서 이동하세요</div>
       </div>}
-      {floorPicker && <div className="ccFloorPickerOverlay" onClick={()=>setFloorPicker(false)}><div className="ccFloorPicker" onClick={e=>e.stopPropagation()}><b>엘리베이터</b><h2>어느 층으로 갈까요?</h2><div className="ccFloorPickerBtns"><button onClick={()=>chooseFloor("spa1")}>1층<small>목욕 · 샤워 · 사우나</small></button><button onClick={()=>chooseFloor("spa2")}>2층<small>온천 · 스파</small></button><button onClick={()=>chooseFloor("spa3")}>3층<small>찜질 · 휴식</small></button></div><button className="ccMini" onClick={()=>setFloorPicker(false)}>닫기</button></div></div>}
+      {floorPicker && <div className="ccFloorPickerOverlay" onClick={()=>setFloorPicker(false)}><div className="ccFloorPicker" onClick={e=>e.stopPropagation()}><div className="ccFloorPickerBtns"><button onClick={()=>chooseFloor("spa3")}><strong>3층</strong><small>찜질 · 휴식</small></button><button onClick={()=>chooseFloor("spa2")}><strong>2층</strong><small>온천 · 스파</small></button><button onClick={()=>chooseFloor("spa1")}><strong>1층</strong><small>목욕 · 샤워 · 사우나</small></button></div><button className="ccMini" onClick={()=>setFloorPicker(false)}>닫기</button></div></div>}
       <button className="ccLobbyExit" onClick={onExit}>← 나가기</button>
     </div>
   </div>;
@@ -2216,6 +2217,36 @@ function Town({ me, setMe, onKick }) {
     };
   }, []);
 
+  const boardBus = useCallback((bid) => {
+    if (!bid || sceneRef.current || ridingBusRef.current) return;
+    const bs = busStateRef.current[bid];
+    const route = BUS_ROUTES[bid];
+    if (!route) return;
+    if (bs?.status === "idle") {
+      const next = { status: "toDest", riderId: deviceId(), riderName: me.name, startedAt: Date.now() };
+      busStateRef.current = { ...busStateRef.current, [bid]: next };
+      setBusState(busStateRef.current);
+      sceneRef.current = null;
+      posRef.current = { ...route.start };
+      setPos({ ...route.start });
+      const vw0 = (viewRef.current.w || 1100) / (viewRef.current.z || 1);
+      const vh0 = (viewRef.current.h || 720) / (viewRef.current.z || 1);
+      camRef.current = {
+        x: clamp(route.start.x - vw0 / 2, 0, Math.max(0, WORLD.w - vw0)),
+        y: clamp(route.start.y - vh0 / 2 - 40 / (viewRef.current.z || 1), 0, Math.max(0, WORLD.h - vh0)),
+      };
+      setCam(camRef.current);
+      ridingBusRef.current = bid;
+      setRiding(true);
+      setToast(`🚌 ${route.label} 버스가 출발합니다! 부우웅~`);
+      chanRef.current?.fx({ t: "busBoard", busId: bid, riderId: deviceId(), riderName: me.name, startedAt: next.startedAt });
+    } else if (bs?.riderId && bs.riderId !== deviceId()) {
+      setToast("🚌 다른 손님이 버스를 이용 중이에요.");
+    } else if (bs?.status === "toDest" && bs?.riderId === deviceId()) {
+      setToast("🚌 이미 버스에 탑승 중이에요.");
+    }
+  }, [me.name]);
+
   /* 키 입력 */
   useEffect(() => {
     const down = (e) => {
@@ -2230,31 +2261,7 @@ function Town({ me, setMe, onKick }) {
       if (k === " ") {
         if (sheetRef.current) { setSheet(null); return; }
         if (!sceneRef.current && nearBusRef.current) {
-          const bid = nearBusRef.current;
-          const bs = busStateRef.current[bid];
-          const route = BUS_ROUTES[bid];
-          if (bs?.status === "idle") {
-            const next = { status: "toDest", riderId: deviceId(), riderName: me.name, startedAt: Date.now() };
-            busStateRef.current = { ...busStateRef.current, [bid]: next };
-            setBusState(busStateRef.current);
-            // 탑승 즉시 월드 모드/버스 모드로 확정하고 출발점으로 플레이어 좌표를 붙입니다.
-            sceneRef.current = null;
-            posRef.current = { ...route.start };
-            setPos({ ...route.start });
-            const vw0 = (viewRef.current.w || 1100) / (viewRef.current.z || 1);
-            const vh0 = (viewRef.current.h || 720) / (viewRef.current.z || 1);
-            camRef.current = {
-              x: clamp(route.start.x - vw0 / 2, 0, Math.max(0, WORLD.w - vw0)),
-              y: clamp(route.start.y - vh0 / 2 - 40 / (viewRef.current.z || 1), 0, Math.max(0, WORLD.h - vh0)),
-            };
-            setCam(camRef.current);
-            ridingBusRef.current = bid;
-            setRiding(true);
-            setToast(`🚌 ${route.label} 버스가 출발합니다! 부우웅~`);
-            chanRef.current?.fx({ t: "busBoard", busId: bid, riderId: deviceId(), riderName: me.name, startedAt: next.startedAt });
-          } else if (bs?.riderId && bs.riderId !== deviceId()) {
-            setToast("🚌 다른 손님이 버스를 이용 중이에요.");
-          }
+          boardBus(nearBusRef.current);
           return;
         }
         if (sceneRef.current) activateZone(zoneRef.current);
@@ -3833,7 +3840,7 @@ function Town({ me, setMe, onKick }) {
               const route = BUS_ROUTES[id];
               const bs = busState[id];
               const bp = busPosition(route, bs, Date.now());
-              return <div key={id} data-cc-bus={id} className={"ccBus " + (bs?.status === "toDest" ? "moving" : "") + (bs?.riderId ? "occupied" : "")} style={{ left: bp.x, top: bp.y }}>
+              return <div key={id} data-cc-bus={id} className={"ccBus " + (bs?.status === "toDest" ? "moving" : "") + (bs?.riderId ? "occupied" : "")} style={{ left: bp.x, top: bp.y }} onPointerDown={(e) => { e.stopPropagation(); boardBus(id); }} onClick={(e) => { e.stopPropagation(); boardBus(id); }}>
                 {objectImages[id === "cottonSpa" ? "bus:spa" : "bus:cotton"] ? <img src={objectImages[id === "cottonSpa" ? "bus:spa" : "bus:cotton"]} alt="" className="ccBusCustomImage" /> : <div className="ccBusBody"><span className="ccBusWindow"/><span className="ccBusWindow second"/><span className="ccBusWheel left"/><span className="ccBusWheel right"/><span className="ccBusLight left"/><span className="ccBusLight right"/></div>}
                 {bs?.riderId && <div className="ccBusName">{bs.riderName}</div>}
               </div>;
@@ -4618,6 +4625,7 @@ function Town({ me, setMe, onKick }) {
 const CUR = cursorUrls();
 
 const CSS = `
+@import url("https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap");
 *{box-sizing:border-box}
 html,body,#root{height:100%;margin:0}
 body{font-family:var(--ccFont,"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui,sans-serif);
@@ -5301,6 +5309,12 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 
 @media (hover:none) and (pointer:coarse){
   .ccTouch{display:block}
+  .ccSpaLobby .ccLobbyActions{z-index:120;pointer-events:none}
+  .ccSpaLobby .ccLobbyActions .ccLobbyYesNo{pointer-events:auto}
+  .ccSpaLobby .ccLobbyActions .ccLobbyYesNo button{pointer-events:auto;touch-action:manipulation}
+  .ccSpaLobby .ccFloorPickerOverlay{touch-action:manipulation}
+  .ccBus{pointer-events:auto}
+
   .ccHelp{display:none}
   /* 채팅바·피드·기록을 같은 자리에 세로로 쌓습니다 (조이스틱 오른쪽) */
   .ccChatBar{left:158px;width:min(300px,42vw);bottom:calc(16px + var(--kb, 0px))}
@@ -5525,7 +5539,7 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccRoadCenter{position:absolute;left:50%;top:0;bottom:0;width:7px;transform:translateX(-50%);background:repeating-linear-gradient(to bottom,#f7e58b 0 44px,transparent 44px 88px)}
 .ccRoadEdge{position:absolute;top:0;bottom:0;width:4px;background:#eee;opacity:.72}.ccRoadEdge.left{left:18px}.ccRoadEdge.right{right:18px}
 .ccBusCustomImage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:110px;height:150px;object-fit:contain;image-rendering:auto;filter:drop-shadow(4px 5px 0 rgba(91,74,99,.22))}
-.ccBus{position:absolute;z-index:18;width:72px;height:118px;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(4px 5px 0 rgba(91,74,99,.22))}.ccBusBody{position:absolute;inset:0;background:#ffe37a;border:5px solid #5b4a63;border-radius:12px;box-sizing:border-box}.ccBusWindow{position:absolute;left:11px;top:13px;width:50px;height:27px;background:#a9e4ff;border:4px solid #5b4a63;border-radius:5px}.ccBusWindow.second{top:47px}.ccBusWheel{position:absolute;left:-8px;width:12px;height:24px;background:#3f3944;border:3px solid #5b4a63;border-radius:4px}.ccBusWheel.left{top:20px}.ccBusWheel.right{top:75px}.ccBusLight{position:absolute;bottom:-7px;width:15px;height:9px;background:#ff4f5e;border:3px solid #5b4a63;border-radius:4px;opacity:0}.ccBusLight.left{left:8px}.ccBusLight.right{right:8px}.ccBus.occupied .ccBusLight{opacity:1;box-shadow:0 0 10px #ff4f5e}.ccBusName{position:absolute;left:50%;top:-27px;transform:translateX(-50%);white-space:nowrap;background:#fff;border:3px solid #5b4a63;padding:3px 7px;font-size:10px;font-weight:900;color:#5b4a63}.ccBus.moving .ccBusBody{animation:ccBusBump .18s steps(2,end) infinite}@keyframes ccBusBump{50%{transform:translateY(-1px)}}
+.ccBus{position:absolute;z-index:18;width:72px;height:118px;transform:translate(-50%,-50%);pointer-events:auto;cursor:pointer;touch-action:manipulation;filter:drop-shadow(4px 5px 0 rgba(91,74,99,.22))}.ccBusBody{position:absolute;inset:0;background:#ffe37a;border:5px solid #5b4a63;border-radius:12px;box-sizing:border-box}.ccBusWindow{position:absolute;left:11px;top:13px;width:50px;height:27px;background:#a9e4ff;border:4px solid #5b4a63;border-radius:5px}.ccBusWindow.second{top:47px}.ccBusWheel{position:absolute;left:-8px;width:12px;height:24px;background:#3f3944;border:3px solid #5b4a63;border-radius:4px}.ccBusWheel.left{top:20px}.ccBusWheel.right{top:75px}.ccBusLight{position:absolute;bottom:-7px;width:15px;height:9px;background:#ff4f5e;border:3px solid #5b4a63;border-radius:4px;opacity:0}.ccBusLight.left{left:8px}.ccBusLight.right{right:8px}.ccBus.occupied .ccBusLight{opacity:1;box-shadow:0 0 10px #ff4f5e}.ccBusName{position:absolute;left:50%;top:-27px;transform:translateX(-50%);white-space:nowrap;background:#fff;border:3px solid #5b4a63;padding:3px 7px;font-size:10px;font-weight:900;color:#5b4a63}.ccBus.moving .ccBusBody{animation:ccBusBump .18s steps(2,end) infinite}@keyframes ccBusBump{50%{transform:translateY(-1px)}}
 .ccParkGround{position:absolute;left:214px;top:2958px;width:1272px;height:470px;z-index:2;pointer-events:none}.ccParkCustomImage{display:block;object-fit:contain;image-rendering:auto;pointer-events:none}.ccParkSign .ccParkCustomImage.sign{width:100%;height:100%;object-fit:contain}.ccParkPond .ccParkCustomImage.pond{width:100%;height:100%;object-fit:contain}.ccParkGazebo .ccParkCustomImage.gazebo{width:100%;height:100%;object-fit:contain}.ccParkPlayground .ccParkCustomImage.playground{width:100%;height:100%;object-fit:contain}.ccParkPicnic .ccParkCustomImage.picnic{width:100%;height:100%;object-fit:contain}.ccParkFountain .ccParkCustomImage.fountain{width:100%;height:100%;object-fit:contain}.ccParkFlowers .ccParkCustomImage.flowers{width:100%;height:100%;object-fit:contain}.ccParkDogRun .ccParkCustomImage.dogrun{width:100%;height:100%;object-fit:contain}.ccParkDeco .ccParkCustomImage{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);width:76px;height:76px}.ccParkDeco .ccParkCustomImage.deco-tree{width:100px;height:120px}.ccParkDeco .ccParkCustomImage.deco-bench{width:88px;height:64px}.ccParkDeco .ccParkCustomImage.deco-lamp{width:70px;height:90px}
 .ccParkSign{position:absolute;left:50%;top:20px;transform:translateX(-50%);background:#fff4cf;border:5px solid #5b4a63;padding:9px 18px;font-weight:1000;box-shadow:5px 5px 0 rgba(91,74,99,.18);text-align:center}.ccParkSign small{display:block;font-size:8px;opacity:.65}.ccParkPond{position:absolute;left:110px;top:190px;width:280px;height:130px;border:7px solid #5b4a63;border-radius:48%;background:#72c8e8;box-shadow:inset 0 0 0 7px #aee8f5}.ccParkPond span{position:absolute;left:70px;top:42px;font-size:24px}.ccParkPond i{position:absolute;width:16px;height:8px;border-radius:50%;background:#fff;opacity:.65;animation:parkRipple 2s steps(3,end) infinite}.ccParkPond i:nth-child(2){left:140px;top:38px}.ccParkPond i:nth-child(3){left:190px;top:78px;animation-delay:.6s}.ccParkPond i:nth-child(4){left:90px;top:88px;animation-delay:1.1s}
 .ccParkGazebo{position:absolute;left:500px;top:75px;width:260px;height:170px;background:#d9c3a1;border:6px solid #5b4a63;box-shadow:8px 8px 0 rgba(91,74,99,.2);text-align:center}.ccParkGazebo .roof{font-size:54px;height:75px;background:#c88975}.ccParkGazebo .posts{font-size:34px;color:#6f503f;margin-top:12px}.ccParkGazebo b{font-size:10px}.ccParkPlayground{position:absolute;right:70px;top:115px;width:280px;height:170px;background:#e8d1ad;border:6px solid #5b4a63;text-align:center;box-shadow:8px 8px 0 rgba(91,74,99,.2)}.ccParkPlayground .slide,.ccParkPlayground .swing{display:inline-block;font-size:48px;margin:20px 20px 5px}.ccParkPlayground b{display:block;font-size:11px}.ccParkPicnic{position:absolute;left:430px;bottom:38px;width:260px;height:100px;background:#a8d98e;border:5px solid #5b4a63;text-align:center;padding-top:22px}.ccParkPicnic span{font-size:32px;margin:0 20px}.ccParkPicnic b{display:block;font-size:10px}.ccParkFountain{position:absolute;left:790px;bottom:65px;font-size:48px;text-align:center}.ccParkFountain small{display:block;font-size:9px;font-weight:900}.ccParkFlowers{position:absolute;left:80px;bottom:30px;font-size:28px}.ccParkDogRun{position:absolute;right:55px;bottom:20px;width:310px;height:70px;background:#d7c18d;border:5px dashed #5b4a63;text-align:center;padding-top:15px}.ccParkDogRun small{display:block;font-size:9px;font-weight:900}.ccParkDeco{position:absolute;transform:translate(-50%,-100%);font-size:38px;filter:drop-shadow(3px 4px 0 rgba(91,74,99,.18))}.ccParkDeco.bench{font-size:30px}.ccParkDeco.lamp{font-size:24px}
@@ -5558,7 +5572,7 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccLobbyBubble{position:absolute;z-index:32;min-height:64px;transform:translateX(-50%);box-sizing:border-box;background:#fffdf7;border:4px solid #4f403a;border-radius:18px;padding:13px 17px;box-shadow:5px 6px 0 rgba(63,49,48,.22);font-family:inherit;pointer-events:none}
 .ccLobbyBubbleName{font-size:11px;font-weight:1000;color:#b15f72;margin-bottom:4px}.ccLobbyBubbleText{font-size:18px;line-height:1.45;font-weight:900;word-break:keep-all;text-align:center;min-height:27px}.ccLobbyBubbleTail{position:absolute;left:50%;bottom:-16px;width:22px;height:22px;background:#fffdf7;border-right:4px solid #4f403a;border-bottom:4px solid #4f403a;transform:translateX(-50%) rotate(45deg)}
 .ccTypingCursor{display:inline-block;margin-left:2px;animation:ccTypingBlink .65s steps(1,end) infinite}@keyframes ccTypingBlink{50%{opacity:0}}
-.ccLobbyActions{position:absolute;left:50%;bottom:7%;transform:translateX(-50%);z-index:34;display:flex;flex-direction:column;align-items:center;gap:8px;max-width:90%}.ccLobbyActions .ccLobbyYesNo{margin-top:0;justify-content:center}.ccLobbyActions .ccLobbyYesNo button{min-width:82px}.ccLobbyBubbleGear{position:absolute;right:22px;top:20px;z-index:50;border:3px solid #4f403a;background:#fff7e8;padding:7px 10px;font-family:inherit;font-weight:900;cursor:pointer;box-shadow:3px 3px 0 rgba(63,49,48,.25)}
+.ccLobbyActions{position:absolute;left:50%;bottom:7%;transform:translateX(-50%);z-index:34;display:flex;flex-direction:column;align-items:center;gap:8px;max-width:90%}.ccLobbyActions .ccLobbyYesNo{margin-top:0;justify-content:center}.ccLobbyActions .ccLobbyYesNo button{min-width:82px;position:relative;z-index:60;pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent}.ccLobbyBubbleGear{position:absolute;right:22px;top:20px;z-index:50;border:3px solid #4f403a;background:#fff7e8;padding:7px 10px;font-family:inherit;font-weight:900;cursor:pointer;box-shadow:3px 3px 0 rgba(63,49,48,.25)}
 .ccLobbyBubbleSettings{position:absolute;right:22px;top:62px;width:300px;max-height:78vh;overflow:auto;z-index:51;background:#fffdf7;border:4px solid #4f403a;box-shadow:6px 6px 0 rgba(63,49,48,.25);padding:12px}.ccLobbyBubbleSettings>b{display:block;margin-bottom:8px}.ccLobbyBubbleSettings label{display:grid;grid-template-columns:70px 1fr 42px;gap:7px;align-items:center;font-size:10px;font-weight:900;margin:8px 0}.ccLobbyBubbleSettings input{width:100%}.ccLobbyBubbleSettings span{text-align:right}.ccManageSection{border-top:2px dashed #cdbda9;margin-top:9px;padding-top:8px}.ccManageSection strong{display:block;font-size:11px;margin-bottom:4px}.ccLobbyManagePanel>small{display:block;margin-top:8px;line-height:1.4;color:#8c7b8d}
 .ccLobbyPortrait{width:82px;height:82px;display:grid;place-items:center;background:#d7b9a0;border:5px solid #4f403a;font-size:46px;flex:none}.ccLobbyText{flex:1}.ccLobbyText>b{font-size:13px;color:#b15f72}.ccLobbyText h2{margin:3px 0 10px;font-size:20px}.ccLobbyChoices,.ccLobbyYesNo{display:flex;gap:8px;flex-wrap:wrap}.ccLobbyChoices button,.ccLobbyYesNo button{border:4px solid #4f403a;background:#f3dfb9;padding:8px 12px;font-family:inherit;font-weight:900;cursor:pointer;box-shadow:3px 3px 0 #4f403a}.ccLobbyChoices button.chosen{background:#f2a86d;transform:translate(2px,2px);box-shadow:1px 1px 0 #4f403a}.ccLobbyYesNo{margin-top:10px}.ccLobbyYesNo button:first-child{background:#8fc9a0}.ccLobbyYesNo button:last-child{background:#e8c4c4}.ccLobbyYesNo button:disabled{opacity:.4;cursor:not-allowed}.ccLobbyExit{position:absolute;right:22px;top:20px;border:4px solid #4f403a;background:#fff7e8;padding:8px 12px;font-weight:900;z-index:3}
 .ccSpaBlush{position:absolute;width:8px;height:5px;background:#ef8d91;image-rendering:pixelated;z-index:30}.ccSpaSteam{position:absolute;color:#fff;font-size:34px;font-weight:1000;z-index:30;animation:ccSteamUp 1s steps(3,end) infinite}@keyframes ccSteamUp{50%{transform:translateY(-12px);opacity:.65}100%{transform:translateY(-22px);opacity:0}}
@@ -5592,12 +5606,12 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccLobbyYesNo{justify-content:center}
 .ccLobbyPortrait{flex:none}
 .ccFloorPickerOverlay{position:absolute;inset:0;background:rgba(65,54,75,.42);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
-.ccFloorPicker{width:min(520px,90vw);background:#fff;border:5px solid #5b4a63;box-shadow:8px 8px 0 rgba(91,74,99,.28);padding:22px;text-align:center}
-.ccFloorPicker h2{margin:7px 0 16px}
-.ccFloorPickerBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-.ccFloorPickerBtns button{border:4px solid #5b4a63;background:#fff6dc;padding:16px 8px;font-family:inherit;font-weight:900;font-size:17px;cursor:pointer}
-.ccFloorPickerBtns button:hover{background:#ffd45e}
-.ccFloorPickerBtns small{display:block;margin-top:6px;font-size:9px;color:#8c7b8d}
+.ccFloorPicker{width:min(430px,86vw);background:#fff;border:5px solid #5b4a63;box-shadow:8px 8px 0 rgba(91,74,99,.28);padding:16px;text-align:center}
+.ccFloorPickerBtns{display:flex;flex-direction:column;gap:9px}
+.ccFloorPickerBtns button{width:100%;min-height:82px;border:4px solid #5b4a63;background:#fff6dc;padding:12px 14px;font-family:inherit;font-weight:900;font-size:22px;cursor:pointer;touch-action:manipulation;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ccFloorPickerBtns button:hover,.ccFloorPickerBtns button:active{background:#ffd45e}
+.ccFloorPickerBtns button strong{font-size:22px;line-height:1.1}
+.ccFloorPickerBtns small{display:block;margin-top:7px;font-size:13px;line-height:1.2;color:#6f6072;font-weight:900}
 
 .ccLobbyElevatorScene{position:absolute;inset:0;background-color:#dbe9ed;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:25;background-position:center;background-size:100% 100%;background-repeat:no-repeat;image-rendering:pixelated}
 .ccElevatorPhotoScene{background-position:center center}
