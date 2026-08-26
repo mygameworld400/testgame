@@ -602,14 +602,40 @@ const SPA_LOBBY_ROOM = { id:"spaLobby", name:"구름찜질스파 로비", emoji:
 const roomFor = (id) => id === "cotton" ? COTTON_ROOM : id === SPA_ENTRY_SCENE ? SPA_LOBBY_ROOM : (SPA_ROOMS_MAP[id] || ROOMS[id]);
 
 
-function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleLayout, onBubbleLayout, itemLayout = {}, itemImages = {}, onItemLayout }) {
+const SPA_LOBBY_LAYOUT_STORAGE_KEY = "ccSpaLobbyLayoutV2";
+const SPA_LOBBY_DEFAULT_LAYOUT = {
+  bubble: { x: 50, y: 22, w: 38 },
+  bill: { x: 50, y: 48, s: 0.58 },
+  key: { x: 50, y: 63, s: 0.58 },
+};
+
+function readSpaLobbySavedLayout() {
+  try {
+    const v = JSON.parse(localStorage.getItem(SPA_LOBBY_LAYOUT_STORAGE_KEY) || "null");
+    if (v && typeof v === "object") return {
+      bubble: { ...SPA_LOBBY_DEFAULT_LAYOUT.bubble, ...(v.bubble || {}) },
+      bill: { ...SPA_LOBBY_DEFAULT_LAYOUT.bill, ...(v.bill || {}) },
+      key: { ...SPA_LOBBY_DEFAULT_LAYOUT.key, ...(v.key || {}) },
+    };
+    const oldBubble = JSON.parse(localStorage.getItem("ccSpaLobbyBubbleLayout") || "null");
+    const oldItems = JSON.parse(localStorage.getItem("ccSpaLobbyItemLayout") || "null");
+    return {
+      bubble: { ...SPA_LOBBY_DEFAULT_LAYOUT.bubble, ...(oldBubble || {}) },
+      bill: { ...SPA_LOBBY_DEFAULT_LAYOUT.bill, ...(oldItems?.bill || {}) },
+      key: { ...SPA_LOBBY_DEFAULT_LAYOUT.key, ...(oldItems?.key || {}) },
+    };
+  } catch {
+    return SPA_LOBBY_DEFAULT_LAYOUT;
+  }
+}
+
+function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleLayout, onBubbleLayout, itemLayout = {}, itemImages = {}, onItemLayout, onSaveLayout }) {
   const [step, setStep] = useState("welcome");
   const [message, setMessage] = useState("목욕하러 오셨나요?");
   const [typedMessage, setTypedMessage] = useState("");
   const [showBubbleSettings, setShowBubbleSettings] = useState(false);
   const [showItemSettings, setShowItemSettings] = useState(false);
   const typingRef = useRef(null);
-  const [locker, setLocker] = useState(null);
   const [showBill, setShowBill] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [inventory, setInventory] = useState({ bill: false, key: false });
@@ -648,7 +674,6 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
   const confirm = () => {
     if (balance < 20) { setMessage("별이 부족하시네요."); setTimeout(onExit, 900); return; }
     onPay?.();
-    setLocker(`A-${String(Math.floor(Math.random()*90)+10)}`);
     setInventory({ bill: false, key: false });
     setStep("paid");
     setMessage("그럼 안내해드리겠습니다.");
@@ -682,10 +707,10 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
           <div className="ccSpaInventoryTitle">INVENTORY</div>
           <div className="ccSpaInventorySlots">
             <div className={"ccSpaInventorySlot " + (inventory.bill ? "filled" : "")} title={inventory.bill ? "이용권" : "빈 칸"}>
-              {inventory.bill && <img style={{transform:`scale(${Math.max(.55, Math.min(1.2, billLayout.s))})`}} src={itemImages.bill || `${import.meta.env.BASE_URL}bill.png`} alt="이용권" />}
+              {inventory.bill && <img className="ccSpaInventoryThumb" src={itemImages.bill || `${import.meta.env.BASE_URL}bill.png`} alt="이용권" />}
             </div>
             <div className={"ccSpaInventorySlot " + (inventory.key ? "filled" : "")} title={inventory.key ? "락커키" : "빈 칸"}>
-              {inventory.key && <img style={{transform:`scale(${Math.max(.55, Math.min(1.2, keyLayout.s))})`}} src={itemImages.key || `${import.meta.env.BASE_URL}key.png`} alt="락커키" />}
+              {inventory.key && <img className="ccSpaInventoryThumb" src={itemImages.key || `${import.meta.env.BASE_URL}key.png`} alt="락커키" />}
             </div>
             <div className="ccSpaInventorySlot" />
             <div className="ccSpaInventorySlot" />
@@ -700,7 +725,7 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
         </button>}
         {showKey && <button className="ccSpaPickupItem ccSpaKeyPickup" style={itemStyle("key")} onClick={() => collectItem("key")} title="락커키를 인벤토리에 넣기">
           <img src={itemImages.key || `${import.meta.env.BASE_URL}key.png`} alt="락커키" />
-          <span>락커키 {locker}</span>
+          <span>락커키</span>
         </button>}
 
         <div className="ccLobbyActions">
@@ -729,7 +754,8 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
             <label>세로 위치 <input type="range" min="15" max="85" value={keyLayout.y} onChange={e=>onItemLayout?.({ ...itemLayout, key:{...keyLayout,y:Number(e.target.value)} })}/><span>{keyLayout.y}%</span></label>
             <label>크기 <input type="range" min="0.25" max="1.1" step="0.01" value={keyLayout.s} onChange={e=>onItemLayout?.({ ...itemLayout, key:{...keyLayout,s:Number(e.target.value)} })}/><span>{Math.round(keyLayout.s*100)}%</span></label>
           </div>
-          <small>이용권·락커키는 업로드할 때 자동 누끼가 적용돼요. 위치와 크기는 모든 게스트에게 동일하게 보여요.</small>
+          <small>위치와 크기는 바로 미리볼 수 있지만, <b>저장</b>을 눌러야 새로고침·새 버전 배포 후에도 유지돼요.</small>
+          <button className="ccLobbyManageSave" onClick={()=>onSaveLayout?.()}>💾 위치·크기 저장</button>
         </div>}
       </>}
 
@@ -1549,12 +1575,9 @@ function Town({ me, setMe, onKick }) {
   const [objectImages, setObjectImages] = useState(() => {
     try { const v = JSON.parse(localStorage.getItem("ccObjectImages") || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; }
   });
-  const [spaLobbyBubbleLayout, setSpaLobbyBubbleLayout] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("ccSpaLobbyBubbleLayout") || "null") || { x: 50, y: 22, w: 38 }; } catch { return { x: 50, y: 22, w: 38 }; }
-  });
-  const [spaLobbyItemLayout, setSpaLobbyItemLayout] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("ccSpaLobbyItemLayout") || "null") || { bill:{x:50,y:48,s:0.58}, key:{x:50,y:63,s:0.58} }; } catch { return { bill:{x:50,y:48,s:0.58}, key:{x:50,y:63,s:0.58} }; }
-  });
+  const [spaLobbySavedLayout] = useState(() => readSpaLobbySavedLayout());
+  const [spaLobbyBubbleLayout, setSpaLobbyBubbleLayout] = useState(() => spaLobbySavedLayout.bubble);
+  const [spaLobbyItemLayout, setSpaLobbyItemLayout] = useState(() => ({ bill: spaLobbySavedLayout.bill, key: spaLobbySavedLayout.key }));
   const [objectImageTarget, setObjectImageTarget] = useState(BUILDINGS[0]?.id || "cake");          // 호스트가 올린 캐릭터 이미지
   const [live, setLive] = useState(true);          // 실시간 연결 상태
   const [movie, setMovie] = useState(null);        // 지금 상영 중인 것
@@ -2732,28 +2755,48 @@ function Town({ me, setMe, onKick }) {
     return () => cancelAnimationFrame(raf);
   }, [popBall, pressKey, doQuest, startRide]);
 
+  const normalizeSpaLobbyBubbleLayout = useCallback((next) => ({
+    x: Math.max(10, Math.min(90, Number(next?.x) || 50)),
+    y: Math.max(5, Math.min(75, Number(next?.y) || 22)),
+    w: Math.max(22, Math.min(70, Number(next?.w) || 38)),
+  }), []);
+
+  const normalizeSpaLobbyItemLayout = useCallback((next) => ({
+    bill: { x: Math.max(10, Math.min(90, Number(next?.bill?.x) || 50)), y: Math.max(15, Math.min(85, Number(next?.bill?.y) || 48)), s: Math.max(.25, Math.min(1.1, Number(next?.bill?.s) || .58)) },
+    key: { x: Math.max(10, Math.min(90, Number(next?.key?.x) || 50)), y: Math.max(15, Math.min(85, Number(next?.key?.y) || 63)), s: Math.max(.25, Math.min(1.1, Number(next?.key?.s) || .58)) },
+  }), []);
+
   const updateSpaLobbyBubbleLayout = useCallback((next) => {
     if (me.role !== "host") return;
-    const safe = {
-      x: Math.max(10, Math.min(90, Number(next?.x) || 50)),
-      y: Math.max(5, Math.min(75, Number(next?.y) || 22)),
-      w: Math.max(22, Math.min(70, Number(next?.w) || 38)),
-    };
+    const safe = normalizeSpaLobbyBubbleLayout(next);
     setSpaLobbyBubbleLayout(safe);
-    try { localStorage.setItem("ccSpaLobbyBubbleLayout", JSON.stringify(safe)); } catch {}
     chanRef.current?.fx({ t: "spaLobbyBubbleLayout", layout: safe });
-  }, [me.role]);
+  }, [me.role, normalizeSpaLobbyBubbleLayout]);
 
   const updateSpaLobbyItemLayout = useCallback((next) => {
     if (me.role !== "host") return;
-    const safe = {
-      bill: { x: Math.max(10, Math.min(90, Number(next?.bill?.x) || 50)), y: Math.max(15, Math.min(85, Number(next?.bill?.y) || 48)), s: Math.max(.25, Math.min(1.1, Number(next?.bill?.s) || .58)) },
-      key: { x: Math.max(10, Math.min(90, Number(next?.key?.x) || 50)), y: Math.max(15, Math.min(85, Number(next?.key?.y) || 63)), s: Math.max(.25, Math.min(1.1, Number(next?.key?.s) || .58)) },
-    };
+    const safe = normalizeSpaLobbyItemLayout(next);
     setSpaLobbyItemLayout(safe);
-    try { localStorage.setItem("ccSpaLobbyItemLayout", JSON.stringify(safe)); } catch {}
     chanRef.current?.fx({ t: "spaLobbyItemLayout", layout: safe });
-  }, [me.role]);
+  }, [me.role, normalizeSpaLobbyItemLayout]);
+
+  const saveSpaLobbyLayout = useCallback(() => {
+    if (me.role !== "host") return;
+    const bubble = normalizeSpaLobbyBubbleLayout(spaLobbyBubbleLayout);
+    const items = normalizeSpaLobbyItemLayout(spaLobbyItemLayout);
+    const payload = { bubble, bill: items.bill, key: items.key, savedAt: Date.now() };
+    try {
+      localStorage.setItem(SPA_LOBBY_LAYOUT_STORAGE_KEY, JSON.stringify(payload));
+      // 구버전 키도 같이 갱신해서 기존 코드/탭과 호환됩니다.
+      localStorage.setItem("ccSpaLobbyBubbleLayout", JSON.stringify(bubble));
+      localStorage.setItem("ccSpaLobbyItemLayout", JSON.stringify(items));
+    } catch {}
+    setSpaLobbyBubbleLayout(bubble);
+    setSpaLobbyItemLayout(items);
+    chanRef.current?.fx({ t: "spaLobbyBubbleLayout", layout: bubble });
+    chanRef.current?.fx({ t: "spaLobbyItemLayout", layout: items });
+    setToast("찜질스파 로비 위치·크기를 저장했어요.");
+  }, [me.role, normalizeSpaLobbyBubbleLayout, normalizeSpaLobbyItemLayout, spaLobbyBubbleLayout, spaLobbyItemLayout, setToast]);
 
   const applyObjectImage = useCallback(async (id, data) => {
     if (me.role !== "host" || !data) return;
@@ -2896,7 +2939,11 @@ function Town({ me, setMe, onKick }) {
 
         if (e.t === "spaLobbyBubbleLayout" && e.layout && typeof e.layout === "object") {
           setSpaLobbyBubbleLayout(e.layout);
-          try { localStorage.setItem("ccSpaLobbyBubbleLayout", JSON.stringify(e.layout)); } catch {}
+          return;
+        }
+
+        if (e.t === "spaLobbyItemLayout" && e.layout && typeof e.layout === "object") {
+          setSpaLobbyItemLayout(e.layout);
           return;
         }
 
@@ -3417,7 +3464,7 @@ function Town({ me, setMe, onKick }) {
             className="ccRoomWrap"
             style={{ width: SCREEN.w, height: SCREEN.h, transform: `translate(-50%,-50%) scale(${roomZoom})` }}
           >
-            {scene === SPA_ENTRY_SCENE ? <SpaLobby balance={balance} onPay={()=>setSpent(v=>v+20)} onFloor={changeSpaFloor} onExit={exitRoom} isHost={me.role === "host"} bubbleLayout={spaLobbyBubbleLayout} onBubbleLayout={updateSpaLobbyBubbleLayout} itemLayout={spaLobbyItemLayout} onItemLayout={updateSpaLobbyItemLayout} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }} /> : scene && scene.startsWith("spa") ? <SpaFloor
+            {scene === SPA_ENTRY_SCENE ? <SpaLobby balance={balance} onPay={()=>setSpent(v=>v+20)} onFloor={changeSpaFloor} onExit={exitRoom} isHost={me.role === "host"} bubbleLayout={spaLobbyBubbleLayout} onBubbleLayout={updateSpaLobbyBubbleLayout} itemLayout={spaLobbyItemLayout} onItemLayout={updateSpaLobbyItemLayout} onSaveLayout={saveSpaLobbyLayout} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }} /> : scene && scene.startsWith("spa") ? <SpaFloor
               scene={scene} player={pos} peers={roomPeers} me={me}
               onFloor={changeSpaFloor} onExit={exitRoom} onAction={setToast}
             /> : scene === "cotton" ? <CottonShopRoom
@@ -5513,6 +5560,14 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccSpaInventorySlot img{width:70%;height:70%;object-fit:contain}
 .ccSpaInventory{z-index:40!important}
 @keyframes ccSpaItemGlow{0%,100%{filter:drop-shadow(0 0 4px rgba(255,245,160,.5));}50%{filter:drop-shadow(0 0 12px rgba(255,245,160,1));}}
+
+/* v32: 저장된 로비 아이템은 인벤토리에서 작게만 표시하고, 수령하면 화면에서 즉시 사라집니다. */
+.ccSpaInventoryThumb{display:block!important;width:34px!important;height:34px!important;max-width:34px!important;max-height:34px!important;object-fit:contain!important;transform:none!important;filter:drop-shadow(1px 2px 0 rgba(79,64,58,.18))!important}
+.ccSpaPickupItem{min-width:0!important;width:auto!important;min-height:0!important}
+.ccSpaPickupItem img{width:90px!important;height:90px!important;max-width:90px!important;max-height:90px!important}
+.ccSpaPickupItem span{background:#fff7df;border:3px solid #4f403a;padding:3px 7px;font-size:10px;font-weight:1000;box-shadow:3px 3px 0 #4f403a}
+.ccLobbyManageSave{width:100%;margin-top:10px;border:4px solid #4f403a;background:#ffd45e;padding:9px 10px;font-family:inherit;font-weight:1000;cursor:pointer;box-shadow:3px 3px 0 #4f403a}
+.ccLobbyManageSave:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #4f403a}
 
 `;
 
