@@ -1,4 +1,4 @@
-/* CloudCandyTown v14 — 1층 스파 배경 + 욕탕 이미지 관리 */
+/* CloudCandyTown v15 — 맵/랭킹/노래방 동기화/방방/스파/건물 말풍선 수정 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
@@ -123,9 +123,9 @@ const BUILDINGS = [
   { id: "spa", name: "구름찜질스파", emoji: "🧖", tag: "찜질스파", x: 2180, y: 520, scale: 11,
     lines: ["1층은 목욕·샤워·사우나, 2층은 온천, 3층은 찜질과 휴식이에요.", "수건 하나 챙기고 천천히 둘러보세요."] },
 
-  { id: "sign", name: "여기 뭐 만들지..?", emoji: "🪧", tag: "윗동네", x: 1420, y: 640, scale: 5, sheet: "idea",
+  { id: "sign", name: "또 뭐 만들지?", emoji: "🪧", tag: "오른쪽맵", x: 2520, y: 620, scale: 5, sheet: "idea",
     lines: [
-      "여기 뭘 만들면 좋을까요?",
+      "또 뭘 만들면 좋을까요?",
       "적어주신 걸 보고 채워볼게요.",
     ] },
   { id: "fortune", name: "포춘쿠키", emoji: "🥠", tag: "운세", x: 250, y: 1550, scale: 5.5, sheet: "fortune",
@@ -679,8 +679,7 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
   const no = () => { setMessage("안녕히 가세요."); setTimeout(onExit, 650); };
   const yes = () => { setMessage("한 분 맞으신가요?"); setStep("confirm"); };
   const confirm = () => {
-    if (balance < 20) { setMessage("별이 부족하시네요."); setTimeout(onExit, 900); return; }
-    onPay?.();
+    /* 현재 테스트 기간에는 무료 입장입니다. 나중에 20원으로 되돌릴 수 있어요. */
     onInventoryChange?.({ bill: false, key: false });
     setStep("paid");
     setMessage("그럼 안내해드리겠습니다.");
@@ -840,42 +839,7 @@ function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction, invento
     <div className="ccSpaViewport">
       <div className={"ccSpaMap" + (floor === 1 ? " ccSpaMapFloor1" : "")} style={{width:SPA_W,height:SPA_H,transform:`translate(${-camX}px,${-camY}px)`}}>
         {floor === 1 && <img className="ccSpaFloorPhoto" src={`${import.meta.env.BASE_URL}1f.png`} alt="찜질스파 1층 배경" />}
-        <div className="ccSpaCeiling" />
-        <div className="ccSpaTitle">CLOUD JIMJIL SPA · {floor}F</div>
-        <div className="ccSpaMapLabel ccSpaEntrance">ENTRANCE</div>
-        {floor===1 && <>
-          <div className="ccSpaArea lockerArea"><h3>👕 탈의실 / 락커</h3><div className="ccLockerGrid">{lockerCols.map((_,i)=><div key={i} className="ccLocker">{String(i+1).padStart(2,"0")}</div>)}</div><div className="ccBench">나무 벤치 · 거울 · 체중계 · 드라이어</div></div>
-          <div className="ccSpaArea showerArea"><h3>🚿 샤워실</h3><div className="ccShowerGrid">{showerCols.map((_,i)=><div key={i} className="ccShower"><span>🚿</span><small>샴푸 · 바디워시</small></div>)}</div><div className="ccDrain">배수구　•　•　•　•　•</div></div>
-          <div className="ccSpaArea bathArea"><h3>🛁 대욕장</h3>
-            <button className="ccBath bigBath" onClick={()=>onAction("♨️ 온탕에 몸을 담갔어요. 물 온도 41°C.")}>{objectImages["spa:bath:hot"] ? <img className="ccSpaBathImage" src={objectImages["spa:bath:hot"]} alt="온탕" /> : <div className="ccWater"><span>♨</span><span>♨</span></div>}<b>{hot}°C 온탕</b></button>
-            <button className="ccBath smallBath cold" onClick={()=>onAction("❄ 냉탕은 생각보다 훨씬 차가워요!")}>{objectImages["spa:bath:cold"] ? <img className="ccSpaBathImage" src={objectImages["spa:bath:cold"]} alt="냉탕" /> : <b>❄ 냉탕<br/>17°C</b>}</button>
-            <button className="ccBath smallBath bubble" onClick={()=>onAction("🫧 거품이 보글보글 올라와요.")}>{objectImages["spa:bath:bubble"] ? <img className="ccSpaBathImage" src={objectImages["spa:bath:bubble"]} alt="거품탕" /> : <b>🫧 거품탕<br/>39°C</b>}</button>
-            <button className="ccBath smallBath med" onClick={()=>onAction("🌿 약탕에 들어갔어요. 은은한 향이 나요.")}>{objectImages["spa:bath:med"] ? <img className="ccSpaBathImage" src={objectImages["spa:bath:med"]} alt="약탕" /> : <b>🌿 약탕<br/>40°C</b>}</button>
-            <button className="ccBath smallBath electric" onClick={()=>onAction("⚡ 전기탕에서 몸이 찌릿찌릿해요.")}>{objectImages["spa:bath:electric"] ? <img className="ccSpaBathImage" src={objectImages["spa:bath:electric"]} alt="전기탕" /> : <b>⚡ 전기탕<br/>38°C</b>}</button>
-            <div className="ccTowelRack">수건 · 바가지 · 물 온도계</div></div>
-          <div className="ccSpaArea saunaArea"><h3>🔥 사우나 구역</h3><div className="ccSauna dry"><b>건식 사우나</b><span>86°C</span><div className="ccSaunaBench"/></div><div className="ccSauna kiln"><b>🔥 불가마</b><span>90°C</span><div className="ccFire"/></div><div className="ccSauna salt"><b>🧂 소금방</b><span>소금 결정 벽</span></div><div className="ccSauna clay"><b>🟤 황토방</b><span>따뜻한 황토 벽</span></div></div>
-          {p(1120,1030,170,90,"ccSpaStairs",()=>onFloor("spa2"),"2층 온천으로")}
-        </>}
-        {floor===2 && <>
-          <div className="ccSpaArea onsenMain" onClick={()=>onAction("♨️ 온천에 들어가니 몸이 따뜻하게 풀리는 느낌이에요.")}><h3>♨️ 대형 온천</h3><div className="ccOnsenWater">{clouds.map((c,i)=><i key={i} style={{left:c.x,top:c.y,animationDelay:`${i*.3}s`}}/>)}<b>40.5°C</b><span>돌계단 · 손잡이 · 온천석</span></div></div>
-          <div className="ccSpaArea privateBath"><h3>🪨 개인 온천탕</h3>{[1,2,3].map(i=><div className="ccPrivateTub" key={i}><span>♨</span><small>{39+i/2}°C</small></div>)}</div>
-          <div className="ccSpaArea carbonBath"><h3>🫧 탄산탕</h3><div className="ccBubbles">{Array.from({length:24},(_,i)=><i key={i} style={{left:`${5+(i*17)%90}%`,top:`${10+(i*29)%80}%`,animationDelay:`${(i%8)*.25}s`}}/>)}</div></div>
-          <div className="ccSpaArea viewBath"><h3>🌙 유리창 온천</h3><div className="ccWindowScene"><span>☾</span><i>🌳</i><i>🌳</i></div><p>밤에는 달빛이 물에 비쳐요.</p></div>
-          <div className="ccSpaArea waterStation"><h3>💧 온천수 마시는 곳</h3><div className="ccWaterCup">🥛 🥛 🥛</div><small>종이컵 · 정수기 · 수분 보충</small></div>
-          {p(1120,1030,170,90,"ccSpaStairs",()=>onFloor("spa3"),"3층 찜질로")}
-        </>}
-        {floor===3 && <>
-          <div className="ccSpaArea jjimMain"><h3>🧖 공용 찜질 휴게실</h3><div className="ccMatGrid">{Array.from({length:16},(_,i)=><div key={i} className="ccMat">{i%4===0?"🧖":""}</div>)}</div><div className="ccTV">📺　뉴스 / 예능　　🔊</div></div>
-          <div className="ccSpaArea rooms3"><h3>🔥 찜질방</h3><div className="ccHeatRooms"><div>🟤<b>황토방</b></div><div>🧂<b>소금방</b></div><div>🧊<b>아이스방<br/>-5°C</b></div><div>⚫<b>숯방</b></div><div>🔥<b>불가마</b></div></div></div>
-          <div className="ccSpaArea snackBar"><h3>🍳 매점</h3><div className="ccFoodShelf"><span>🥛 식혜</span><span>🥚 구운 계란</span><span>🍜 컵라면</span><span>🥤 이온음료</span><span>🍦 아이스크림</span><span>☕ 커피</span></div></div>
-          <div className="ccSpaArea vending"><h3>🥤 자판기</h3><div className="ccVendingGrid">{["🥤","🧃","💧","☕","🍦","🥛"].map((x,i)=><button key={i} onClick={()=>onAction(`${x} 음료를 하나 골랐어요.`)}>{x}<small>1,500원</small></button>)}</div></div>
-          <div className="ccSpaArea sleepArea"><h3>🛏️ 수면실</h3><div className="ccSleepBeds">{Array.from({length:8},(_,i)=><div key={i}>🛏️<small>{i<4?"남자":"여자"}</small></div>)}</div></div>
-          <div className="ccSpaArea massage"><h3>💆 마사지 의자</h3><div className="ccMassageChairs">💺 💺 💺</div><button onClick={()=>onAction("마사지 의자에 앉았습니다. 지잉—")}>마사지 받기</button></div>
-          <div className="ccSpaArea teaCorner"><h3>🥚 구운 계란 / 식혜</h3><button onClick={()=>onAction("식혜 한 컵과 구운 계란을 챙겼어요.")}>식혜 + 계란 먹기</button></div>
-          {p(1120,1030,170,90,"ccSpaStairs",()=>onFloor("spa1"),"1층으로 내려가기")}
-        </>}
-        <div className="ccSpaInfo">{floor===1?"샤워 → 탕 → 사우나 순서로 천천히 즐겨보세요.":floor===2?"온천석에 앉아 쉬거나 개인탕에서 조용히 쉬어가세요.":"수건 머리에 두르고 식혜 하나 들고 편하게 쉬어보세요."}</div>
-        <div className="ccSpaNpcLayer">{npcByFloor.map((n,i)=><div key={i} className="ccSpaNpc" style={{left:n.x,top:n.y}}><span>{["🧖","🧖‍♀️","🥤","😴","🧖","🥚"][n.s]}</span></div>)}</div>
+        {floor !== 1 && <div className="ccSpaEmptyFloorBg" aria-hidden="true" />}
         <div className="ccSpaPlayerLayer"><Avatar name={me.name} slot={me.slot} x={player.x} y={player.y} facing={1} moving={false} me look={me.look} skin={null}/>{peers.map(q=><Avatar key={q.id} name={q.name} slot={q.slot} x={q.x} y={q.y} facing={q.f||1} moving={!!q.m} me={false} look={q.lk} skin={null}/>)}</div>
       </div>
     </div>
@@ -1030,6 +994,7 @@ function Building({ b, near, objectImages = {} }) {
             <div className="ccCottonWindow" />
             <div className="ccCottonDoor" />
           </div>
+          <div className="ccBuildingTalkBubble">망했음</div>
         </div>
       ) : b.id === "spa" ? (
         <div className={"ccSpaExterior" + (near ? " ccNear" : "")}>
@@ -1037,6 +1002,7 @@ function Building({ b, near, objectImages = {} }) {
           <div className="ccSpaExtWindows"><i/><i/><i/><i/></div>
           <div className="ccSpaExtDoor">자동문</div>
           <div className="ccSpaExtSign">24H · 1F 목욕 · 2F 온천 · 3F 찜질</div>
+          <div className="ccBuildingTalkBubble">공사중.. 입장은가능</div>
         </div>
       ) : (
         <Pix map={sp.map} palette={sp.palette} scale={b.scale} cacheKey={"b-" + (b.sprite || b.id)} className={near ? "ccNear" : ""} />
@@ -3062,6 +3028,7 @@ function Town({ me, setMe, onKick }) {
         lk: lookRef.current,
         role: me.role,
         km: sceneRef.current === "sing" ? karaokeMicRef.current : null,
+        bt: sceneRef.current === "jump" && bounceRef.current ? 1 : 0,
         kr: sceneRef.current === "sing" && me.role === "host" ? karaokeRemoteRef.current : undefined,
         kml: sceneRef.current === "sing" && me.role === "host" ? karaokeMicLayoutRef.current : undefined,
         bgmMap: me.role === "host" ? roomBgmRef.current : undefined,
@@ -3112,7 +3079,7 @@ function Town({ me, setMe, onKick }) {
         }
         if (e.t === "karaoke") {
           if (e.url && youtubeId(e.url)) {
-            setKaraoke({ title: e.title || "노래방", url: e.url, by: e.by || "손님" });
+            setKaraoke({ title: e.title || "노래방", url: e.url, by: e.by || "손님", startedAt: Number(e.startedAt) || Date.now() });
           }
           return;
         }
@@ -3750,7 +3717,8 @@ function Town({ me, setMe, onKick }) {
               {scene === "sing" && karaoke && youtubeId(karaoke.url) && (
                 <div className="ccKaraokeVideoScreen" aria-label={karaoke.title}>
                   <iframe
-                    src={`https://www.youtube.com/embed/${youtubeId(karaoke.url)}?autoplay=1&playsinline=1&rel=0&controls=1`}
+                    key={`${youtubeId(karaoke.url)}-${karaoke.startedAt || 0}`}
+                    src={`https://www.youtube-nocookie.com/embed/${youtubeId(karaoke.url)}?autoplay=1&playsinline=1&rel=0&controls=1&start=${Math.max(0, Math.floor((Date.now() - (karaoke.startedAt || Date.now())) / 1000))}`}
                     title={karaoke.title}
                     allow="autoplay; encrypted-media; picture-in-picture; web-share"
                     referrerPolicy="strict-origin-when-cross-origin"
@@ -3916,6 +3884,7 @@ function Town({ me, setMe, onKick }) {
                     hold={q.hd >= 0 ? MENU[q.hd]?.emoji : null}
                     look={q.lk}
                     skin={skinImg(q.lk)}
+                    bounce={scene === "jump" && !!q.bt}
                   />
                 );
               })}
@@ -5394,6 +5363,9 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccSpaMap{background:#cdbb9d!important;background-image:repeating-linear-gradient(0deg,rgba(90,70,48,.055) 0 2px,transparent 2px 8px),repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 2px,transparent 2px 12px)!important}
 .ccSpaMapFloor1{background:#cdbb9d!important}
 .ccSpaFloorPhoto{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;z-index:0;pointer-events:none;image-rendering:auto}
+.ccSpaEmptyFloorBg{position:absolute;inset:0;background:linear-gradient(180deg,#dce8ec 0%,#cbd7d9 100%);z-index:0;pointer-events:none}
+.ccBuildingTalkBubble{position:absolute;left:50%;top:-72px;transform:translateX(-50%);min-width:150px;max-width:230px;padding:8px 12px;background:#fff; border:3px solid #5b4a63; border-radius:12px;box-shadow:4px 4px 0 rgba(91,74,99,.18);font-weight:900;font-size:14px;line-height:1.25;text-align:center;z-index:20;white-space:normal}
+.ccBuildingTalkBubble:after{content:"";position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);width:18px;height:14px;background:#fff;border-right:3px solid #5b4a63;border-bottom:3px solid #5b4a63;transform:translateX(-50%) rotate(45deg)}
 .ccSpaMapFloor1 .ccSpaCeiling{display:none}
 .ccSpaMapFloor1 .ccSpaArea{background:rgba(241,228,207,.18)!important}
 .ccSpaBathImage{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;z-index:0;pointer-events:none}
