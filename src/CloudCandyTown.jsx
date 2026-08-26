@@ -424,21 +424,14 @@ const PARK_DECO = [
   {x:400,y:3340,t:'tree'}, {x:1180,y:3350,t:'tree'}, {x:1330,y:3290,t:'tree'},
   {x:520,y:3250,t:'bench'}, {x:1080,y:3260,t:'bench'}, {x:740,y:3070,t:'lamp'}, {x:880,y:3070,t:'lamp'},
 ];
-const PARK_BLOCKS = [
-  {x1:690,x2:930,y1:3120,y2:3230},
-  {x1:850,x2:1120,y1:3190,y2:3290},
-];
+const PARK_BLOCKS = [];
 
 /* 건물 이미지 관리에서 함께 바꿀 수 있는 버스/공원 오브제 목록 */
 const PARK_IMAGE_TARGETS = [
   { id: "park:sign", label: "구름공원 표지판" },
   { id: "park:pond", label: "공원 연못" },
-  { id: "park:gazebo", label: "공원 정자" },
-  { id: "park:playground", label: "어린이 놀이터" },
-  { id: "park:picnic", label: "피크닉 잔디" },
   { id: "park:fountain", label: "작은 분수" },
   { id: "park:flowers", label: "공원 꽃밭" },
-  { id: "park:dogrun", label: "강아지 산책길" },
   { id: "park:tree", label: "공원 나무" },
   { id: "park:bench", label: "공원 벤치" },
   { id: "park:lamp", label: "공원 가로등" },
@@ -994,7 +987,6 @@ function Building({ b, near, objectImages = {} }) {
             <div className="ccCottonWindow" />
             <div className="ccCottonDoor" />
           </div>
-          <div className="ccBuildingTalkBubble">망했음</div>
         </div>
       ) : b.id === "spa" ? (
         <div className={"ccSpaExterior" + (near ? " ccNear" : "")}>
@@ -1002,11 +994,13 @@ function Building({ b, near, objectImages = {} }) {
           <div className="ccSpaExtWindows"><i/><i/><i/><i/></div>
           <div className="ccSpaExtDoor">자동문</div>
           <div className="ccSpaExtSign">24H · 1F 목욕 · 2F 온천 · 3F 찜질</div>
-          <div className="ccBuildingTalkBubble">공사중.. 입장은가능</div>
         </div>
       ) : (
         <Pix map={sp.map} palette={sp.palette} scale={b.scale} cacheKey={"b-" + (b.sprite || b.id)} className={near ? "ccNear" : ""} />
       )}
+      {/* v17: 건물 커스텀 이미지 여부와 관계없이 외부 말풍선을 항상 표시합니다. */}
+      {b.id === "cotton" && <div className="ccBuildingTalkBubble">망했음</div>}
+      {b.id === "spa" && <div className="ccBuildingTalkBubble">공사중.. 입장은가능</div>}
       <div className="ccSign">
         {b.emoji} {b.name}
       </div>
@@ -1143,12 +1137,8 @@ function ParkGround({ objectImages = {} }){
   return <div className="ccParkGround" aria-label="구름공원">
     <div className="ccParkSign">{img("park:sign", "sign") || <><span>🌳 구름공원</span> <small>Cloud Park</small></>}</div>
     <div className="ccParkPond">{img("park:pond", "pond") || <><span>🦆</span><i/><i/><i/></>}</div>
-    <div className="ccParkGazebo">{img("park:gazebo", "gazebo") || <><div className="roof">⛺</div><div className="posts">▥　▥　▥</div><b>그늘 정자</b></>}</div>
-    <div className="ccParkPlayground">{img("park:playground", "playground") || <><div className="slide">🛝</div><div className="swing">♜</div><b>어린이 놀이터</b></>}</div>
-    <div className="ccParkPicnic">{img("park:picnic", "picnic") || <><span>🧺</span><span>🧺</span><b>피크닉 잔디</b></>}</div>
     <div className="ccParkFountain">{img("park:fountain", "fountain") || <>⛲<small>작은 분수</small></>}</div>
     <div className="ccParkFlowers">{img("park:flowers", "flowers") || <>🌷 🌼 🌷 🌼 🌷</>}</div>
-    <div className="ccParkDogRun">{img("park:dogrun", "dogrun") || <>🐕　🐕<small>강아지 산책길</small></>}</div>
     {PARK_DECO.map((d,i)=><div key={i} className={`ccParkDeco ${d.t}`} style={{left:d.x,top:d.y}}>{objectImages[`park:${d.t}`] ? <img src={objectImages[`park:${d.t}`]} alt="" className={`ccParkCustomImage deco-${d.t}`} /> : d.t==='tree'?'🌳':d.t==='bench'?'🪑':'💡'}</div>)}
   </div>;
 }
@@ -2223,8 +2213,33 @@ function Town({ me, setMe, onKick }) {
     if (id === "cotton-shelf") { setToast(`🍭 진열대에 ${cottonShelf.length}개의 솜사탕이 있어요.`); return; }
     if (id === "spaLobby") { enterRoom(SPA_ENTRY_SCENE); return; }
     if (id === "spa1" || id === "spa2" || id === "spa3") { changeSpaFloor(id); return; }
-    if (id === "dress") loadSkins();
-    if (id === "arcade" || id === "starview" || id === "showtime" || id === "songs") {
+    /* 내부 방의 설치물을 눌렀을 때만 해당 메뉴를 엽니다.
+       건물 입장 자체에서 sheet를 열지 않아 방 내부 구조/테이블을 그대로 보여줍니다. */
+    if (id === "dress") {
+      loadSkins();
+      setSheet("dress");
+      return;
+    }
+    if (id === "buy") {
+      setSheet("menu");
+      return;
+    }
+    if (id === "showtime") {
+      doQuest("movie");
+      setSheet("movie");
+      return;
+    }
+    if (id === "music") {
+      doQuest("music");
+      setSheet("music");
+      return;
+    }
+    if (id === "gacha") {
+      doQuest("gacha");
+      setSheet("gacha");
+      return;
+    }
+    if (id === "arcade" || id === "starview" || id === "songs") {
       if (id === "arcade") doQuest("arcade");
       setSheet(id);
       return;
@@ -2419,6 +2434,16 @@ function Town({ me, setMe, onKick }) {
       }
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) e.preventDefault();
       if (k === " ") {
+        /* LP바 플레이리스트는 PC에서도 현재 zone을 기준으로 직접 엽니다.
+           모바일 터치와 달리 키보드는 zone 힌트 버튼의 DOM 이벤트를 거치지 않으므로
+           Space 입력이 확실하게 MusicSheet까지 연결되도록 합니다. */
+        if (sceneRef.current && zoneRef.current === "music") {
+          e.preventDefault();
+          doQuest("music");
+          setSheet("music");
+          blip(760);
+          return;
+        }
         performPrimaryAction();
         return;
       }
@@ -3933,7 +3958,19 @@ function Town({ me, setMe, onKick }) {
           )}
 
           {zoneId && (
-            <button className="ccZoneHint" onClick={() => activateZone(zoneId)}>
+            <button
+              className="ccZoneHint"
+              onPointerDown={(e) => {
+                if (zoneId !== "music") return;
+                e.preventDefault();
+                e.stopPropagation();
+                activateZone("music");
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                activateZone(zoneId);
+              }}
+            >
               SPACE —{" "}
               {zoneId === "chair"
                 ? sit == null ? "앉기" : "일어나기"
@@ -4364,6 +4401,173 @@ function Town({ me, setMe, onKick }) {
         <span className="ccFbWord">피드백</span>
       </button>
       </div>
+
+      {sheet === "arcade" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <ArcadeSheet
+            pick="fart"
+            me={me}
+            off={me.role === "solo"}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "gacha" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <GachaSheet
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            onDraw={() => doQuest("gacha")}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "music" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <MusicSheet
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            playingId={null}
+            onPlay={() => doQuest("music")}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "movie" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <MovieSheet
+            me={me}
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            off={me.role === "solo"}
+            now={movie}
+            onPlay={loadMovie}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "fortune" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <FortuneSheet
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            onDraw={() => doQuest("fortune")}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "menu" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <MenuSheet
+            balance={balance}
+            holding={holding}
+            onBuy={buyMenu}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "dress" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <DressSheet
+            look={look}
+            owned={owned}
+            balance={balance}
+            skins={skins}
+            onApply={applyLook}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {/* v17: 모든 setSheet 대상에 실제 시트를 연결합니다.
+          이전 버전에서 상태만 바뀌고 렌더링이 빠진 시트가 있어
+          퀴즈/노래방/팀전/스킨/피드백을 열면 이동이 잠긴 채 화면이 비어 있었습니다. */}
+      {sheet === "quiz" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <QuizSheet
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            mode={quizMode}
+            fixedPack={quizMode === "team" ? teamPack : null}
+            onFinish={() => {}}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "songs" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <SongbookSheet
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            off={me.role === "solo"}
+            playingId={karaoke?.id || null}
+            onPlay={(songs, index, pl) => {
+              const t = songs?.[index];
+              if (!t) return;
+              const url = t.url || t.path || "";
+              const vid = youtubeId(url);
+              if (!vid) return;
+              const startedAt = Date.now();
+              const next = { id: t.id, title: t.title || "노래방", url, by: me.name, startedAt };
+              setKaraoke(next);
+              setSheet(null);
+              chanRef.current?.fx({ t: "karaoke", id: t.id, title: next.title, url, by: me.name, startedAt });
+              chanRef.current?.fx({ t: "karaokeStart", name: me.name, announcementId: "karaoke-" + startedAt });
+              doQuest("karaoke");
+              blip(860);
+            }}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "lobby" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <TeamLobby
+            me={me}
+            games={games}
+            myGid={myGid}
+            packs={packs}
+            results={results}
+            onCreate={createGame}
+            onJoin={joinGame}
+            onLeave={leaveGame}
+            onStart={startGame}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "skins" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <SkinSheet
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            skins={skins}
+            onChanged={loadSkins}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "feedback" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <FeedbackSheet
+            round={me.round ?? 1}
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            off={me.role === "solo"}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
 
       {sheet === "starview" && (
         <StarViewSheet onClose={() => setSheet(null)} />
