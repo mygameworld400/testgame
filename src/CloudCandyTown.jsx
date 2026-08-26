@@ -1393,6 +1393,9 @@ function Town({ me, setMe, onKick }) {
   const facingRef = useRef(1);
   const movingRef = useRef(false);
   const camRef = useRef({ x: 0, y: 0 });
+  // 버스 탑승 중에는 React state 렌더 주기와 무관하게 화면/버스를 매 프레임 직접 갱신합니다.
+  const worldDomRef = useRef(null);
+  const cloudDomRef = useRef(null);
   const keys = useRef({});
   const nearRef = useRef(null);
   const nearBusRef = useRef(null);
@@ -2142,7 +2145,7 @@ function Town({ me, setMe, onKick }) {
     })();
   }, [sheet]);
 
-  /* 게임 루프 — 마을과 방 안 모두 여기서 돕니다 */
+  /* 게임 루프 — 마을과 방 안 모두 여기서 돕니다. 버스/카메라는 매 프레임 DOM도 직접 갱신합니다. */
   useEffect(() => {
     let raf;
     let last = performance.now();
@@ -2436,6 +2439,21 @@ function Town({ me, setMe, onKick }) {
         setBusState({ ...busStateRef.current });
       }
 
+      // 버스와 카메라는 React의 setState 주기와 분리해서 매 프레임 직접 움직입니다.
+      // 기존 구조에서는 busState/cam state가 갱신되는 시점 사이에 DOM이 멈춰 보여
+      // 버스가 출발해도 화면이 고정된 것처럼 보일 수 있었습니다.
+      for (const id of BUS_IDS) {
+        const route = BUS_ROUTES[id];
+        const bs = busStateRef.current[id];
+        if (!bs) continue;
+        const el = document.querySelector(`[data-cc-bus="${id}"]`);
+        if (el) {
+          const bp = busPosition(route, bs, now);
+          el.style.left = `${bp.x}px`;
+          el.style.top = `${bp.y}px`;
+        }
+      }
+
       const v = viewRef.current;
       const z = v.z || 1;
       const vw = v.w / z;
@@ -2468,7 +2486,19 @@ function Town({ me, setMe, onKick }) {
         ? { x: tx, y: ty }
         : { x: c.x + (tx - c.x) * 0.14, y: c.y + (ty - c.y) * 0.14 };
       camRef.current = nc;
-      setCam(nc);
+
+      // 중요: 카메라는 React state가 다시 렌더링될 때까지 기다리지 않습니다.
+      // 월드/구름 DOM을 같은 프레임에 직접 이동시켜 버스와 화면 시점을 1:1로 맞춥니다.
+      const worldEl = worldDomRef.current;
+      const cloudEl = cloudDomRef.current;
+      if (worldEl) {
+        worldEl.style.transform = `translate3d(${-nc.x * z}px, ${-nc.y * z}px, 0) scale(${z})`;
+      }
+      if (cloudEl) {
+        cloudEl.style.transform = `translate3d(${-nc.x * z * 0.35}px, ${-nc.y * z * 0.35}px, 0) scale(${z})`;
+      }
+      // 비탑승 상태에서도 기존 React UI/상태와 동기화합니다.
+      if (!ridingNow) setCam(nc);
 
       raf = requestAnimationFrame(step);
     };
@@ -3375,8 +3405,9 @@ function Town({ me, setMe, onKick }) {
           <div className="ccSky" />
 
           <div
+            ref={cloudDomRef}
             className="ccClouds"
-            style={{ transform: `scale(${zoom}) translate3d(${-cam.x * 0.35}px, ${-cam.y * 0.35}px, 0)` }}
+            style={{ transform: `translate3d(${-cam.x * zoom * 0.35}px, ${-cam.y * zoom * 0.35}px, 0) scale(${zoom})` }}
           >
             {CLOUDS.map(([x, y, s], i) => (
               <div key={i} className="ccCloud" style={{ left: x, top: y, animationDelay: `${i * 1.3}s` }}>
@@ -3386,11 +3417,12 @@ function Town({ me, setMe, onKick }) {
           </div>
 
           <div
+            ref={worldDomRef}
             className="ccWorld"
             style={{
               width: WORLD.w,
               height: WORLD.h,
-              transform: `scale(${zoom}) translate3d(${-cam.x}px, ${-cam.y}px, 0)`,
+              transform: `translate3d(${-cam.x * zoom}px, ${-cam.y * zoom}px, 0) scale(${zoom})`,
             }}
           >
             <Ground />
@@ -3422,7 +3454,7 @@ function Town({ me, setMe, onKick }) {
               const route = BUS_ROUTES[id];
               const bs = busState[id];
               const bp = busPosition(route, bs, Date.now());
-              return <div key={id} className={"ccBus " + (bs?.status === "toDest" ? "moving" : "") + (bs?.riderId ? "occupied" : "")} style={{ left: bp.x, top: bp.y }}>
+              return <div key={id} data-cc-bus={id} className={"ccBus " + (bs?.status === "toDest" ? "moving" : "") + (bs?.riderId ? "occupied" : "")} style={{ left: bp.x, top: bp.y }}>
                 <div className="ccBusBody"><span className="ccBusWindow"/><span className="ccBusWindow second"/><span className="ccBusWheel left"/><span className="ccBusWheel right"/><span className="ccBusLight left"/><span className="ccBusLight right"/></div>
                 {bs?.riderId && <div className="ccBusName">{bs.riderName}</div>}
               </div>;
