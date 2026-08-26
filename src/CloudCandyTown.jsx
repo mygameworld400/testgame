@@ -600,12 +600,7 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit }) {
   const chooseFloor = (id) => { setFloorPicker(false); onFloor?.(id); };
 
   return <div className="ccSpaLobby">
-    <div className="ccLobbyPerspective">
-      <div className="ccLobbyCeilingLight">✦</div>
-      <div className="ccLobbyBackWall"><div className="ccLobbyLogo">CLOUD JIMJIL SPA</div><div className="ccLobbySub">구름찜질스파 · 24H</div></div>
-      <div className="ccLobbyCounter"><div className="ccLobbyCounterTop"><span>RECEPTION</span><b>카운터</b></div><div className="ccLobbyCounterFront"><span>🧾 이용권 발권</span><span>🔑 락커키</span></div></div>
-      <div className="ccLobbyStaff"><div className="ccStaffHair"/><div className="ccStaffHead"><i className="ccStaffEye e1"/><i className="ccStaffEye e2"/><i className="ccStaffNose"/><i className="ccStaffMouth"/></div><div className="ccStaffBody"/><div className="ccStaffArm"/></div>
-      <div className="ccLobbyPlant">🌿</div>
+    <div className="ccLobbyPerspective ccLobbyPhoto">
       <div className="ccLobbyDialogue">
         <div className="ccLobbyPortrait"><div className="ccPortraitPixelHead"/><div className="ccPortraitPixelBody"/></div>
         <div className="ccLobbyText">
@@ -5245,8 +5240,8 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccWindowScene{background:linear-gradient(#17344a,#315a68 55%,#244436)!important;border:7px solid #4f403a!important;box-shadow:inset 0 0 0 5px #8b6b4e!important}
 .ccSpaNpc span{filter:saturate(.8);font-size:28px}
 .ccSpaLobby{position:absolute;inset:0;background:#bcae96;overflow:hidden;z-index:40}
-.ccLobbyPerspective{position:absolute;inset:0;overflow:hidden;background:linear-gradient(#c8d0d1 0 18%,#8d7665 18% 20%,#d6c09f 20% 62%,#8b6f58 62% 100%)}
-.ccLobbyPerspective:before{content:"";position:absolute;left:8%;right:8%;top:17%;height:47%;background:#eadfc9;border:8px solid #4f403a;box-shadow:inset 0 0 0 5px #a8906d}
+.ccLobbyPerspective{position:absolute;inset:0;overflow:hidden;background:#d9b88d}
+.ccLobbyPhoto{background-image:url("/spa-lobby.png");background-position:center center;background-repeat:no-repeat;background-size:cover;image-rendering:auto}
 .ccLobbyBackWall{position:absolute;left:30%;top:22%;width:40%;height:22%;text-align:center;background:#efe2c8;border:6px solid #5b4a63;box-shadow:8px 8px 0 rgba(63,49,48,.25);padding-top:26px}
 .ccLobbyLogo{font-size:28px;font-weight:1000;color:#5b4a63;text-shadow:3px 3px 0 #fff}
 .ccLobbySub{margin-top:8px;font-weight:900;color:#8c6f55}
