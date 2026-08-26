@@ -43,11 +43,12 @@ const AREAS = [
 ];
 const PLAY = { x0: 190, y0: 320, x1: 2820, y1: 3490 };
 const inArea = (x, y) => AREAS.some((a) => x >= a.x0 && x <= a.x1 && y >= a.y0 && y <= a.y1);
+const BUS_RETURN_DURATION = 1800;
 const BUS_ROUTES = {
   // dropoff은 버스가 도로 끝에 선 뒤 승객이 실제 맵으로 내릴 위치입니다.
   // 도로 자체는 보행 불가이므로, 자동 하차 시 도로 밖의 보행 가능 구역으로 내려줍니다.
-  cottonSpa: { id: "cottonSpa", label: "솜사탕 → 찜질스파", laneX: 2290, start: { x: 2290, y: 2070 }, end: { x: 2290, y: 820 }, dropoff: { x: 2290, y: 745 }, duration: 6500 },
-  spaCotton: { id: "spaCotton", label: "찜질스파 → 솜사탕", laneX: 2210, start: { x: 2210, y: 820 }, end: { x: 2210, y: 2070 }, dropoff: { x: 2210, y: 2140 }, duration: 6500 },
+  cottonSpa: { id: "cottonSpa", label: "솜사탕 → 찜질스파", laneX: 2290, start: { x: 2290, y: 2070 }, end: { x: 2290, y: 820 }, dropoff: { x: 2290, y: 745 }, duration: 5600 },
+  spaCotton: { id: "spaCotton", label: "찜질스파 → 솜사탕", laneX: 2210, start: { x: 2210, y: 820 }, end: { x: 2210, y: 2070 }, dropoff: { x: 2210, y: 2140 }, duration: 5600 },
 };
 const BUS_IDS = Object.keys(BUS_ROUTES);
 const busPosition = (route, state, now) => {
@@ -55,7 +56,7 @@ const busPosition = (route, state, now) => {
   const from = state.status === "return" ? route.end : route.start;
   const to = state.status === "return" ? route.start : route.end;
   const elapsed = Math.max(0, now - state.startedAt);
-  const t = Math.min(1, elapsed / (state.status === "return" ? 2200 : route.duration));
+  const t = Math.min(1, elapsed / (state.status === "return" ? BUS_RETURN_DURATION : route.duration));
   return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
 };
 
@@ -431,6 +432,26 @@ const PARK_BLOCKS = [
   {x1:850,x2:1120,y1:3190,y2:3290},
 ];
 
+/* 건물 이미지 관리에서 함께 바꿀 수 있는 버스/공원 오브제 목록 */
+const PARK_IMAGE_TARGETS = [
+  { id: "park:sign", label: "구름공원 표지판" },
+  { id: "park:pond", label: "공원 연못" },
+  { id: "park:gazebo", label: "공원 정자" },
+  { id: "park:playground", label: "어린이 놀이터" },
+  { id: "park:picnic", label: "피크닉 잔디" },
+  { id: "park:fountain", label: "작은 분수" },
+  { id: "park:flowers", label: "공원 꽃밭" },
+  { id: "park:dogrun", label: "강아지 산책길" },
+  { id: "park:tree", label: "공원 나무" },
+  { id: "park:bench", label: "공원 벤치" },
+  { id: "park:lamp", label: "공원 가로등" },
+];
+const OBJECT_IMAGE_LABELS = new Map([
+  ["bus", "마을 버스"],
+  ...PARK_IMAGE_TARGETS.map((v) => [v.id, v.label]),
+]);
+const objectImageLabel = (id) => BUILDINGS.find((b) => b.id === id)?.name || OBJECT_IMAGE_LABELS.get(id) || "오브제";
+
 const POND = [
   { x: 1360, y: 1560, w: 168, h: 24 },
   { x: 1336, y: 1584, w: 216, h: 64 },
@@ -759,11 +780,19 @@ function ObjectImageSheet({ objectImages = {}, target, setTarget, onApply, onRes
   return (
     <div className="ccPanel ccObjectSheet" onClick={e=>e.stopPropagation()}>
       <div className="ccObjectSheetHead">
-        <div><b>🏠 건물 · 오브제 이미지 관리</b><small>호스트만 변경할 수 있어요</small></div>
+        <div><b>🏠 건물 · 🚌 버스 · 🌳 공원 이미지 관리</b><small>호스트만 변경할 수 있어요</small></div>
         <button className="ccMini" onClick={onClose}>×</button>
       </div>
       <select className="ccObjectSheetSelect" value={target} onChange={e=>setTarget(e.target.value)}>
-        {BUILDINGS.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
+        <optgroup label="건물">
+          {BUILDINGS.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
+        </optgroup>
+        <optgroup label="버스">
+          <option value="bus">🚌 마을 버스</option>
+        </optgroup>
+        <optgroup label="구름공원">
+          {PARK_IMAGE_TARGETS.map(v=><option key={v.id} value={v.id}>🌳 {v.label}</option>)}
+        </optgroup>
       </select>
       <div className="ccObjectSheetPreview">
         {preview ? <img src={preview} alt="미리보기"/> : <div className="ccObjectSheetEmpty">현재 기본 이미지 사용 중</div>}
@@ -976,17 +1005,18 @@ function AsphaltConnector(){
   return <div className="ccAsphaltConnector" aria-hidden="true"><div className="ccRoadCenter"/><div className="ccRoadEdge left"/><div className="ccRoadEdge right"/></div>;
 }
 
-function ParkGround(){
+function ParkGround({ objectImages = {} }){
+  const img = (id, cls) => objectImages[id] ? <img src={objectImages[id]} alt="" className={`ccParkCustomImage ${cls || ""}`} /> : null;
   return <div className="ccParkGround" aria-label="구름공원">
-    <div className="ccParkSign">🌳 구름공원 <small>Cloud Park</small></div>
-    <div className="ccParkPond"><span>🦆</span><i/><i/><i/></div>
-    <div className="ccParkGazebo"><div className="roof">⛺</div><div className="posts">▥　▥　▥</div><b>그늘 정자</b></div>
-    <div className="ccParkPlayground"><div className="slide">🛝</div><div className="swing">♜</div><b>어린이 놀이터</b></div>
-    <div className="ccParkPicnic"><span>🧺</span><span>🧺</span><b>피크닉 잔디</b></div>
-    <div className="ccParkFountain">⛲<small>작은 분수</small></div>
-    <div className="ccParkFlowers">🌷 🌼 🌷 🌼 🌷</div>
-    <div className="ccParkDogRun">🐕　🐕<small>강아지 산책길</small></div>
-    {PARK_DECO.map((d,i)=><div key={i} className={`ccParkDeco ${d.t}`} style={{left:d.x,top:d.y}}>{d.t==='tree'?'🌳':d.t==='bench'?'🪑':'💡'}</div>)}
+    <div className="ccParkSign">{img("park:sign", "sign") || <><span>🌳 구름공원</span> <small>Cloud Park</small></>}</div>
+    <div className="ccParkPond">{img("park:pond", "pond") || <><span>🦆</span><i/><i/><i/></>}</div>
+    <div className="ccParkGazebo">{img("park:gazebo", "gazebo") || <><div className="roof">⛺</div><div className="posts">▥　▥　▥</div><b>그늘 정자</b></>}</div>
+    <div className="ccParkPlayground">{img("park:playground", "playground") || <><div className="slide">🛝</div><div className="swing">♜</div><b>어린이 놀이터</b></>}</div>
+    <div className="ccParkPicnic">{img("park:picnic", "picnic") || <><span>🧺</span><span>🧺</span><b>피크닉 잔디</b></>}</div>
+    <div className="ccParkFountain">{img("park:fountain", "fountain") || <>⛲<small>작은 분수</small></>}</div>
+    <div className="ccParkFlowers">{img("park:flowers", "flowers") || <>🌷 🌼 🌷 🌼 🌷</>}</div>
+    <div className="ccParkDogRun">{img("park:dogrun", "dogrun") || <>🐕　🐕<small>강아지 산책길</small></>}</div>
+    {PARK_DECO.map((d,i)=><div key={i} className={`ccParkDeco ${d.t}`} style={{left:d.x,top:d.y}}>{objectImages[`park:${d.t}`] ? <img src={objectImages[`park:${d.t}`]} alt="" className={`ccParkCustomImage deco-${d.t}`} /> : d.t==='tree'?'🌳':d.t==='bench'?'🪑':'💡'}</div>)}
   </div>;
 }
 
@@ -2511,7 +2541,7 @@ function Town({ me, setMe, onKick }) {
       }
       for (const id of BUS_IDS) {
         const bs = busStateRef.current[id];
-        if (bs?.status === "return" && wallNow - bs.startedAt >= 2200) {
+        if (bs?.status === "return" && wallNow - bs.startedAt >= BUS_RETURN_DURATION) {
           const next = { status: "idle", riderId: null, riderName: "" };
           busStateRef.current = { ...busStateRef.current, [id]: next };
           setBusState(busStateRef.current);
@@ -2597,7 +2627,7 @@ function Town({ me, setMe, onKick }) {
       setObjectImages(next);
       try { localStorage.setItem("ccObjectImages", JSON.stringify(next)); } catch {}
       chanRef.current?.fx({ t: "objectImages", images: next });
-      setToast(`${BUILDINGS.find(b=>b.id===id)?.name || "오브제"} 이미지가 적용됐어요.`);
+      setToast(`${objectImageLabel(id)} 이미지가 적용됐어요.`);
     } catch { setToast("이미지를 적용하지 못했어요."); }
   }, [me.role, objectImages]);
 
@@ -3503,7 +3533,7 @@ function Town({ me, setMe, onKick }) {
             }}
           >
             <Ground />
-            <ParkGround />
+            <ParkGround objectImages={objectImages} />
             <div className="ccAsphaltConnector" aria-hidden="true"><div className="ccRoadCenter"/><div className="ccRoadEdge left"/><div className="ccRoadEdge right"/></div>
             <Slide />
 
@@ -3532,7 +3562,7 @@ function Town({ me, setMe, onKick }) {
               const bs = busState[id];
               const bp = busPosition(route, bs, Date.now());
               return <div key={id} data-cc-bus={id} className={"ccBus " + (bs?.status === "toDest" ? "moving" : "") + (bs?.riderId ? "occupied" : "")} style={{ left: bp.x, top: bp.y }}>
-                <div className="ccBusBody"><span className="ccBusWindow"/><span className="ccBusWindow second"/><span className="ccBusWheel left"/><span className="ccBusWheel right"/><span className="ccBusLight left"/><span className="ccBusLight right"/></div>
+                {objectImages.bus ? <img src={objectImages.bus} alt="" className="ccBusCustomImage" /> : <div className="ccBusBody"><span className="ccBusWindow"/><span className="ccBusWindow second"/><span className="ccBusWheel left"/><span className="ccBusWheel right"/><span className="ccBusLight left"/><span className="ccBusLight right"/></div>}
                 {bs?.riderId && <div className="ccBusName">{bs.riderName}</div>}
               </div>;
             })}
@@ -3780,7 +3810,7 @@ function Town({ me, setMe, onKick }) {
               <span>🏠 건물 이미지 관리</span><b>{setSection === "object" ? "⌃" : "⌄"}</b>
             </button>
             {setSection === "object" && <div className="ccSetToggleBody">
-              <p>건물 사진을 올리면 자동으로 누끼를 따서 적용해요.</p>
+              <p>건물뿐 아니라 버스와 구름공원 오브제도 사진을 올려 직접 바꿀 수 있어요.</p>
               <button className="ccSetFont ccSetSkinBtn" onClick={()=>{setSheet("objects");setSetOpen(false);setSetSection("");blip(760);}}>🏠 건물 이미지 관리 열기</button>
             </div>}
           </>)}
@@ -5222,8 +5252,10 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccAsphaltConnector{position:absolute;left:2160px;top:780px;width:180px;height:1330px;background:#64676b;z-index:2;border-left:7px solid #4d5053;border-right:7px solid #4d5053;box-sizing:border-box;box-shadow:inset 9px 0 0 rgba(255,255,255,.08),inset -9px 0 0 rgba(0,0,0,.12)}
 .ccRoadCenter{position:absolute;left:50%;top:0;bottom:0;width:7px;transform:translateX(-50%);background:repeating-linear-gradient(to bottom,#f7e58b 0 44px,transparent 44px 88px)}
 .ccRoadEdge{position:absolute;top:0;bottom:0;width:4px;background:#eee;opacity:.72}.ccRoadEdge.left{left:18px}.ccRoadEdge.right{right:18px}
+.ccBusCustomImage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:110px;height:150px;object-fit:contain;image-rendering:auto;filter:drop-shadow(4px 5px 0 rgba(91,74,99,.22))}
 .ccBus{position:absolute;z-index:18;width:72px;height:118px;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(4px 5px 0 rgba(91,74,99,.22))}.ccBusBody{position:absolute;inset:0;background:#ffe37a;border:5px solid #5b4a63;border-radius:12px;box-sizing:border-box}.ccBusWindow{position:absolute;left:11px;top:13px;width:50px;height:27px;background:#a9e4ff;border:4px solid #5b4a63;border-radius:5px}.ccBusWindow.second{top:47px}.ccBusWheel{position:absolute;left:-8px;width:12px;height:24px;background:#3f3944;border:3px solid #5b4a63;border-radius:4px}.ccBusWheel.left{top:20px}.ccBusWheel.right{top:75px}.ccBusLight{position:absolute;bottom:-7px;width:15px;height:9px;background:#ff4f5e;border:3px solid #5b4a63;border-radius:4px;opacity:0}.ccBusLight.left{left:8px}.ccBusLight.right{right:8px}.ccBus.occupied .ccBusLight{opacity:1;box-shadow:0 0 10px #ff4f5e}.ccBusName{position:absolute;left:50%;top:-27px;transform:translateX(-50%);white-space:nowrap;background:#fff;border:3px solid #5b4a63;padding:3px 7px;font-size:10px;font-weight:900;color:#5b4a63}.ccBus.moving .ccBusBody{animation:ccBusBump .18s steps(2,end) infinite}@keyframes ccBusBump{50%{transform:translateY(-1px)}}
-.ccParkGround{position:absolute;left:214px;top:2958px;width:1272px;height:470px;z-index:2;pointer-events:none}.ccParkSign{position:absolute;left:50%;top:20px;transform:translateX(-50%);background:#fff4cf;border:5px solid #5b4a63;padding:9px 18px;font-weight:1000;box-shadow:5px 5px 0 rgba(91,74,99,.18);text-align:center}.ccParkSign small{display:block;font-size:8px;opacity:.65}.ccParkPond{position:absolute;left:110px;top:190px;width:280px;height:130px;border:7px solid #5b4a63;border-radius:48%;background:#72c8e8;box-shadow:inset 0 0 0 7px #aee8f5}.ccParkPond span{position:absolute;left:70px;top:42px;font-size:24px}.ccParkPond i{position:absolute;width:16px;height:8px;border-radius:50%;background:#fff;opacity:.65;animation:parkRipple 2s steps(3,end) infinite}.ccParkPond i:nth-child(2){left:140px;top:38px}.ccParkPond i:nth-child(3){left:190px;top:78px;animation-delay:.6s}.ccParkPond i:nth-child(4){left:90px;top:88px;animation-delay:1.1s}
+.ccParkGround{position:absolute;left:214px;top:2958px;width:1272px;height:470px;z-index:2;pointer-events:none}.ccParkCustomImage{display:block;object-fit:contain;image-rendering:auto;pointer-events:none}.ccParkSign .ccParkCustomImage.sign{width:100%;height:100%;object-fit:contain}.ccParkPond .ccParkCustomImage.pond{width:100%;height:100%;object-fit:contain}.ccParkGazebo .ccParkCustomImage.gazebo{width:100%;height:100%;object-fit:contain}.ccParkPlayground .ccParkCustomImage.playground{width:100%;height:100%;object-fit:contain}.ccParkPicnic .ccParkCustomImage.picnic{width:100%;height:100%;object-fit:contain}.ccParkFountain .ccParkCustomImage.fountain{width:100%;height:100%;object-fit:contain}.ccParkFlowers .ccParkCustomImage.flowers{width:100%;height:100%;object-fit:contain}.ccParkDogRun .ccParkCustomImage.dogrun{width:100%;height:100%;object-fit:contain}.ccParkDeco .ccParkCustomImage{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);width:76px;height:76px}.ccParkDeco .ccParkCustomImage.deco-tree{width:100px;height:120px}.ccParkDeco .ccParkCustomImage.deco-bench{width:88px;height:64px}.ccParkDeco .ccParkCustomImage.deco-lamp{width:70px;height:90px}
+.ccParkSign{position:absolute;left:50%;top:20px;transform:translateX(-50%);background:#fff4cf;border:5px solid #5b4a63;padding:9px 18px;font-weight:1000;box-shadow:5px 5px 0 rgba(91,74,99,.18);text-align:center}.ccParkSign small{display:block;font-size:8px;opacity:.65}.ccParkPond{position:absolute;left:110px;top:190px;width:280px;height:130px;border:7px solid #5b4a63;border-radius:48%;background:#72c8e8;box-shadow:inset 0 0 0 7px #aee8f5}.ccParkPond span{position:absolute;left:70px;top:42px;font-size:24px}.ccParkPond i{position:absolute;width:16px;height:8px;border-radius:50%;background:#fff;opacity:.65;animation:parkRipple 2s steps(3,end) infinite}.ccParkPond i:nth-child(2){left:140px;top:38px}.ccParkPond i:nth-child(3){left:190px;top:78px;animation-delay:.6s}.ccParkPond i:nth-child(4){left:90px;top:88px;animation-delay:1.1s}
 .ccParkGazebo{position:absolute;left:500px;top:75px;width:260px;height:170px;background:#d9c3a1;border:6px solid #5b4a63;box-shadow:8px 8px 0 rgba(91,74,99,.2);text-align:center}.ccParkGazebo .roof{font-size:54px;height:75px;background:#c88975}.ccParkGazebo .posts{font-size:34px;color:#6f503f;margin-top:12px}.ccParkGazebo b{font-size:10px}.ccParkPlayground{position:absolute;right:70px;top:115px;width:280px;height:170px;background:#e8d1ad;border:6px solid #5b4a63;text-align:center;box-shadow:8px 8px 0 rgba(91,74,99,.2)}.ccParkPlayground .slide,.ccParkPlayground .swing{display:inline-block;font-size:48px;margin:20px 20px 5px}.ccParkPlayground b{display:block;font-size:11px}.ccParkPicnic{position:absolute;left:430px;bottom:38px;width:260px;height:100px;background:#a8d98e;border:5px solid #5b4a63;text-align:center;padding-top:22px}.ccParkPicnic span{font-size:32px;margin:0 20px}.ccParkPicnic b{display:block;font-size:10px}.ccParkFountain{position:absolute;left:790px;bottom:65px;font-size:48px;text-align:center}.ccParkFountain small{display:block;font-size:9px;font-weight:900}.ccParkFlowers{position:absolute;left:80px;bottom:30px;font-size:28px}.ccParkDogRun{position:absolute;right:55px;bottom:20px;width:310px;height:70px;background:#d7c18d;border:5px dashed #5b4a63;text-align:center;padding-top:15px}.ccParkDogRun small{display:block;font-size:9px;font-weight:900}.ccParkDeco{position:absolute;transform:translate(-50%,-100%);font-size:38px;filter:drop-shadow(3px 4px 0 rgba(91,74,99,.18))}.ccParkDeco.bench{font-size:30px}.ccParkDeco.lamp{font-size:24px}
 
 @keyframes parkRipple{0%,100%{transform:scale(.8);opacity:.3}50%{transform:scale(1.25);opacity:.8}}
