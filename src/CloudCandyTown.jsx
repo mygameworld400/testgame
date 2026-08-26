@@ -608,8 +608,10 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
   const [typedMessage, setTypedMessage] = useState("");
   const [showBubbleSettings, setShowBubbleSettings] = useState(false);
   const typingRef = useRef(null);
-  const [ticket, setTicket] = useState(false);
   const [locker, setLocker] = useState(null);
+  const [showBill, setShowBill] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+  const [inventory, setInventory] = useState({ bill: false, key: false });
   const [floorPicker, setFloorPicker] = useState(false);
 
   useEffect(() => {
@@ -624,15 +626,36 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
     return () => window.clearInterval(typingRef.current);
   }, [message]);
 
+  useEffect(() => {
+    if (step !== "paid") return undefined;
+    setShowBill(false);
+    setShowKey(false);
+    const billTimer = window.setTimeout(() => setShowBill(true), Math.max(350, message.length * 55 + 250));
+    const keyTimer = window.setTimeout(() => setShowKey(true), Math.max(1200, message.length * 55 + 1050));
+    return () => { window.clearTimeout(billTimer); window.clearTimeout(keyTimer); };
+  }, [step, message]);
+
+  useEffect(() => {
+    if (inventory.bill && inventory.key) {
+      const t = window.setTimeout(() => setStep("elevator"), 450);
+      return () => window.clearTimeout(t);
+    }
+  }, [inventory.bill, inventory.key]);
+
   const no = () => { setMessage("안녕히 가세요."); setTimeout(onExit, 650); };
   const yes = () => { setMessage("한 분 맞으신가요?"); setStep("confirm"); };
   const confirm = () => {
     if (balance < 20) { setMessage("별이 부족하시네요."); setTimeout(onExit, 900); return; }
     onPay?.();
-    setTicket(true);
     setLocker(`A-${String(Math.floor(Math.random()*90)+10)}`);
+    setInventory({ bill: false, key: false });
     setStep("paid");
     setMessage("그럼 안내해드리겠습니다.");
+  };
+  const collectItem = (kind) => {
+    setInventory((prev) => ({ ...prev, [kind]: true }));
+    if (kind === "bill") setShowBill(false);
+    if (kind === "key") setShowKey(false);
   };
   const chooseFloor = (id) => { setFloorPicker(false); onFloor?.(id); };
   const layout = bubbleLayout || { x: 50, y: 22, w: 38 };
@@ -641,17 +664,46 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
 
   return <div className="ccSpaLobby">
     <div className="ccLobbyPerspective ccLobbyPhoto" style={{ backgroundImage: `url("${import.meta.env.BASE_URL}spa-lobby.png")` }}>
-      <div className="ccLobbyBubble" style={bubbleStyle}>
-        <div className="ccLobbyBubbleName">직원</div>
-        <div className="ccLobbyBubbleText">{typedMessage}<span className="ccTypingCursor">▌</span></div>
-        <span className="ccLobbyBubbleTail" />
-      </div>
-      <div className="ccLobbyActions">
-        {step === "welcome" && <div className="ccLobbyYesNo"><button onClick={yes}>네</button><button onClick={no}>아니오</button></div>}
-        {step === "confirm" && <div className="ccLobbyYesNo"><button onClick={confirm}>네</button></div>}
-        {step === "paid" && <><div className="ccSpaTicket">{ticket && <><b>구름찜질스파 이용권</b><span>1인 · 전층 이용</span><span>결제 20별</span><span>이용일 오늘</span></>}</div><div className="ccSpaLocker">🔑 락커키 <b>{locker}</b></div><div className="ccLobbyYesNo"><button onClick={()=>setStep("elevator")}>엘리베이터로 안내받기</button></div></>}
-      </div>
-      {isHost && <>
+      {step !== "elevator" && <>
+        <div className="ccLobbyBubble" style={bubbleStyle}>
+          <div className="ccLobbyBubbleName">직원</div>
+          <div className="ccLobbyBubbleText">{typedMessage}<span className="ccTypingCursor">▌</span></div>
+          <span className="ccLobbyBubbleTail" />
+        </div>
+
+        {step === "paid" && <div className="ccSpaInventory" aria-label="찜질스파 인벤토리">
+          <div className="ccSpaInventoryTitle">INVENTORY</div>
+          <div className="ccSpaInventorySlots">
+            <div className={"ccSpaInventorySlot " + (inventory.bill ? "filled" : "")} title={inventory.bill ? "이용권" : "빈 칸"}>
+              {inventory.bill && <img src={`${import.meta.env.BASE_URL}bill.png`} alt="이용권" />}
+            </div>
+            <div className={"ccSpaInventorySlot " + (inventory.key ? "filled" : "")} title={inventory.key ? "락커키" : "빈 칸"}>
+              {inventory.key && <img src={`${import.meta.env.BASE_URL}key.png`} alt="락커키" />}
+            </div>
+            <div className="ccSpaInventorySlot" />
+            <div className="ccSpaInventorySlot" />
+            <div className="ccSpaInventorySlot" />
+            <div className="ccSpaInventorySlot" />
+          </div>
+        </div>}
+
+        {showBill && <button className="ccSpaPickupItem ccSpaBillPickup" onClick={() => collectItem("bill")} title="이용권을 인벤토리에 넣기">
+          <img src={`${import.meta.env.BASE_URL}bill.png`} alt="이용권" />
+          <span>이용권</span>
+        </button>}
+        {showKey && <button className="ccSpaPickupItem ccSpaKeyPickup" onClick={() => collectItem("key")} title="락커키를 인벤토리에 넣기">
+          <img src={`${import.meta.env.BASE_URL}key.png`} alt="락커키" />
+          <span>락커키 {locker}</span>
+        </button>}
+
+        <div className="ccLobbyActions">
+          {step === "welcome" && <div className="ccLobbyYesNo"><button onClick={yes}>네</button><button onClick={no}>아니오</button></div>}
+          {step === "confirm" && <div className="ccLobbyYesNo"><button onClick={confirm}>네</button></div>}
+          {step === "paid" && !(inventory.bill && inventory.key) && <div className="ccSpaCollectHint">이용권과 락커키를 눌러 인벤토리에 넣어주세요.</div>}
+        </div>
+      </>}
+
+      {isHost && step !== "elevator" && <>
         <button className="ccLobbyBubbleGear" onClick={()=>setShowBubbleSettings(v=>!v)} title="말풍선 위치/크기 조절">⚙ 말풍선</button>
         {showBubbleSettings && <div className="ccLobbyBubbleSettings">
           <b>말풍선 위치 · 크기</b>
@@ -660,6 +712,7 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
           <label>크기 <input type="range" min="22" max="70" value={layout.w} onChange={e=>setLayout("w",e.target.value)}/><span>{layout.w}%</span></label>
         </div>}
       </>}
+
       {step === "elevator" && <div className="ccLobbyElevatorScene">
         <div className="ccElevatorCeiling">ELV · CLOUD SPA</div>
         <div className="ccElevatorFrame"><div className="ccElevatorDoor left"/><div className="ccElevatorDoor right"/><div className="ccElevatorGap"/></div>
@@ -671,7 +724,6 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
     </div>
   </div>;
 }
-
 
 function CottonCanvasPlaceholder(){};
 
@@ -3203,7 +3255,24 @@ function Town({ me, setMe, onKick }) {
     setResetting(false);
     if (r?.ok) {
       setRoom({ ok: true, round: r.round, taken: 0, players: [] });
-      setToast(`${r.round}번 테스트를 시작했어요. 참가자 목록이 비었습니다`);
+      setToast(`${r.round}번 테스트를 시작했어요. 참가자 목록이 비었습니다
+/* ===== v28: 찜질스파 이용권/락커키 아이템 + 인벤토리 ===== */
+.ccSpaInventory{position:absolute;right:20px;top:20px;z-index:45;width:min(520px,58vw);pointer-events:none}
+.ccSpaInventoryTitle{font-size:11px;font-weight:1000;letter-spacing:2px;color:#4f403a;text-align:right;margin-bottom:5px;text-shadow:2px 2px 0 #fff}
+.ccSpaInventorySlots{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;background:rgba(255,250,235,.94);border:4px solid #4f403a;padding:6px;box-shadow:5px 5px 0 rgba(63,49,48,.22)}
+.ccSpaInventorySlot{height:58px;min-width:0;background:#e7d9bf;border:3px solid #756354;display:flex;align-items:center;justify-content:center;box-shadow:inset 2px 2px 0 rgba(255,255,255,.55)}
+.ccSpaInventorySlot.filled{background:#fff3c9}
+.ccSpaInventorySlot img{width:82%;height:82%;object-fit:contain;image-rendering:auto;filter:drop-shadow(2px 3px 0 rgba(79,64,58,.22))}
+.ccSpaPickupItem{position:absolute;z-index:44;width:120px;min-height:116px;border:0;background:transparent;padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-family:inherit;color:#4f403a;font-weight:1000;text-shadow:2px 2px 0 #fff;animation:ccSpaItemGlow 1.1s steps(2,end) infinite,ccSpaItemShake .8s steps(4,end) infinite;filter:drop-shadow(4px 5px 0 rgba(63,49,48,.2))}
+.ccSpaPickupItem img{width:82px;height:82px;object-fit:contain;image-rendering:auto}
+.ccSpaPickupItem span{margin-top:3px;font-size:11px;white-space:nowrap}
+.ccSpaBillPickup{left:37%;top:57%}
+.ccSpaKeyPickup{left:55%;top:57%}
+.ccSpaPickupItem:hover{transform:scale(1.08);animation:none}
+.ccSpaCollectHint{background:rgba(255,253,247,.92);border:3px solid #4f403a;padding:7px 12px;font-size:11px;font-weight:900;box-shadow:3px 3px 0 rgba(63,49,48,.2)}
+@keyframes ccSpaItemGlow{0%,100%{opacity:.78;filter:drop-shadow(0 0 0 rgba(255,221,96,0)) drop-shadow(4px 5px 0 rgba(63,49,48,.2))}50%{opacity:1;filter:drop-shadow(0 0 14px rgba(255,221,96,.95)) drop-shadow(4px 5px 0 rgba(63,49,48,.2))}}
+@keyframes ccSpaItemShake{0%,100%{transform:translate(0,0) rotate(0deg)}25%{transform:translate(-2px,-2px) rotate(-2deg)}50%{transform:translate(2px,0) rotate(2deg)}75%{transform:translate(-1px,2px) rotate(-1deg)}}
+`);
       /* 호스트는 새 회차에 다시 등록해서 그대로 남습니다 (게스트만 나가요) */
       setHistory([]);
       setChatLog([]);
