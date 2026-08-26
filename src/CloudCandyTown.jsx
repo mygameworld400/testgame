@@ -1,4 +1,4 @@
-/* CloudCandyTown v13 — 1층 스파 배경 + 욕탕 이미지 관리 */
+/* CloudCandyTown v14 — 1층 스파 배경 + 욕탕 이미지 관리 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
@@ -2264,8 +2264,15 @@ function Town({ me, setMe, onKick }) {
       return;
     }
     if (id === "lie") {
-      if (sceneRef.current === "star") doQuest("stargaze");
-      /* 지금 선 자리에 그대로 눕습니다. 한 번 더 누르면 일어나요 */
+      /* 천문대 중앙을 누르면 실제 별멍 화면으로 들어갑니다.
+         기존 lying 상태를 켜서 이동을 잠그던 방식 대신 sheet로 처리합니다.
+         별멍 화면을 닫으면 자연스럽게 천문대 이동이 다시 활성화됩니다. */
+      if (sceneRef.current === "star") {
+        doQuest("stargaze");
+        setSheet("starview");
+        blip(880);
+        return;
+      }
       const on = !lyingRef.current;
       lyingRef.current = on;
       setLying(on);
@@ -4388,6 +4395,10 @@ function Town({ me, setMe, onKick }) {
         <span className="ccFbWord">피드백</span>
       </button>
       </div>
+
+      {sheet === "starview" && (
+        <StarViewSheet onClose={() => setSheet(null)} />
+      )}
 
       {sheet === "objects" && me.role === "host" && (
         <div className="ccObjectSheetOverlay" onClick={() => setSheet(null)}>
