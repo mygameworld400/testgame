@@ -1,4 +1,4 @@
-/* CloudCandyTown v7 — mobile joystick hit area reduced to joystick size */
+/* CloudCandyTown v8 — mobile joystick moved northwest to prevent clipping */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
@@ -4919,7 +4919,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 /* 모바일 조작 */
 .ccTouch{display:none;position:fixed;inset:0;width:100vw;height:100vh;z-index:180;pointer-events:none}
 .ccTouch .ccStickZone,.ccTouch .ccActs{pointer-events:auto}
-.ccStickZone{position:absolute;left:28px;bottom:calc(28px + var(--kb, 0px));width:154px;height:154px;
+.ccStickZone{position:absolute;left:18px;bottom:calc(78px + var(--kb, 0px));width:154px;height:154px;
   touch-action:none;z-index:6}
 .ccStick{position:absolute;left:77px;top:77px;width:154px;height:154px;border-radius:50%;
   border:4px solid ${C.line};background:rgba(255,255,255,.6);touch-action:none;opacity:.75;
