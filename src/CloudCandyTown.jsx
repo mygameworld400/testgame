@@ -451,7 +451,7 @@ const OBJECT_IMAGE_LABELS = new Map([
   ["bus:cotton", "🚌 솜사탕행 버스"],
   ...PARK_IMAGE_TARGETS.map((v) => [v.id, v.label]),
 ]);
-const objectImageLabel = (id) => BUILDINGS.find((b) => b.id === id)?.name || OBJECT_IMAGE_LABELS.get(id) || "오브제";
+const objectImageLabel = (id) => BUILDINGS.find((b) => b.id === id)?.name || OBJECT_IMAGE_LABELS.get(id) || (id === "spa:item:bill" ? "이용권" : id === "spa:item:key" ? "락커키" : "오브제");
 
 const POND = [
   { x: 1360, y: 1560, w: 168, h: 24 },
@@ -602,11 +602,12 @@ const SPA_LOBBY_ROOM = { id:"spaLobby", name:"구름찜질스파 로비", emoji:
 const roomFor = (id) => id === "cotton" ? COTTON_ROOM : id === SPA_ENTRY_SCENE ? SPA_LOBBY_ROOM : (SPA_ROOMS_MAP[id] || ROOMS[id]);
 
 
-function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleLayout, onBubbleLayout }) {
+function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleLayout, onBubbleLayout, itemLayout = {}, itemImages = {}, onItemLayout }) {
   const [step, setStep] = useState("welcome");
   const [message, setMessage] = useState("목욕하러 오셨나요?");
   const [typedMessage, setTypedMessage] = useState("");
   const [showBubbleSettings, setShowBubbleSettings] = useState(false);
+  const [showItemSettings, setShowItemSettings] = useState(false);
   const typingRef = useRef(null);
   const [locker, setLocker] = useState(null);
   const [showBill, setShowBill] = useState(false);
@@ -661,6 +662,12 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
   const layout = bubbleLayout || { x: 50, y: 22, w: 38 };
   const bubbleStyle = { left: `${layout.x}%`, top: `${layout.y}%`, width: `${layout.w}%` };
   const setLayout = (key, value) => onBubbleLayout?.({ ...layout, [key]: Number(value) });
+  const billLayout = itemLayout.bill || { x: 50, y: 48, s: 0.58 };
+  const keyLayout = itemLayout.key || { x: 50, y: 63, s: 0.58 };
+  const itemStyle = (kind) => {
+    const l = kind === "bill" ? billLayout : keyLayout;
+    return { left: `${l.x}%`, top: `${l.y}%`, transform: `translate(-50%,-50%) scale(${l.s})` };
+  };
 
   return <div className="ccSpaLobby">
     <div className="ccLobbyPerspective ccLobbyPhoto" style={{ backgroundImage: `url("${import.meta.env.BASE_URL}spa-lobby.png")` }}>
@@ -675,10 +682,10 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
           <div className="ccSpaInventoryTitle">INVENTORY</div>
           <div className="ccSpaInventorySlots">
             <div className={"ccSpaInventorySlot " + (inventory.bill ? "filled" : "")} title={inventory.bill ? "이용권" : "빈 칸"}>
-              {inventory.bill && <img src={`${import.meta.env.BASE_URL}bill.png`} alt="이용권" />}
+              {inventory.bill && <img style={{transform:`scale(${Math.max(.55, Math.min(1.2, billLayout.s))})`}} src={itemImages.bill || `${import.meta.env.BASE_URL}bill.png`} alt="이용권" />}
             </div>
             <div className={"ccSpaInventorySlot " + (inventory.key ? "filled" : "")} title={inventory.key ? "락커키" : "빈 칸"}>
-              {inventory.key && <img src={`${import.meta.env.BASE_URL}key.png`} alt="락커키" />}
+              {inventory.key && <img style={{transform:`scale(${Math.max(.55, Math.min(1.2, keyLayout.s))})`}} src={itemImages.key || `${import.meta.env.BASE_URL}key.png`} alt="락커키" />}
             </div>
             <div className="ccSpaInventorySlot" />
             <div className="ccSpaInventorySlot" />
@@ -687,12 +694,12 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
           </div>
         </div>}
 
-        {showBill && <button className="ccSpaPickupItem ccSpaBillPickup" onClick={() => collectItem("bill")} title="이용권을 인벤토리에 넣기">
-          <img src={`${import.meta.env.BASE_URL}bill.png`} alt="이용권" />
+        {showBill && <button className="ccSpaPickupItem ccSpaBillPickup" style={itemStyle("bill")} onClick={() => collectItem("bill")} title="이용권을 인벤토리에 넣기">
+          <img src={itemImages.bill || `${import.meta.env.BASE_URL}bill.png`} alt="이용권" />
           <span>이용권</span>
         </button>}
-        {showKey && <button className="ccSpaPickupItem ccSpaKeyPickup" onClick={() => collectItem("key")} title="락커키를 인벤토리에 넣기">
-          <img src={`${import.meta.env.BASE_URL}key.png`} alt="락커키" />
+        {showKey && <button className="ccSpaPickupItem ccSpaKeyPickup" style={itemStyle("key")} onClick={() => collectItem("key")} title="락커키를 인벤토리에 넣기">
+          <img src={itemImages.key || `${import.meta.env.BASE_URL}key.png`} alt="락커키" />
           <span>락커키 {locker}</span>
         </button>}
 
@@ -704,12 +711,25 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
       </>}
 
       {isHost && step !== "elevator" && <>
-        <button className="ccLobbyBubbleGear" onClick={()=>setShowBubbleSettings(v=>!v)} title="말풍선 위치/크기 조절">⚙ 말풍선</button>
-        {showBubbleSettings && <div className="ccLobbyBubbleSettings">
-          <b>말풍선 위치 · 크기</b>
-          <label>가로 위치 <input type="range" min="10" max="90" value={layout.x} onChange={e=>setLayout("x",e.target.value)}/><span>{layout.x}%</span></label>
-          <label>세로 위치 <input type="range" min="5" max="75" value={layout.y} onChange={e=>setLayout("y",e.target.value)}/><span>{layout.y}%</span></label>
-          <label>크기 <input type="range" min="22" max="70" value={layout.w} onChange={e=>setLayout("w",e.target.value)}/><span>{layout.w}%</span></label>
+        <button className="ccLobbyBubbleGear" onClick={()=>setShowBubbleSettings(v=>!v)} title="로비 관리">⚙ 관리</button>
+        {showBubbleSettings && <div className="ccLobbyBubbleSettings ccLobbyManagePanel">
+          <b>찜질스파 로비 관리</b>
+          <div className="ccManageSection"><strong>직원 말풍선</strong>
+            <label>가로 위치 <input type="range" min="10" max="90" value={layout.x} onChange={e=>setLayout("x",e.target.value)}/><span>{layout.x}%</span></label>
+            <label>세로 위치 <input type="range" min="5" max="75" value={layout.y} onChange={e=>setLayout("y",e.target.value)}/><span>{layout.y}%</span></label>
+            <label>크기 <input type="range" min="22" max="70" value={layout.w} onChange={e=>setLayout("w",e.target.value)}/><span>{layout.w}%</span></label>
+          </div>
+          <div className="ccManageSection"><strong>이용권</strong>
+            <label>가로 위치 <input type="range" min="10" max="90" value={billLayout.x} onChange={e=>onItemLayout?.({ ...itemLayout, bill:{...billLayout,x:Number(e.target.value)} })}/><span>{billLayout.x}%</span></label>
+            <label>세로 위치 <input type="range" min="15" max="85" value={billLayout.y} onChange={e=>onItemLayout?.({ ...itemLayout, bill:{...billLayout,y:Number(e.target.value)} })}/><span>{billLayout.y}%</span></label>
+            <label>크기 <input type="range" min="0.25" max="1.1" step="0.01" value={billLayout.s} onChange={e=>onItemLayout?.({ ...itemLayout, bill:{...billLayout,s:Number(e.target.value)} })}/><span>{Math.round(billLayout.s*100)}%</span></label>
+          </div>
+          <div className="ccManageSection"><strong>락커키</strong>
+            <label>가로 위치 <input type="range" min="10" max="90" value={keyLayout.x} onChange={e=>onItemLayout?.({ ...itemLayout, key:{...keyLayout,x:Number(e.target.value)} })}/><span>{keyLayout.x}%</span></label>
+            <label>세로 위치 <input type="range" min="15" max="85" value={keyLayout.y} onChange={e=>onItemLayout?.({ ...itemLayout, key:{...keyLayout,y:Number(e.target.value)} })}/><span>{keyLayout.y}%</span></label>
+            <label>크기 <input type="range" min="0.25" max="1.1" step="0.01" value={keyLayout.s} onChange={e=>onItemLayout?.({ ...itemLayout, key:{...keyLayout,s:Number(e.target.value)} })}/><span>{Math.round(keyLayout.s*100)}%</span></label>
+          </div>
+          <small>이용권·락커키는 업로드할 때 자동 누끼가 적용돼요. 위치와 크기는 모든 게스트에게 동일하게 보여요.</small>
         </div>}
       </>}
 
@@ -870,6 +890,10 @@ function ObjectImageSheet({ objectImages = {}, target, setTarget, onApply, onRes
         <optgroup label="버스">
           <option value="bus:spa">🚌 찜질스파행</option>
           <option value="bus:cotton">🚌 솜사탕행</option>
+        </optgroup>
+        <optgroup label="찜질스파 아이템">
+          <option value="spa:item:bill">🎫 이용권</option>
+          <option value="spa:item:key">🔑 락커키</option>
         </optgroup>
         <optgroup label="구름공원">
           {PARK_IMAGE_TARGETS.map(v=><option key={v.id} value={v.id}>🌳 {v.label}</option>)}
@@ -1526,6 +1550,9 @@ function Town({ me, setMe, onKick }) {
   });
   const [spaLobbyBubbleLayout, setSpaLobbyBubbleLayout] = useState(() => {
     try { return JSON.parse(localStorage.getItem("ccSpaLobbyBubbleLayout") || "null") || { x: 50, y: 22, w: 38 }; } catch { return { x: 50, y: 22, w: 38 }; }
+  });
+  const [spaLobbyItemLayout, setSpaLobbyItemLayout] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("ccSpaLobbyItemLayout") || "null") || { bill:{x:50,y:48,s:0.58}, key:{x:50,y:63,s:0.58} }; } catch { return { bill:{x:50,y:48,s:0.58}, key:{x:50,y:63,s:0.58} }; }
   });
   const [objectImageTarget, setObjectImageTarget] = useState(BUILDINGS[0]?.id || "cake");          // 호스트가 올린 캐릭터 이미지
   const [live, setLive] = useState(true);          // 실시간 연결 상태
@@ -2716,6 +2743,17 @@ function Town({ me, setMe, onKick }) {
     chanRef.current?.fx({ t: "spaLobbyBubbleLayout", layout: safe });
   }, [me.role]);
 
+  const updateSpaLobbyItemLayout = useCallback((next) => {
+    if (me.role !== "host") return;
+    const safe = {
+      bill: { x: Math.max(10, Math.min(90, Number(next?.bill?.x) || 50)), y: Math.max(15, Math.min(85, Number(next?.bill?.y) || 48)), s: Math.max(.25, Math.min(1.1, Number(next?.bill?.s) || .58)) },
+      key: { x: Math.max(10, Math.min(90, Number(next?.key?.x) || 50)), y: Math.max(15, Math.min(85, Number(next?.key?.y) || 63)), s: Math.max(.25, Math.min(1.1, Number(next?.key?.s) || .58)) },
+    };
+    setSpaLobbyItemLayout(safe);
+    try { localStorage.setItem("ccSpaLobbyItemLayout", JSON.stringify(safe)); } catch {}
+    chanRef.current?.fx({ t: "spaLobbyItemLayout", layout: safe });
+  }, [me.role]);
+
   const applyObjectImage = useCallback(async (id, data) => {
     if (me.role !== "host" || !data) return;
     try {
@@ -2750,12 +2788,14 @@ function Town({ me, setMe, onKick }) {
         bgmMap: me.role === "host" ? roomBgmRef.current : undefined,
         objImgs: me.role === "host" ? objectImages : undefined,
         spaLobbyBubbleLayout: me.role === "host" ? spaLobbyBubbleLayout : undefined,
+        spaLobbyItemLayout: me.role === "host" ? spaLobbyItemLayout : undefined,
       }),
       onPeers: (list) => {
         setPeers(list);
         const host = list.find((p) => p.role === "host");
         if (host?.objImgs && typeof host.objImgs === "object") setObjectImages(host.objImgs);
         if (host?.spaLobbyBubbleLayout && typeof host.spaLobbyBubbleLayout === "object") setSpaLobbyBubbleLayout(host.spaLobbyBubbleLayout);
+        if (host?.spaLobbyItemLayout && typeof host.spaLobbyItemLayout === "object") setSpaLobbyItemLayout(host.spaLobbyItemLayout);
         if (host?.bgmMap && typeof host.bgmMap === "object") {
           const normalizedMap = Object.fromEntries(
             Object.entries(host.bgmMap).map(([id, bgm]) => [
@@ -3376,7 +3416,7 @@ function Town({ me, setMe, onKick }) {
             className="ccRoomWrap"
             style={{ width: SCREEN.w, height: SCREEN.h, transform: `translate(-50%,-50%) scale(${roomZoom})` }}
           >
-            {scene === SPA_ENTRY_SCENE ? <SpaLobby balance={balance} onPay={()=>setSpent(v=>v+20)} onFloor={changeSpaFloor} onExit={exitRoom} isHost={me.role === "host"} bubbleLayout={spaLobbyBubbleLayout} onBubbleLayout={updateSpaLobbyBubbleLayout} /> : scene && scene.startsWith("spa") ? <SpaFloor
+            {scene === SPA_ENTRY_SCENE ? <SpaLobby balance={balance} onPay={()=>setSpent(v=>v+20)} onFloor={changeSpaFloor} onExit={exitRoom} isHost={me.role === "host"} bubbleLayout={spaLobbyBubbleLayout} onBubbleLayout={updateSpaLobbyBubbleLayout} itemLayout={spaLobbyItemLayout} onItemLayout={updateSpaLobbyItemLayout} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }} /> : scene && scene.startsWith("spa") ? <SpaFloor
               scene={scene} player={pos} peers={roomPeers} me={me}
               onFloor={changeSpaFloor} onExit={exitRoom} onAction={setToast}
             /> : scene === "cotton" ? <CottonShopRoom
@@ -5408,7 +5448,7 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccLobbyBubbleName{font-size:11px;font-weight:1000;color:#b15f72;margin-bottom:4px}.ccLobbyBubbleText{font-size:18px;line-height:1.45;font-weight:900;word-break:keep-all;text-align:center;min-height:27px}.ccLobbyBubbleTail{position:absolute;left:50%;bottom:-16px;width:22px;height:22px;background:#fffdf7;border-right:4px solid #4f403a;border-bottom:4px solid #4f403a;transform:translateX(-50%) rotate(45deg)}
 .ccTypingCursor{display:inline-block;margin-left:2px;animation:ccTypingBlink .65s steps(1,end) infinite}@keyframes ccTypingBlink{50%{opacity:0}}
 .ccLobbyActions{position:absolute;left:50%;bottom:7%;transform:translateX(-50%);z-index:34;display:flex;flex-direction:column;align-items:center;gap:8px;max-width:90%}.ccLobbyActions .ccLobbyYesNo{margin-top:0;justify-content:center}.ccLobbyActions .ccLobbyYesNo button{min-width:82px}.ccLobbyBubbleGear{position:absolute;right:22px;top:20px;z-index:50;border:3px solid #4f403a;background:#fff7e8;padding:7px 10px;font-family:inherit;font-weight:900;cursor:pointer;box-shadow:3px 3px 0 rgba(63,49,48,.25)}
-.ccLobbyBubbleSettings{position:absolute;right:22px;top:62px;width:260px;z-index:51;background:#fffdf7;border:4px solid #4f403a;box-shadow:6px 6px 0 rgba(63,49,48,.25);padding:12px}.ccLobbyBubbleSettings>b{display:block;margin-bottom:8px}.ccLobbyBubbleSettings label{display:grid;grid-template-columns:70px 1fr 42px;gap:7px;align-items:center;font-size:10px;font-weight:900;margin:8px 0}.ccLobbyBubbleSettings input{width:100%}.ccLobbyBubbleSettings span{text-align:right}
+.ccLobbyBubbleSettings{position:absolute;right:22px;top:62px;width:300px;max-height:78vh;overflow:auto;z-index:51;background:#fffdf7;border:4px solid #4f403a;box-shadow:6px 6px 0 rgba(63,49,48,.25);padding:12px}.ccLobbyBubbleSettings>b{display:block;margin-bottom:8px}.ccLobbyBubbleSettings label{display:grid;grid-template-columns:70px 1fr 42px;gap:7px;align-items:center;font-size:10px;font-weight:900;margin:8px 0}.ccLobbyBubbleSettings input{width:100%}.ccLobbyBubbleSettings span{text-align:right}.ccManageSection{border-top:2px dashed #cdbda9;margin-top:9px;padding-top:8px}.ccManageSection strong{display:block;font-size:11px;margin-bottom:4px}.ccLobbyManagePanel>small{display:block;margin-top:8px;line-height:1.4;color:#8c7b8d}
 .ccLobbyPortrait{width:82px;height:82px;display:grid;place-items:center;background:#d7b9a0;border:5px solid #4f403a;font-size:46px;flex:none}.ccLobbyText{flex:1}.ccLobbyText>b{font-size:13px;color:#b15f72}.ccLobbyText h2{margin:3px 0 10px;font-size:20px}.ccLobbyChoices,.ccLobbyYesNo{display:flex;gap:8px;flex-wrap:wrap}.ccLobbyChoices button,.ccLobbyYesNo button{border:4px solid #4f403a;background:#f3dfb9;padding:8px 12px;font-family:inherit;font-weight:900;cursor:pointer;box-shadow:3px 3px 0 #4f403a}.ccLobbyChoices button.chosen{background:#f2a86d;transform:translate(2px,2px);box-shadow:1px 1px 0 #4f403a}.ccLobbyYesNo{margin-top:10px}.ccLobbyYesNo button:first-child{background:#8fc9a0}.ccLobbyYesNo button:last-child{background:#e8c4c4}.ccLobbyYesNo button:disabled{opacity:.4;cursor:not-allowed}.ccLobbyExit{position:absolute;right:22px;top:20px;border:4px solid #4f403a;background:#fff7e8;padding:8px 12px;font-weight:900;z-index:3}
 .ccSpaBlush{position:absolute;width:8px;height:5px;background:#ef8d91;image-rendering:pixelated;z-index:30}.ccSpaSteam{position:absolute;color:#fff;font-size:34px;font-weight:1000;z-index:30;animation:ccSteamUp 1s steps(3,end) infinite}@keyframes ccSteamUp{50%{transform:translateY(-12px);opacity:.65}100%{transform:translateY(-22px);opacity:0}}
 .ccSpaClickable .ccBuilding{image-rendering:pixelated}
@@ -5463,3 +5503,7 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 
 `;
 
+
+/* v29 찜질스파 아이템 관리 */
+.ccSpaPickupItem{position:absolute!important;z-index:38;transform-origin:center center!important;animation:ccSpaItemGlow 1.15s steps(2,end) infinite;cursor:pointer;background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;display:flex;flex-direction:column;align-items:center;pointer-events:auto}.ccSpaPickupItem img{display:block;width:210px;height:210px;object-fit:contain;filter:drop-shadow(0 0 10px rgba(255,245,160,.95)) drop-shadow(3px 4px 0 rgba(63,49,48,.18))}.ccSpaPickupItem span{margin-top:5px;background:#fff7df;border:3px solid #4f403a;padding:4px 8px;font-size:10px;font-weight:1000;box-shadow:3px 3px 0 #4f403a}.ccSpaInventorySlot img{width:70%;height:70%;object-fit:contain}.ccSpaInventory{z-index:40!important}
+@keyframes ccSpaItemGlow{0%,100%{filter:drop-shadow(0 0 5px rgba(255,245,160,.55));}50%{filter:drop-shadow(0 0 15px rgba(255,245,160,1));}}
