@@ -746,6 +746,77 @@ function CottonShopRoom({step,color,powered,tufts,decor,shelf,nickname,onMachine
   </div>;
 }
 
+/* ============================ 건물 이미지 관리 팝업 ============================ */
+function ObjectImageSheet({ objectImages = {}, target, setTarget, onApply, onReset, onClose, isHost }) {
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(objectImages[target] || null);
+  useEffect(() => { setPreview(objectImages[target] || null); }, [target, objectImages]);
+  const pick = async (file) => {
+    if (!file || !isHost) return;
+    setBusy(true);
+    try {
+      const data = await removePhotoBackground(file);
+      setPreview(data);
+      await onApply(target, data);
+    } catch { /* handled by caller */ }
+    finally { setBusy(false); }
+  };
+  return <div className="ccModalOverlay" onClick={onClose}>
+    <div className="ccPanel ccObjectSheet" onClick={e=>e.stopPropagation()}>
+      <div className="ccObjectSheetHead"><div><b>🏠 건물 · 오브제 이미지 관리</b><small>호스트만 변경할 수 있어요</small></div><button className="ccMini" onClick={onClose}>×</button></div>
+      <select className="ccObjectSheetSelect" value={target} onChange={e=>setTarget(e.target.value)}>
+        {BUILDINGS.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
+      </select>
+      <div className="ccObjectSheetPreview">
+        {preview ? <img src={preview} alt="미리보기"/> : <div className="ccObjectSheetEmpty">현재 기본 이미지 사용 중</div>}
+      </div>
+      <label className="ccObjectSheetUpload">
+        {busy ? "누끼 따는 중…" : "📷 사진 올리기 · 자동 누끼"}
+        <input type="file" accept="image/*" disabled={!isHost || busy} onChange={e=>{const f=e.target.files?.[0]; e.target.value=""; pick(f);}} />
+      </label>
+      {objectImages[target] && <button className="ccObjectSheetReset" onClick={()=>{onReset(target);setPreview(null);}}>기본 이미지로 되돌리기</button>}
+      <p className="ccObjectSheetHint">사진의 바깥 배경을 자동으로 투명하게 만든 뒤 건물에 적용합니다. 적용 결과는 접속 중인 게스트에게도 보여요.</p>
+    </div>
+  </div>;
+}
+
+/* 사진 가장자리의 배경색을 기준으로 연결된 배경을 투명하게 만드는 간단한 자동 누끼 */
+function removePhotoBackground(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 520;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const c = document.createElement('canvas'); c.width=w; c.height=h;
+        const ctx=c.getContext('2d'); ctx.drawImage(img,0,0,w,h);
+        const im=ctx.getImageData(0,0,w,h), d=im.data;
+        const samples=[];
+        for(const [x,y] of [[0,0],[w-1,0],[0,h-1],[w-1,h-1],[Math.floor(w/2),0],[Math.floor(w/2),h-1]]){
+          const i=(y*w+x)*4; samples.push([d[i],d[i+1],d[i+2]]);
+        }
+        const bg=samples.reduce((a,v)=>[a[0]+v[0],a[1]+v[1],a[2]+v[2]],[0,0,0]).map(v=>v/samples.length);
+        const dist=(i)=>Math.hypot(d[i]-bg[0],d[i+1]-bg[1],d[i+2]-bg[2]);
+        const seen=new Uint8Array(w*h), q=[];
+        const push=(x,y)=>{if(x<0||y<0||x>=w||y>=h)return;const n=y*w+x;if(seen[n])return; if(dist(n*4)>58)return; seen[n]=1;q.push(n);};
+        for(let x=0;x<w;x++){push(x,0);push(x,h-1)}
+        for(let y=0;y<h;y++){push(0,y);push(w-1,y)}
+        let head=0;
+        while(head<q.length){const n=q[head++],x=n%w,y=(n/w)|0; for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]])push(x+dx,y+dy)}
+        for(const n of q)d[n*4+3]=0;
+        ctx.putImageData(im,0,0);
+        resolve(c.toDataURL('image/webp',0.78));
+      };
+      img.onerror=reject; img.src=reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 /* ============================ 건물 ============================ */
 
 function Building({ b, near, objectImages = {} }) {
@@ -1333,6 +1404,8 @@ function Town({ me, setMe, onKick }) {
     }
   });
   const [setOpen, setSetOpen] = useState(false);   // 설정 패널
+  const [setSection, setSetSection] = useState("font"); // 설정 아코디언
+  const [objectSheetOpen, setObjectSheetOpen] = useState(false);
   const [riding, setRiding] = useState(false);     // 미끄럼틀 타는 중
   const [lying, setLying] = useState(false);       // 천문대에서 눕기
   const [bouncing, setBouncing] = useState(false); // 방방 위에서 통통
@@ -2520,34 +2593,16 @@ function Town({ me, setMe, onKick }) {
     return () => cancelAnimationFrame(raf);
   }, [popBall, pressKey, doQuest, startRide]);
 
-  const compressObjectImage = useCallback((file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const max = 320, scale = Math.min(1, max / Math.max(img.width, img.height));
-        const c = document.createElement("canvas");
-        c.width = Math.max(1, Math.round(img.width * scale)); c.height = Math.max(1, Math.round(img.height * scale));
-        const ctx = c.getContext("2d"); ctx.clearRect(0,0,c.width,c.height); ctx.drawImage(img,0,0,c.width,c.height);
-        resolve(c.toDataURL("image/webp", 0.65));
-      };
-      img.onerror = reject; img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  }), []);
-
-  const applyObjectImage = useCallback(async (id, file) => {
-    if (me.role !== "host" || !file) return;
+  const applyObjectImage = useCallback(async (id, data) => {
+    if (me.role !== "host" || !data) return;
     try {
-      const data = await compressObjectImage(file);
       const next = { ...objectImages, [id]: data };
       setObjectImages(next);
       try { localStorage.setItem("ccObjectImages", JSON.stringify(next)); } catch {}
       chanRef.current?.fx({ t: "objectImages", images: next });
       setToast(`${BUILDINGS.find(b=>b.id===id)?.name || "오브제"} 이미지가 적용됐어요.`);
-    } catch { setToast("이미지를 불러오지 못했어요."); }
-  }, [me.role, objectImages, compressObjectImage]);
+    } catch { setToast("이미지를 적용하지 못했어요."); }
+  }, [me.role, objectImages]);
 
   /* 같이 접속한 사람 */
   useEffect(() => {
@@ -3697,19 +3752,16 @@ function Town({ me, setMe, onKick }) {
       </button>
       {setOpen && (
         <div className="ccPanel ccSetPanel">
-          <div className="ccSetTitle">글꼴</div>
-          <div className="ccSetFonts">
+          <button className="ccSetToggle" onClick={()=>setSetSection(setSection === "font" ? "" : "font")}>
+            <span>🔤 글꼴</span><b>{setSection === "font" ? "⌃" : "⌄"}</b>
+          </button>
+          {setSection === "font" && <div className="ccSetFonts">
             {FONTS.map((f) => (
-              <button
-                key={f.id}
-                className={"ccSetFont" + (font === f.id ? " ccSetOn" : "")}
-                style={{ fontFamily: f.css }}
-                onClick={() => { setFont(f.id); blip(760); }}
-              >
+              <button key={f.id} className={"ccSetFont" + (font === f.id ? " ccSetOn" : "")} style={{ fontFamily: f.css }} onClick={() => { setFont(f.id); blip(760); }}>
                 {f.name}
               </button>
             ))}
-          </div>
+          </div>}
           <label className="ccCutRow ccSetCursor">
             <input
               type="checkbox"
@@ -3726,26 +3778,22 @@ function Town({ me, setMe, onKick }) {
               🎵 이 방 BGM 설정
             </button>
           )}
-          {me.role === "host" && (
-            <div className="ccObjectImageSettings">
-              <div className="ccSetTitle">🏠 건물 · 오브제 이미지 설정</div>
-              <select value={objectImageTarget} onChange={e=>setObjectImageTarget(e.target.value)}>
-                {BUILDINGS.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-              <label className="ccObjectImageUpload">
-                📷 이미지 올리기
-                <input type="file" accept="image/*" onChange={e=>applyObjectImage(objectImageTarget,e.target.files?.[0])} />
-              </label>
-              {objectImages[objectImageTarget] && <div className="ccObjectImagePreview"><img src={objectImages[objectImageTarget]} alt="" /><button className="ccMini" onClick={()=>{const n={...objectImages};delete n[objectImageTarget];setObjectImages(n);try{localStorage.setItem("ccObjectImages",JSON.stringify(n));}catch{};chanRef.current?.fx({t:"objectImages",images:n});}}>기본 이미지로</button></div>}
-              <small className="ccObjectImageHint">호스트만 변경할 수 있고, 적용된 이미지는 접속 중인 게스트에게도 보여요.</small>
-            </div>
-          )}
-          <button
-            className="ccSetFont ccSetSkinBtn"
-            onClick={() => { setSheet("skins"); setSetOpen(false); loadSkins(); blip(760); }}
-          >
-            🎨 캐릭터 이미지 {me.role === "host" ? "관리" : "보기"}
+          {me.role === "host" && (<>
+            <button className="ccSetToggle" onClick={()=>setSetSection(setSection === "object" ? "" : "object")}>
+              <span>🏠 건물 이미지 관리</span><b>{setSection === "object" ? "⌃" : "⌄"}</b>
+            </button>
+            {setSection === "object" && <div className="ccSetToggleBody">
+              <p>건물 사진을 올리면 자동으로 누끼를 따서 적용해요.</p>
+              <button className="ccSetFont ccSetSkinBtn" onClick={()=>{setObjectSheetOpen(true);setSetOpen(false);blip(760);}}>관리 팝업 열기</button>
+            </div>}
+          </>)}
+          <button className="ccSetToggle" onClick={()=>setSetSection(setSection === "character" ? "" : "character")}>
+            <span>🎨 캐릭터 이미지 관리</span><b>{setSection === "character" ? "⌃" : "⌄"}</b>
           </button>
+          {setSection === "character" && <div className="ccSetToggleBody">
+            <p>{me.role === "host" ? "캐릭터 사진을 관리하고 적용할 수 있어요." : "현재 적용된 캐릭터 이미지를 볼 수 있어요."}</p>
+            <button className="ccSetFont ccSetSkinBtn" onClick={() => { setSheet("skins"); setSetOpen(false); loadSkins(); blip(760); }}>팝업 열기</button>
+          </div>}
           <button
             className="ccSetFont ccSetWipe"
             onClick={() => {
@@ -4103,6 +4151,15 @@ function Town({ me, setMe, onKick }) {
               onClose={() => setSheet(null)}
             />
           )}
+          {objectSheetOpen && me.role === "host" && <ObjectImageSheet
+            objectImages={objectImages}
+            target={objectImageTarget}
+            setTarget={setObjectImageTarget}
+            onApply={applyObjectImage}
+            onReset={(id)=>{ const n={...objectImages}; delete n[id]; setObjectImages(n); try{localStorage.setItem("ccObjectImages",JSON.stringify(n));}catch{} chanRef.current?.fx({t:"objectImages",images:n}); setToast("기본 이미지로 되돌렸어요."); }}
+            onClose={()=>setObjectSheetOpen(false)}
+            isHost={me.role === "host"}
+          />}
           {sheet === "fortune" && (
             <FortuneSheet
               hostCode={me.hostCode}
@@ -5203,6 +5260,14 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccLobbyStaff{position:absolute;left:50%;top:29%;width:78px;height:150px;transform:translateX(-50%);z-index:25;image-rendering:pixelated}.ccStaffHair{position:absolute;left:18px;top:0;width:42px;height:34px;background:#5b4038;border:5px solid #4f403a}.ccStaffHead{position:absolute;left:22px;top:25px;width:34px;height:38px;background:#ffd0b5;border:5px solid #4f403a}.ccStaffBody{position:absolute;left:12px;top:60px;width:54px;height:68px;background:#f7f1e8;border:5px solid #4f403a}.ccStaffArm{position:absolute;left:58px;top:76px;width:24px;height:14px;background:#ffd0b5;border:4px solid #4f403a;transform:rotate(-8deg)}.ccLobbyPortrait{position:relative;overflow:hidden}.ccPortraitPixelHead{position:absolute;left:23px;top:10px;width:32px;height:32px;background:#ffd0b5;border:4px solid #4f403a}.ccPortraitPixelBody{position:absolute;left:17px;top:42px;width:44px;height:35px;background:#f7f1e8;border:4px solid #4f403a}.ccLobbySmallLine{font-size:13px;font-weight:900;margin-bottom:8px}.ccSpaTicket{display:flex;flex-direction:column;width:190px;background:#fff;border:3px dashed #777;padding:8px 10px;margin:8px 0;line-height:1.5;font-size:10px}.ccSpaTicket b{font-size:12px;border-bottom:2px dashed #aaa;padding-bottom:3px;margin-bottom:3px}.ccSpaLocker{display:inline-block;background:#f3dfb9;border:4px solid #4f403a;padding:8px 12px;font-size:13px;margin-bottom:7px}.ccLobbyElevatorView{background:linear-gradient(#8d969d 0 20%,#4f555a 20% 100%)!important}.ccElevatorCeiling{position:absolute;left:0;right:0;top:0;height:22%;background:#d9d1c3;border-bottom:6px solid #3f4246;text-align:center;padding-top:16px;font-weight:1000;color:#5b4a63}.ccElevatorFrame{position:absolute;left:18%;right:18%;top:20%;bottom:12%;background:#a9adb0;border:10px solid #3f4246;box-shadow:inset 0 0 0 8px #70767a}.ccElevatorDoor{position:absolute;top:8%;bottom:0;width:47%;background:linear-gradient(90deg,#cfd3d5,#8d9397);border:6px solid #3f4246}.ccElevatorDoor.left{left:0}.ccElevatorDoor.right{right:0}.ccElevatorGap{position:absolute;left:50%;top:8%;bottom:0;width:8px;transform:translateX(-50%);background:#303437;z-index:2}.ccElevatorPanel{position:absolute;right:-74px;top:38%;width:54px;background:#d8d0c3;border:5px solid #3f4246;padding:8px 4px;display:flex;flex-direction:column;gap:8px;align-items:center;z-index:5}.ccElevatorPanel span{font-size:20px;font-weight:1000}.ccElevatorPanel b{font-size:8px}.ccElevatorHint{position:absolute;left:0;right:0;bottom:7%;text-align:center;color:#fff;background:rgba(40,43,45,.7);padding:8px;font-weight:900}.ccElevatorButtons{position:absolute;left:50%;bottom:2%;transform:translateX(-50%);display:flex;gap:8px;z-index:10}.ccElevatorButtons button{border:4px solid #3f4246;background:#f3dfb9;padding:7px 13px;font-family:inherit;font-weight:1000;box-shadow:3px 3px 0 #3f4246;cursor:pointer}.ccElevatorButtons button small{font-size:8px}.ccSpaLobby .ccLobbyYesNo button{background:#8fc9a0}.ccSpaLobby .ccLobbyYesNo button:last-child{background:#e8c4c4}
 
 .ccBuildingCustomImage{display:block;width:100%;height:100%;object-fit:contain;image-rendering:auto;filter:drop-shadow(4px 5px 0 rgba(91,74,99,.18))}
+.ccSetToggle{width:100%;display:flex;align-items:center;justify-content:space-between;border:3px solid ${C.line};background:#fff;padding:10px 12px;margin:7px 0 0;font-family:inherit;font-weight:900;font-size:12px;cursor:pointer;box-shadow:3px 3px 0 rgba(91,74,99,.16)}
+.ccSetToggle b{font-size:14px;color:${C.inkSoft}}.ccSetToggleBody{border:3px solid ${C.line};border-top:0;background:#fffdf7;padding:9px 10px;margin-bottom:2px;text-align:left}.ccSetToggleBody p{margin:0 0 8px;font-size:10.5px;line-height:1.45;color:${C.inkSoft};font-weight:700}.ccSetToggleBody .ccSetSkinBtn{margin-top:0}
+.ccModalOverlay{position:fixed;inset:0;z-index:10000;background:rgba(45,34,52,.42);display:flex;align-items:center;justify-content:center;padding:18px}
+.ccObjectSheet{width:min(430px,94vw);max-height:90vh;overflow:auto;padding:18px;text-align:center}
+.ccObjectSheetHead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px;text-align:left}.ccObjectSheetHead b{display:block;font-size:17px}.ccObjectSheetHead small{display:block;margin-top:4px;color:${C.inkSoft};font-size:10px;font-weight:700}
+.ccObjectSheetSelect{width:100%;padding:10px;border:3px solid ${C.line};background:#fff;font-family:inherit;font-weight:900;font-size:12px;margin-bottom:10px}
+.ccObjectSheetPreview{height:230px;border:3px solid ${C.line};display:flex;align-items:center;justify-content:center;overflow:hidden;background-color:#fff;background-image:linear-gradient(45deg,#e7dfea 25%,transparent 25%),linear-gradient(-45deg,#e7dfea 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e7dfea 75%),linear-gradient(-45deg,transparent 75%,#e7dfea 75%);background-size:18px 18px;background-position:0 0,0 9px,9px -9px,-9px 0;margin-bottom:10px}.ccObjectSheetPreview img{max-width:100%;max-height:100%;object-fit:contain;image-rendering:auto}.ccObjectSheetEmpty{font-size:12px;color:${C.inkSoft};font-weight:800}
+.ccObjectSheetUpload{display:block;border:3px solid ${C.line};background:#ffe9c6;padding:11px;font-weight:900;cursor:pointer}.ccObjectSheetUpload input{display:none}.ccObjectSheetReset{width:100%;margin-top:7px;border:3px solid ${C.line};background:#f4eff6;padding:9px;font-family:inherit;font-weight:900;cursor:pointer}.ccObjectSheetHint{font-size:10px;line-height:1.5;color:${C.inkSoft};font-weight:700;margin:10px 0 0}
 .ccObjectImageSettings{border:3px solid #5b4a63;background:#fffdf7;padding:9px;margin:8px 0;text-align:left}
 .ccObjectImageSettings select{width:100%;border:2px solid #5b4a63;padding:6px;font-family:inherit;font-weight:800;background:#fff}
 .ccObjectImageUpload{display:block;margin-top:7px;border:3px solid #5b4a63;background:#ffe9c6;padding:7px;text-align:center;font-weight:900;cursor:pointer}
