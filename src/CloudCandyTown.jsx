@@ -82,7 +82,7 @@ const C = {
 const PX = 4; // 캐릭터 확대 배율
 
 const BUILDINGS = [
-  { id: "cake", name: "LP바", emoji: "🎧", tag: "음악", x: 430, y: 1280, scale: 10, sheet: "music",
+  { id: "cake", name: "LP바", emoji: "🎧", tag: "음악", x: 430, y: 1280, scale: 10,
     lines: [
       "오늘 밤 첫 곡 나갑니다. 헤드폰 하나 골라서 아무 자리나 앉으세요.",
       "신청곡 받아요. 구름 위에서 듣기 좋은 걸로 부탁드려요.",
@@ -115,7 +115,7 @@ const BUILDINGS = [
     lines: ["동전은 필요 없어요. 그냥 하세요.", "최고 점수 아직 비어 있어요."] },
   { id: "escape", name: "방탈출", emoji: "🔐", tag: "탈출", x: 470, y: 760, scale: 8,
     lines: ["열쇠는 이 방 안 어딘가에.", "겁먹지 마세요. 안 무서워요."] },
-  { id: "movie", name: "구름영화관", emoji: "🎬", tag: "영화", x: 866, y: 760, scale: 8, sheet: "movie",
+  { id: "movie", name: "구름영화관", emoji: "🎬", tag: "영화", x: 866, y: 760, scale: 8,
     lines: ["곧 시작합니다. 자리 잡으세요.", "상영표는 옆 벽에 있어요."] },
   { id: "star", name: "천문대", emoji: "🔭", tag: "별", x: 1262, y: 760, scale: 8,
     lines: ["망원경으로 보면 별이 더 커요.", "바닥에 누워서 봐도 좋아요."] },
@@ -146,7 +146,7 @@ const BUILDINGS = [
       "리본은 아무한테나 잘 어울려요. 진짜예요.",
       "여기 옷은 전부 구름실로 짰어요. 가볍죠?",
     ] },
-  { id: "carousel", name: "떵개방", emoji: "🍜", tag: "먹방", x: 1160, y: 1660, scale: 10, sheet: "gacha",
+  { id: "carousel", name: "떵개방", emoji: "🍜", tag: "먹방", x: 1160, y: 1660, scale: 10,
     lines: [
       "지금 라이브 켜져 있어요! 뒤에서 손 흔들면 화면에 나와요.",
       "오늘 메뉴는 구름국수예요. 후루룩 소리가 제일 중요하대요.",
@@ -2213,8 +2213,28 @@ function Town({ me, setMe, onKick }) {
     if (id === "cotton-shelf") { setToast(`🍭 진열대에 ${cottonShelf.length}개의 솜사탕이 있어요.`); return; }
     if (id === "spaLobby") { enterRoom(SPA_ENTRY_SCENE); return; }
     if (id === "spa1" || id === "spa2" || id === "spa3") { changeSpaFloor(id); return; }
-    if (id === "dress") loadSkins();
-    if (id === "arcade" || id === "starview" || id === "showtime" || id === "songs") {
+    /* 내부 방의 설치물을 눌렀을 때만 해당 메뉴를 엽니다.
+       건물 입장 자체에서 sheet를 열지 않아 방 내부 구조/테이블을 그대로 보여줍니다. */
+    if (id === "dress") {
+      loadSkins();
+      setSheet("dress");
+      return;
+    }
+    if (id === "buy") {
+      setSheet("menu");
+      return;
+    }
+    if (id === "showtime") {
+      doQuest("movie");
+      setSheet("movie");
+      return;
+    }
+    if (id === "music") {
+      doQuest("music");
+      setSheet("music");
+      return;
+    }
+    if (id === "arcade" || id === "starview" || id === "songs") {
       if (id === "arcade") doQuest("arcade");
       setSheet(id);
       return;
@@ -4409,6 +4429,30 @@ function Town({ me, setMe, onKick }) {
             hostCode={me.hostCode}
             isHost={me.role === "host"}
             onDraw={() => doQuest("fortune")}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "menu" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <MenuSheet
+            balance={balance}
+            holding={holding}
+            onBuy={buyMenu}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "dress" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <DressSheet
+            look={look}
+            owned={owned}
+            balance={balance}
+            skins={skins}
+            onApply={applyLook}
             onClose={() => setSheet(null)}
           />
         </div>
