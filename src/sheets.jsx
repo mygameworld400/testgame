@@ -1973,7 +1973,14 @@ export function ArcadeSheet({ pick, me, off = false, onClose }) {
     setBusy(true);
     const r = await scoreTop(tab);
     setBusy(false);
-    setRank(Array.isArray(r) ? r : []);
+    const rows = Array.isArray(r) ? r : [];
+    /* 서버가 전체 점수를 반환하는 구현에서도 게임별 랭킹이 섞이지 않도록
+       game/type 필드가 있는 결과는 현재 게임만 남깁니다. */
+    const filtered = rows.filter((row) => {
+      const key = row?.game ?? row?.gameId ?? row?.type ?? row?.kind;
+      return key == null || key === tab;
+    });
+    setRank(filtered);
   };
 
   return (
