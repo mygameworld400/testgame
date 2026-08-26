@@ -82,7 +82,7 @@ const C = {
 const PX = 4; // 캐릭터 확대 배율
 
 const BUILDINGS = [
-  { id: "cake", name: "LP바", emoji: "🎧", tag: "음악", x: 430, y: 1280, scale: 10,
+  { id: "cake", name: "LP바", emoji: "🎧", tag: "음악", x: 430, y: 1280, scale: 10, sheet: "music",
     lines: [
       "오늘 밤 첫 곡 나갑니다. 헤드폰 하나 골라서 아무 자리나 앉으세요.",
       "신청곡 받아요. 구름 위에서 듣기 좋은 걸로 부탁드려요.",
@@ -115,7 +115,7 @@ const BUILDINGS = [
     lines: ["동전은 필요 없어요. 그냥 하세요.", "최고 점수 아직 비어 있어요."] },
   { id: "escape", name: "방탈출", emoji: "🔐", tag: "탈출", x: 470, y: 760, scale: 8,
     lines: ["열쇠는 이 방 안 어딘가에.", "겁먹지 마세요. 안 무서워요."] },
-  { id: "movie", name: "구름영화관", emoji: "🎬", tag: "영화", x: 866, y: 760, scale: 8,
+  { id: "movie", name: "구름영화관", emoji: "🎬", tag: "영화", x: 866, y: 760, scale: 8, sheet: "movie",
     lines: ["곧 시작합니다. 자리 잡으세요.", "상영표는 옆 벽에 있어요."] },
   { id: "star", name: "천문대", emoji: "🔭", tag: "별", x: 1262, y: 760, scale: 8,
     lines: ["망원경으로 보면 별이 더 커요.", "바닥에 누워서 봐도 좋아요."] },
@@ -146,7 +146,7 @@ const BUILDINGS = [
       "리본은 아무한테나 잘 어울려요. 진짜예요.",
       "여기 옷은 전부 구름실로 짰어요. 가볍죠?",
     ] },
-  { id: "carousel", name: "떵개방", emoji: "🍜", tag: "먹방", x: 1160, y: 1660, scale: 10,
+  { id: "carousel", name: "떵개방", emoji: "🍜", tag: "먹방", x: 1160, y: 1660, scale: 10, sheet: "gacha",
     lines: [
       "지금 라이브 켜져 있어요! 뒤에서 손 흔들면 화면에 나와요.",
       "오늘 메뉴는 구름국수예요. 후루룩 소리가 제일 중요하대요.",
@@ -424,21 +424,14 @@ const PARK_DECO = [
   {x:400,y:3340,t:'tree'}, {x:1180,y:3350,t:'tree'}, {x:1330,y:3290,t:'tree'},
   {x:520,y:3250,t:'bench'}, {x:1080,y:3260,t:'bench'}, {x:740,y:3070,t:'lamp'}, {x:880,y:3070,t:'lamp'},
 ];
-const PARK_BLOCKS = [
-  {x1:690,x2:930,y1:3120,y2:3230},
-  {x1:850,x2:1120,y1:3190,y2:3290},
-];
+const PARK_BLOCKS = [];
 
 /* 건물 이미지 관리에서 함께 바꿀 수 있는 버스/공원 오브제 목록 */
 const PARK_IMAGE_TARGETS = [
   { id: "park:sign", label: "구름공원 표지판" },
   { id: "park:pond", label: "공원 연못" },
-  { id: "park:gazebo", label: "공원 정자" },
-  { id: "park:playground", label: "어린이 놀이터" },
-  { id: "park:picnic", label: "피크닉 잔디" },
   { id: "park:fountain", label: "작은 분수" },
   { id: "park:flowers", label: "공원 꽃밭" },
-  { id: "park:dogrun", label: "강아지 산책길" },
   { id: "park:tree", label: "공원 나무" },
   { id: "park:bench", label: "공원 벤치" },
   { id: "park:lamp", label: "공원 가로등" },
@@ -1144,12 +1137,8 @@ function ParkGround({ objectImages = {} }){
   return <div className="ccParkGround" aria-label="구름공원">
     <div className="ccParkSign">{img("park:sign", "sign") || <><span>🌳 구름공원</span> <small>Cloud Park</small></>}</div>
     <div className="ccParkPond">{img("park:pond", "pond") || <><span>🦆</span><i/><i/><i/></>}</div>
-    <div className="ccParkGazebo">{img("park:gazebo", "gazebo") || <><div className="roof">⛺</div><div className="posts">▥　▥　▥</div><b>그늘 정자</b></>}</div>
-    <div className="ccParkPlayground">{img("park:playground", "playground") || <><div className="slide">🛝</div><div className="swing">♜</div><b>어린이 놀이터</b></>}</div>
-    <div className="ccParkPicnic">{img("park:picnic", "picnic") || <><span>🧺</span><span>🧺</span><b>피크닉 잔디</b></>}</div>
     <div className="ccParkFountain">{img("park:fountain", "fountain") || <>⛲<small>작은 분수</small></>}</div>
     <div className="ccParkFlowers">{img("park:flowers", "flowers") || <>🌷 🌼 🌷 🌼 🌷</>}</div>
-    <div className="ccParkDogRun">{img("park:dogrun", "dogrun") || <>🐕　🐕<small>강아지 산책길</small></>}</div>
     {PARK_DECO.map((d,i)=><div key={i} className={`ccParkDeco ${d.t}`} style={{left:d.x,top:d.y}}>{objectImages[`park:${d.t}`] ? <img src={objectImages[`park:${d.t}`]} alt="" className={`ccParkCustomImage deco-${d.t}`} /> : d.t==='tree'?'🌳':d.t==='bench'?'🪑':'💡'}</div>)}
   </div>;
 }
@@ -4372,6 +4361,54 @@ function Town({ me, setMe, onKick }) {
             pick="fart"
             me={me}
             off={me.role === "solo"}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "gacha" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <GachaSheet
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            onDraw={() => doQuest("gacha")}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "music" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <MusicSheet
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            playingId={null}
+            onPlay={() => doQuest("music")}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "movie" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <MovieSheet
+            me={me}
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            off={me.role === "solo"}
+            now={movie}
+            onPlay={loadMovie}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "fortune" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <FortuneSheet
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            onDraw={() => doQuest("fortune")}
             onClose={() => setSheet(null)}
           />
         </div>
