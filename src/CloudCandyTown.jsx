@@ -1449,10 +1449,10 @@ function JoinGate({ onJoined, notice }) {
 
 
 /* ============================ 모바일 UI 배치 편집기 ============================ */
-const MOBILE_UI_LAYOUT_KEY = "ccMobileUILayoutV1";
+const MOBILE_UI_LAYOUT_KEY = "ccMobileUILayoutV2";
 const MOBILE_UI_CANVAS = { w: 960, h: 540 };
 const MOBILE_UI_DEFAULTS = {
-  joystick: { label: "조이스틱", x: 38, y: 258, w: 154, h: 154 },
+  joystick: { label: "조이스틱", x: 38, y: 278, w: 154, h: 154 },
   action: { label: "행동 버튼", x: 764, y: 454, w: 96, h: 64 },
   chat: { label: "채팅 버튼", x: 870, y: 462, w: 56, h: 56 },
 };
