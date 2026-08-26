@@ -1005,8 +1005,9 @@ function Building({ b, near, objectImages = {} }) {
       ) : (
         <Pix map={sp.map} palette={sp.palette} scale={b.scale} cacheKey={"b-" + (b.sprite || b.id)} className={near ? "ccNear" : ""} />
       )}
-      {b.id === "cotton" && objectImages[b.id] && <div className="ccBuildingTalkBubble">망했음</div>}
-      {b.id === "spa" && objectImages[b.id] && <div className="ccBuildingTalkBubble">공사중.. 입장은가능</div>}
+      {/* v17: 건물 커스텀 이미지 여부와 관계없이 외부 말풍선을 항상 표시합니다. */}
+      {b.id === "cotton" && <div className="ccBuildingTalkBubble">망했음</div>}
+      {b.id === "spa" && <div className="ccBuildingTalkBubble">공사중.. 입장은가능</div>}
       <div className="ccSign">
         {b.emoji} {b.name}
       </div>
@@ -4370,6 +4371,90 @@ function Town({ me, setMe, onKick }) {
           <ArcadeSheet
             pick="fart"
             me={me}
+            off={me.role === "solo"}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {/* v17: 모든 setSheet 대상에 실제 시트를 연결합니다.
+          이전 버전에서 상태만 바뀌고 렌더링이 빠진 시트가 있어
+          퀴즈/노래방/팀전/스킨/피드백을 열면 이동이 잠긴 채 화면이 비어 있었습니다. */}
+      {sheet === "quiz" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <QuizSheet
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            mode={quizMode}
+            fixedPack={quizMode === "team" ? teamPack : null}
+            onFinish={() => {}}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "songs" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <SongbookSheet
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            off={me.role === "solo"}
+            playingId={karaoke?.id || null}
+            onPlay={(songs, index, pl) => {
+              const t = songs?.[index];
+              if (!t) return;
+              const url = t.url || t.path || "";
+              const vid = youtubeId(url);
+              if (!vid) return;
+              const startedAt = Date.now();
+              const next = { id: t.id, title: t.title || "노래방", url, by: me.name, startedAt };
+              setKaraoke(next);
+              setSheet(null);
+              chanRef.current?.fx({ t: "karaoke", id: t.id, title: next.title, url, by: me.name, startedAt });
+              chanRef.current?.fx({ t: "karaokeStart", name: me.name, announcementId: "karaoke-" + startedAt });
+              doQuest("karaoke");
+              blip(860);
+            }}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "lobby" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <TeamLobby
+            me={me}
+            games={games}
+            myGid={myGid}
+            packs={packs}
+            results={results}
+            onCreate={createGame}
+            onJoin={joinGame}
+            onLeave={leaveGame}
+            onStart={startGame}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "skins" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <SkinSheet
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
+            skins={skins}
+            onChanged={loadSkins}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
+
+      {sheet === "feedback" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <FeedbackSheet
+            round={me.round ?? 1}
+            hostCode={me.hostCode}
+            isHost={me.role === "host"}
             off={me.role === "solo"}
             onClose={() => setSheet(null)}
           />
