@@ -1471,10 +1471,13 @@ function readMobileUILayout() {
 function applyMobileUILayout(layout) {
   const root = document.documentElement;
   Object.entries(layout).forEach(([id, v]) => {
-    root.style.setProperty(`--ccMobile${id[0].toUpperCase()}${id.slice(1)}X`, `${v.x}px`);
-    root.style.setProperty(`--ccMobile${id[0].toUpperCase()}${id.slice(1)}Y`, `${v.y}px`);
-    root.style.setProperty(`--ccMobile${id[0].toUpperCase()}${id.slice(1)}W`, `${v.w}px`);
-    root.style.setProperty(`--ccMobile${id[0].toUpperCase()}${id.slice(1)}H`, `${v.h}px`);
+    const key = `--ccMobile${id[0].toUpperCase()}${id.slice(1)}`;
+    // CSS calc()에서 px * vw 형태의 곱셈은 일부 모바일 브라우저에서
+    // 무효가 될 수 있으므로, 여기서 960×540 기준 좌표를 %로 변환합니다.
+    root.style.setProperty(`${key}X`, `${(v.x / MOBILE_UI_CANVAS.w) * 100}%`);
+    root.style.setProperty(`${key}Y`, `${(v.y / MOBILE_UI_CANVAS.h) * 100}%`);
+    root.style.setProperty(`${key}W`, `${(v.w / MOBILE_UI_CANVAS.w) * 100}%`);
+    root.style.setProperty(`${key}H`, `${(v.h / MOBILE_UI_CANVAS.h) * 100}%`);
   });
 }
 
@@ -1513,7 +1516,7 @@ function MobileUILayoutEditor({ open, onClose }) {
         <div className="ccMobileEditorHead">
           <div>
             <b>모바일 UI 배치 편집 모드</b>
-            <small>F8로 열고 닫기 · 기준 화면 960 × 540 · 좌상단이 (0,0)</small>
+            <small>F8로 열고 닫기 · 기준 화면 960 × 540 · 좌상단이 (0,0) · 도면 안에 실제 게임 배경이 보입니다</small>
           </div>
           <button onClick={onClose} aria-label="닫기">×</button>
         </div>
@@ -5054,7 +5057,7 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 /* 모바일 조작 */
 .ccTouch{display:none;position:fixed;inset:0;width:100vw;height:100vh;z-index:180;pointer-events:none}
 .ccTouch .ccStickZone,.ccTouch .ccActs{pointer-events:auto}
-.ccStickZone{position:absolute;left:calc(var(--ccMobileJoystickX, 38px) * 100vw / 960);top:calc(var(--ccMobileJoystickY, 258px) * 100vh / 540 - var(--kb, 0px));width:calc(var(--ccMobileJoystickW, 154px) * 100vw / 960);height:calc(var(--ccMobileJoystickH, 154px) * 100vh / 540);
+.ccStickZone{position:absolute;left:var(--ccMobileJoystickX, 3.958333%);top:calc(var(--ccMobileJoystickY, 47.777778%) - var(--kb, 0px));width:var(--ccMobileJoystickW, 16.041667%);height:var(--ccMobileJoystickH, 28.518519%);
   touch-action:none;z-index:6}
 .ccStick{position:absolute;left:50%;top:50%;width:100%;height:100%;transform:translate(-50%,-50%);border-radius:50%;
   border:4px solid ${C.line};background:rgba(255,255,255,.6);touch-action:none;opacity:.75;
@@ -5063,21 +5066,21 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 .ccStickZone,.ccStick{overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .ccStickKnob{width:64px;height:64px;border-radius:50%;border:4px solid ${C.line};background:#ffd45e;
   box-shadow:3px 3px 0 rgba(91,74,99,.25);pointer-events:none;transition:transform .04s linear}
-.ccActs{position:absolute;left:calc(var(--ccMobileActionX, 764px) * 100vw / 960);top:calc(var(--ccMobileActionY, 454px) * 100vh / 540 - var(--kb, 0px));width:calc(var(--ccMobileActionW, 96px) * 100vw / 960);height:calc(var(--ccMobileActionH, 64px) * 100vh / 540);display:flex;align-items:flex-end;gap:10px}
+.ccActs{position:absolute;left:var(--ccMobileActionX, 79.583333%);top:calc(var(--ccMobileActionY, 84.074074%) - var(--kb, 0px));width:var(--ccMobileActionW, 10%);height:var(--ccMobileActionH, 11.851852%);display:flex;align-items:flex-end;gap:10px}
 .ccAct{position:relative;z-index:200;border:4px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
   font-size:13px;padding:0 14px;height:56px;min-width:56px;box-shadow:4px 4px 0 rgba(91,74,99,.25);
   touch-action:none;cursor:pointer}
 .ccAct:active{transform:translate(2px,2px);box-shadow:2px 2px 0 rgba(91,74,99,.25)}
-.ccActMain{background:#ff8fb6;color:#fff;height:100%;min-width:100%;font-size:14px}.ccActs .ccAct:not(.ccActMain){position:absolute;left:calc((var(--ccMobileChatX, 870px) - var(--ccMobileActionX, 764px)) * 100vw / 960);top:calc((var(--ccMobileChatY, 462px) - var(--ccMobileActionY, 454px)) * 100vh / 540);width:calc(var(--ccMobileChatW, 56px) * 100vw / 960);height:calc(var(--ccMobileChatH, 56px) * 100vh / 540);min-width:0;padding:0}
+.ccActMain{background:#ff8fb6;color:#fff;height:100%;min-width:100%;font-size:14px}.ccActs .ccAct:not(.ccActMain){position:fixed;left:var(--ccMobileChatX, 90.625%);top:calc(var(--ccMobileChatY, 85.555556%) - var(--kb, 0px));width:var(--ccMobileChatW, 5.833333%);height:var(--ccMobileChatH, 10.370370%);min-width:0;padding:0}
 
 /* F8 모바일 UI 배치 편집기 */
-.ccMobileEditorOverlay{position:fixed;inset:0;z-index:10000;background:rgba(30,24,36,.72);display:flex;align-items:center;justify-content:center;padding:24px;font-family:var(--ccFont,"NeoDunggeunmo",system-ui,sans-serif)}
+.ccMobileEditorOverlay{position:fixed;inset:0;z-index:10000;background:rgba(30,24,36,.28);display:flex;align-items:center;justify-content:center;padding:24px;font-family:var(--ccFont,"NeoDunggeunmo",system-ui,sans-serif)}
 .ccMobileEditorPanel{width:min(1180px,96vw);max-height:92vh;overflow:auto;background:#fff8ef;border:5px solid #5b4a63;box-shadow:12px 12px 0 rgba(0,0,0,.25);color:#5b4a63}
 .ccMobileEditorHead{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:4px solid #5b4a63;background:#ffe8f2}
 .ccMobileEditorHead b{display:block;font-size:20px}.ccMobileEditorHead small{display:block;margin-top:5px;font-size:11px;opacity:.75}.ccMobileEditorHead button{width:42px;height:42px;border:3px solid #5b4a63;background:#fff;font-size:26px;font-weight:900;cursor:pointer}
 .ccMobileEditorBody{display:grid;grid-template-columns:minmax(520px,1fr) 300px;gap:18px;padding:18px}
-.ccMobileBlueprintWrap{display:flex;align-items:center;justify-content:center;min-height:430px;background:#eee7f0;border:3px dashed #9d86a3;padding:18px}
-.ccMobileBlueprint{position:relative;width:min(760px,100%);background:linear-gradient(rgba(91,74,99,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(91,74,99,.07) 1px,transparent 1px),#dff4ff;background-size:5% 9.259%;border:5px solid #5b4a63;overflow:hidden}
+.ccMobileBlueprintWrap{display:flex;align-items:center;justify-content:center;min-height:430px;background:rgba(238,231,240,.55);border:3px dashed #9d86a3;padding:18px}
+.ccMobileBlueprint{position:relative;width:min(760px,100%);background:linear-gradient(rgba(91,74,99,.14) 1px,transparent 1px),linear-gradient(90deg,rgba(91,74,99,.14) 1px,transparent 1px),rgba(255,255,255,.08);background-size:5% 9.259%;border:5px solid #5b4a63;overflow:hidden;box-shadow:0 0 0 9999px rgba(255,255,255,.03) inset}
 .ccMobileBlueprintLabel{position:absolute;right:10px;top:8px;font-size:11px;font-weight:900;background:#fff;padding:4px 7px;border:2px solid #5b4a63}
 .ccMobileAxisX{position:absolute;left:42px;top:8px;font-size:11px;font-weight:900}.ccMobileAxisY{position:absolute;left:8px;top:42px;font-size:11px;font-weight:900}.ccMobileOrigin{position:absolute;left:8px;top:8px;font-size:10px;font-weight:900}
 .ccMobileBox{position:absolute;border:3px solid #5b4a63;background:rgba(255,143,182,.72);box-shadow:3px 3px 0 rgba(91,74,99,.2);cursor:pointer;font-family:inherit;color:#5b4a63;font-weight:900;overflow:hidden}.ccMobileBox:nth-of-type(4){background:rgba(255,212,94,.78)}.ccMobileBox:nth-of-type(5){background:rgba(169,228,255,.82)}.ccMobileBox.on{outline:4px solid #fff;box-shadow:0 0 0 4px #5b4a63,5px 5px 0 rgba(91,74,99,.25);z-index:5}.ccMobileBox span{display:block;font-size:10px;white-space:nowrap}.ccMobileBox em{display:block;font-style:normal;font-size:9px;margin-top:3px}
