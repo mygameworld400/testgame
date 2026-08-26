@@ -2153,6 +2153,7 @@ function Town({ me, setMe, onKick }) {
     const R = 14;
 
     const step = (now) => {
+      const wallNow = Date.now();
       const dt = Math.min(32, now - last) / 16.67;
       last = now;
       const k = keys.current;
@@ -2382,7 +2383,7 @@ function Town({ me, setMe, onKick }) {
       for (const id of BUS_IDS) {
         const route = BUS_ROUTES[id];
         const bs = busStateRef.current[id];
-        const bp = busPosition(route, bs, now);
+        const bp = busPosition(route, bs, wallNow);
         const d = Math.hypot(p.x - bp.x, p.y - bp.y);
         if (d < busBestD) { busBest = id; busBestD = d; }
       }
@@ -2411,7 +2412,7 @@ function Town({ me, setMe, onKick }) {
         const bs = busStateRef.current[id];
         if (!bs || bs.status !== "toDest") continue;
         const route = BUS_ROUTES[id];
-        if (now - bs.startedAt >= route.duration) {
+        if (wallNow - bs.startedAt >= route.duration) {
           if (bs.riderId === deviceId()) {
             posRef.current = { ...route.end };
             setPos({ ...route.end });
@@ -2419,7 +2420,7 @@ function Town({ me, setMe, onKick }) {
             setRiding(false);
             setToast("🚌 도착했습니다! 자동으로 하차합니다.");
           }
-          const next = { status: "return", riderId: null, riderName: "", startedAt: now };
+          const next = { status: "return", riderId: null, riderName: "", startedAt: wallNow };
           busStateRef.current = { ...busStateRef.current, [id]: next };
           setBusState(busStateRef.current);
           chanRef.current?.fx({ t: "busArrive", busId: id, riderId: bs.riderId });
@@ -2427,15 +2428,15 @@ function Town({ me, setMe, onKick }) {
       }
       for (const id of BUS_IDS) {
         const bs = busStateRef.current[id];
-        if (bs?.status === "return" && now - bs.startedAt >= 2200) {
+        if (bs?.status === "return" && wallNow - bs.startedAt >= 2200) {
           const next = { status: "idle", riderId: null, riderName: "" };
           busStateRef.current = { ...busStateRef.current, [id]: next };
           setBusState(busStateRef.current);
           chanRef.current?.fx({ t: "busReturn", busId: id });
         }
       }
-      if (now - busTickAt.current > 80 && BUS_IDS.some(id => busStateRef.current[id]?.status !== "idle")) {
-        busTickAt.current = now;
+      if (wallNow - busTickAt.current > 80 && BUS_IDS.some(id => busStateRef.current[id]?.status !== "idle")) {
+        busTickAt.current = wallNow;
         setBusState({ ...busStateRef.current });
       }
 
@@ -2448,7 +2449,7 @@ function Town({ me, setMe, onKick }) {
         if (!bs) continue;
         const el = document.querySelector(`[data-cc-bus="${id}"]`);
         if (el) {
-          const bp = busPosition(route, bs, now);
+          const bp = busPosition(route, bs, wallNow);
           el.style.left = `${bp.x}px`;
           el.style.top = `${bp.y}px`;
         }
@@ -2471,7 +2472,7 @@ function Town({ me, setMe, onKick }) {
         const r = BUS_ROUTES[ridingBusId];
         const bs = busStateRef.current[ridingBusId];
         if (bs && (bs.status === "toDest" || bs.status === "return")) {
-          const bp = busPosition(r, bs, now);
+          const bp = busPosition(r, bs, wallNow);
           cameraTarget = bp;
           posRef.current = { x: bp.x, y: bp.y };
           if (Math.abs(p.x - bp.x) > 0.5 || Math.abs(p.y - bp.y) > 0.5) setPos({ x: bp.x, y: bp.y });
