@@ -1,4 +1,4 @@
-/* CloudCandyTown v5 — mobile joystick restored/enlarged + touch movement fix */
+/* CloudCandyTown v7 — mobile joystick hit area reduced to joystick size */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
@@ -1072,7 +1072,7 @@ const DEADZONE = 0.16;
    포인터 이벤트가 제대로 안 오는 경우가 있어 터치 이벤트로 넘어갑니다. */
 const HAS_POINTER = typeof window !== "undefined" && "onpointerdown" in window;
 
-/* 왼쪽 아래 아무 데나 눌러도 그 자리에 조이스틱이 생깁니다 */
+/* 조이스틱 이미지 크기만큼의 터치 영역 안에서만 조작합니다. */
 function Stick({ onMove }) {
   const origin = useRef(null);
   const active = useRef(false);
@@ -4919,8 +4919,9 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 /* 모바일 조작 */
 .ccTouch{display:none;position:fixed;inset:0;width:100vw;height:100vh;z-index:180;pointer-events:none}
 .ccTouch .ccStickZone,.ccTouch .ccActs{pointer-events:auto}
-.ccStickZone{position:absolute;left:0;bottom:0;width:58%;height:82%;touch-action:none;z-index:6}
-.ccStick{position:absolute;left:28px;bottom:calc(28px + var(--kb, 0px));width:154px;height:154px;border-radius:50%;
+.ccStickZone{position:absolute;left:28px;bottom:calc(28px + var(--kb, 0px));width:154px;height:154px;
+  touch-action:none;z-index:6}
+.ccStick{position:absolute;left:77px;top:77px;width:154px;height:154px;border-radius:50%;
   border:4px solid ${C.line};background:rgba(255,255,255,.6);touch-action:none;opacity:.75;
   box-shadow:4px 4px 0 rgba(91,74,99,.25);display:flex;align-items:center;justify-content:center}
 .ccStickOn{opacity:1;background:rgba(255,255,255,.9)}
