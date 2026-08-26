@@ -1578,6 +1578,10 @@ function Town({ me, setMe, onKick }) {
   const [spaLobbySavedLayout] = useState(() => readSpaLobbySavedLayout());
   const [spaLobbyBubbleLayout, setSpaLobbyBubbleLayout] = useState(() => spaLobbySavedLayout.bubble);
   const [spaLobbyItemLayout, setSpaLobbyItemLayout] = useState(() => ({ bill: spaLobbySavedLayout.bill, key: spaLobbySavedLayout.key }));
+  // Realtime getPose는 연결 시점의 클로저를 계속 사용할 수 있으므로
+  // 로비 관리값은 ref에도 항상 최신 상태를 보관합니다.
+  const spaLobbyBubbleLayoutRef = useRef(spaLobbySavedLayout.bubble);
+  const spaLobbyItemLayoutRef = useRef({ bill: spaLobbySavedLayout.bill, key: spaLobbySavedLayout.key });
   const [objectImageTarget, setObjectImageTarget] = useState(BUILDINGS[0]?.id || "cake");          // 호스트가 올린 캐릭터 이미지
   const [live, setLive] = useState(true);          // 실시간 연결 상태
   const [movie, setMovie] = useState(null);        // 지금 상영 중인 것
@@ -2769,6 +2773,7 @@ function Town({ me, setMe, onKick }) {
   const updateSpaLobbyBubbleLayout = useCallback((next) => {
     if (me.role !== "host") return;
     const safe = normalizeSpaLobbyBubbleLayout(next);
+    spaLobbyBubbleLayoutRef.current = safe;
     setSpaLobbyBubbleLayout(safe);
     chanRef.current?.fx({ t: "spaLobbyBubbleLayout", layout: safe });
   }, [me.role, normalizeSpaLobbyBubbleLayout]);
@@ -2776,6 +2781,7 @@ function Town({ me, setMe, onKick }) {
   const updateSpaLobbyItemLayout = useCallback((next) => {
     if (me.role !== "host") return;
     const safe = normalizeSpaLobbyItemLayout(next);
+    spaLobbyItemLayoutRef.current = safe;
     setSpaLobbyItemLayout(safe);
     chanRef.current?.fx({ t: "spaLobbyItemLayout", layout: safe });
   }, [me.role, normalizeSpaLobbyItemLayout]);
@@ -2791,6 +2797,8 @@ function Town({ me, setMe, onKick }) {
       localStorage.setItem("ccSpaLobbyBubbleLayout", JSON.stringify(bubble));
       localStorage.setItem("ccSpaLobbyItemLayout", JSON.stringify(items));
     } catch {}
+    spaLobbyBubbleLayoutRef.current = bubble;
+    spaLobbyItemLayoutRef.current = items;
     setSpaLobbyBubbleLayout(bubble);
     setSpaLobbyItemLayout(items);
     chanRef.current?.fx({ t: "spaLobbyBubbleLayout", layout: bubble });
@@ -2831,15 +2839,25 @@ function Town({ me, setMe, onKick }) {
         kml: sceneRef.current === "sing" && me.role === "host" ? karaokeMicLayoutRef.current : undefined,
         bgmMap: me.role === "host" ? roomBgmRef.current : undefined,
         objImgs: me.role === "host" ? objectImages : undefined,
-        spaLobbyBubbleLayout: me.role === "host" ? spaLobbyBubbleLayout : undefined,
-        spaLobbyItemLayout: me.role === "host" ? spaLobbyItemLayout : undefined,
+        spaLobbyBubbleLayout: me.role === "host" ? spaLobbyBubbleLayoutRef.current : undefined,
+        spaLobbyItemLayout: me.role === "host" ? spaLobbyItemLayoutRef.current : undefined,
       }),
       onPeers: (list) => {
         setPeers(list);
         const host = list.find((p) => p.role === "host");
         if (host?.objImgs && typeof host.objImgs === "object") setObjectImages(host.objImgs);
-        if (host?.spaLobbyBubbleLayout && typeof host.spaLobbyBubbleLayout === "object") setSpaLobbyBubbleLayout(host.spaLobbyBubbleLayout);
-        if (host?.spaLobbyItemLayout && typeof host.spaLobbyItemLayout === "object") setSpaLobbyItemLayout(host.spaLobbyItemLayout);
+        // 호스트 자신은 stale peer snapshot으로 로컬 설정이 되돌아가지 않도록
+        // onPeers에서 레이아웃을 덮어쓰지 않습니다. 게스트만 호스트 값을 적용합니다.
+        if (me.role !== "host") {
+          if (host?.spaLobbyBubbleLayout && typeof host.spaLobbyBubbleLayout === "object") {
+            spaLobbyBubbleLayoutRef.current = host.spaLobbyBubbleLayout;
+            setSpaLobbyBubbleLayout(host.spaLobbyBubbleLayout);
+          }
+          if (host?.spaLobbyItemLayout && typeof host.spaLobbyItemLayout === "object") {
+            spaLobbyItemLayoutRef.current = host.spaLobbyItemLayout;
+            setSpaLobbyItemLayout(host.spaLobbyItemLayout);
+          }
+        }
         if (host?.bgmMap && typeof host.bgmMap === "object") {
           const normalizedMap = Object.fromEntries(
             Object.entries(host.bgmMap).map(([id, bgm]) => [
@@ -2938,11 +2956,13 @@ function Town({ me, setMe, onKick }) {
         }
 
         if (e.t === "spaLobbyBubbleLayout" && e.layout && typeof e.layout === "object") {
+          spaLobbyBubbleLayoutRef.current = e.layout;
           setSpaLobbyBubbleLayout(e.layout);
           return;
         }
 
         if (e.t === "spaLobbyItemLayout" && e.layout && typeof e.layout === "object") {
+          spaLobbyItemLayoutRef.current = e.layout;
           setSpaLobbyItemLayout(e.layout);
           return;
         }
