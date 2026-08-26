@@ -1768,7 +1768,7 @@ function Town({ me, setMe, onKick }) {
 
   const roomTaken = Object.values(roomStars).reduce((n, list) => n + list.filter(Boolean).length, 0);
   /* 호스트는 옷가게 물건을 마음껏 시험해볼 수 있게 별을 넉넉히 들고 시작합니다 */
-  const hostStars = me.role === "host" ? 300 : 0;
+  const hostStars = me.role === "host" ? 30000 : 0;
   const collected = stars.filter(Boolean).length + roomTaken + hostStars + bonus;
   const balance = Math.max(0, collected - spent);
   const online = me.role === "solo" ? 1 : peers.length + 1;
