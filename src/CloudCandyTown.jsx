@@ -5538,7 +5538,7 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 
 .ccLobbyElevatorScene{position:absolute;inset:0;background-color:#dbe9ed;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:25;background-position:center;background-size:100% 100%;background-repeat:no-repeat;image-rendering:pixelated}
 .ccElevatorPhotoScene{background-position:center center}
-.ccElevatorSwitchHotspot{position:absolute;right:24%;top:37.5%;width:6.2%;height:16.5%;z-index:31;display:flex;flex-direction:column;gap:7%;pointer-events:none}
+.ccElevatorSwitchHotspot{position:absolute;right:16.5%;top:38.2%;width:6.6%;height:18%;z-index:31;display:flex;flex-direction:column;gap:5%;pointer-events:none}
 .ccElevatorSwitchHotspot button{flex:1;min-height:0;border:0;background:transparent;cursor:pointer;pointer-events:auto;padding:0}
 .ccElevatorSwitchHotspot button:hover{background:rgba(255,255,255,.08);outline:3px solid rgba(255,255,255,.18)}
 .ccLobbyElevatorScene .ccElevatorCeiling{position:absolute;top:35px;left:50%;transform:translateX(-50%);font-weight:900;letter-spacing:2px;color:#5b4a63}
