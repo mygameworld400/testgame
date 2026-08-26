@@ -5506,9 +5506,13 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccParkConnectorRoad{position:absolute;left:690px;top:2670px;width:90px;height:300px;z-index:1;border-left:4px solid #d8c69e;border-right:4px solid #d8c69e;box-sizing:border-box;background-repeat:repeat}
 .ccAsphaltConnector{position:absolute;left:2160px;top:780px;width:180px;height:1330px;background:#64676b;z-index:2;border-left:7px solid #4d5053;border-right:7px solid #4d5053;box-sizing:border-box}
 
+/* v31: 찜질스파 아이템 표시 보정 — CSS는 반드시 CSS 문자열 내부에 있어야 합니다. */
+.ccSpaPickupItem{position:absolute!important;z-index:38;transform-origin:center center!important;animation:ccSpaItemGlow 1.15s steps(2,end) infinite;cursor:pointer;background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;display:flex;flex-direction:column;align-items:center;pointer-events:auto}
+.ccSpaPickupItem img{display:block;width:90px;height:90px;object-fit:contain;filter:drop-shadow(0 0 7px rgba(255,245,160,.9)) drop-shadow(3px 4px 0 rgba(63,49,48,.18))}
+.ccSpaPickupItem span{margin-top:4px;background:#fff7df;border:3px solid #4f403a;padding:3px 7px;font-size:10px;font-weight:1000;box-shadow:3px 3px 0 #4f403a}
+.ccSpaInventorySlot img{width:70%;height:70%;object-fit:contain}
+.ccSpaInventory{z-index:40!important}
+@keyframes ccSpaItemGlow{0%,100%{filter:drop-shadow(0 0 4px rgba(255,245,160,.5));}50%{filter:drop-shadow(0 0 12px rgba(255,245,160,1));}}
+
 `;
 
-
-/* v29 찜질스파 아이템 관리 */
-.ccSpaPickupItem{position:absolute!important;z-index:38;transform-origin:center center!important;animation:ccSpaItemGlow 1.15s steps(2,end) infinite;cursor:pointer;background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;display:flex;flex-direction:column;align-items:center;pointer-events:auto}.ccSpaPickupItem img{display:block;width:210px;height:210px;object-fit:contain;filter:drop-shadow(0 0 10px rgba(255,245,160,.95)) drop-shadow(3px 4px 0 rgba(63,49,48,.18))}.ccSpaPickupItem span{margin-top:5px;background:#fff7df;border:3px solid #4f403a;padding:4px 8px;font-size:10px;font-weight:1000;box-shadow:3px 3px 0 #4f403a}.ccSpaInventorySlot img{width:70%;height:70%;object-fit:contain}.ccSpaInventory{z-index:40!important}
-@keyframes ccSpaItemGlow{0%,100%{filter:drop-shadow(0 0 5px rgba(255,245,160,.55));}50%{filter:drop-shadow(0 0 15px rgba(255,245,160,1));}}
