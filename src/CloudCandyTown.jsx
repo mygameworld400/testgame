@@ -1,6 +1,5 @@
-/* CloudCandyTown v12 — shuttle bus camera follows the bus in real time */
+/* CloudCandyTown v22 — building image manager uses the existing proven modal/sheet layer */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
 import { CAFE_CHAIRS, CAFE_TABLES, CHAIRS, MENU, QUIZ_SKIN, ROOM, ROOMS, RoomStage, SCREEN, SEAT_TALK, SMALL_TALK, depth, keyCount, keyPos, proj } from "./rooms.jsx";
@@ -762,9 +761,12 @@ function ObjectImageSheet({ objectImages = {}, target, setTarget, onApply, onRes
     } catch { /* handled by caller */ }
     finally { setBusy(false); }
   };
-  const modal = <div className="ccModalOverlay" onClick={onClose}>
+  return (
     <div className="ccPanel ccObjectSheet" onClick={e=>e.stopPropagation()}>
-      <div className="ccObjectSheetHead"><div><b>🏠 건물 · 오브제 이미지 관리</b><small>호스트만 변경할 수 있어요</small></div><button className="ccMini" onClick={onClose}>×</button></div>
+      <div className="ccObjectSheetHead">
+        <div><b>🏠 건물 · 오브제 이미지 관리</b><small>호스트만 변경할 수 있어요</small></div>
+        <button className="ccMini" onClick={onClose}>×</button>
+      </div>
       <select className="ccObjectSheetSelect" value={target} onChange={e=>setTarget(e.target.value)}>
         {BUILDINGS.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
       </select>
@@ -778,8 +780,7 @@ function ObjectImageSheet({ objectImages = {}, target, setTarget, onApply, onRes
       {objectImages[target] && <button className="ccObjectSheetReset" onClick={()=>{onReset(target);setPreview(null);}}>기본 이미지로 되돌리기</button>}
       <p className="ccObjectSheetHint">사진의 바깥 배경을 자동으로 투명하게 만든 뒤 건물에 적용합니다. 적용 결과는 접속 중인 게스트에게도 보여요.</p>
     </div>
-  </div>;
-  return typeof document !== "undefined" ? createPortal(modal, document.body) : null;
+  );
 }
 
 /* 사진 가장자리의 배경색을 기준으로 연결된 배경을 투명하게 만드는 간단한 자동 누끼 */
@@ -1407,7 +1408,6 @@ function Town({ me, setMe, onKick }) {
   });
   const [setOpen, setSetOpen] = useState(false);   // 설정 패널
   const [setSection, setSetSection] = useState("font"); // 설정 아코디언
-  const [objectSheetOpen, setObjectSheetOpen] = useState(false);
   const [riding, setRiding] = useState(false);     // 미끄럼틀 타는 중
   const [lying, setLying] = useState(false);       // 천문대에서 눕기
   const [bouncing, setBouncing] = useState(false); // 방방 위에서 통통
@@ -3786,7 +3786,7 @@ function Town({ me, setMe, onKick }) {
             </button>
             {setSection === "object" && <div className="ccSetToggleBody">
               <p>건물 사진을 올리면 자동으로 누끼를 따서 적용해요.</p>
-              <button className="ccSetFont ccSetSkinBtn" onClick={()=>{setObjectSheetOpen(true);setSetOpen(false);setSetSection("");blip(760);}}>🏠 건물 이미지 관리 열기</button>
+              <button className="ccSetFont ccSetSkinBtn" onClick={()=>{setSheet("objects");setSetOpen(false);setSetSection("");blip(760);}}>🏠 건물 이미지 관리 열기</button>
             </div>}
           </>)}
           <button className="ccSetToggle" onClick={()=>setSetSection(setSection === "character" ? "" : "character")}>
@@ -4153,13 +4153,13 @@ function Town({ me, setMe, onKick }) {
               onClose={() => setSheet(null)}
             />
           )}
-          {objectSheetOpen && me.role === "host" && <ObjectImageSheet
+          {sheet === "objects" && me.role === "host" && <ObjectImageSheet
             objectImages={objectImages}
             target={objectImageTarget}
             setTarget={setObjectImageTarget}
             onApply={applyObjectImage}
             onReset={(id)=>{ const n={...objectImages}; delete n[id]; setObjectImages(n); try{localStorage.setItem("ccObjectImages",JSON.stringify(n));}catch{} chanRef.current?.fx({t:"objectImages",images:n}); setToast("기본 이미지로 되돌렸어요."); }}
-            onClose={()=>setObjectSheetOpen(false)}
+            onClose={()=>setSheet(null)}
             isHost={me.role === "host"}
           />}
           {sheet === "fortune" && (
