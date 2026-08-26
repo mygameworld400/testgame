@@ -46,8 +46,8 @@ const inArea = (x, y) => AREAS.some((a) => x >= a.x0 && x <= a.x1 && y >= a.y0 &
 const BUS_ROUTES = {
   // dropoff은 버스가 도로 끝에 선 뒤 승객이 실제 맵으로 내릴 위치입니다.
   // 도로 자체는 보행 불가이므로, 자동 하차 시 도로 밖의 보행 가능 구역으로 내려줍니다.
-  cottonSpa: { id: "cottonSpa", label: "솜사탕 → 찜질스파", laneX: 2290, start: { x: 2290, y: 2070 }, end: { x: 2290, y: 820 }, dropoff: { x: 2290, y: 770 }, duration: 6500 },
-  spaCotton: { id: "spaCotton", label: "찜질스파 → 솜사탕", laneX: 2210, start: { x: 2210, y: 820 }, end: { x: 2210, y: 2070 }, dropoff: { x: 2210, y: 2120 }, duration: 6500 },
+  cottonSpa: { id: "cottonSpa", label: "솜사탕 → 찜질스파", laneX: 2290, start: { x: 2290, y: 2070 }, end: { x: 2290, y: 820 }, dropoff: { x: 2290, y: 745 }, duration: 6500 },
+  spaCotton: { id: "spaCotton", label: "찜질스파 → 솜사탕", laneX: 2210, start: { x: 2210, y: 820 }, end: { x: 2210, y: 2070 }, dropoff: { x: 2210, y: 2140 }, duration: 6500 },
 };
 const BUS_IDS = Object.keys(BUS_ROUTES);
 const busPosition = (route, state, now) => {
@@ -2419,13 +2419,18 @@ function Town({ me, setMe, onKick }) {
             // 도착 정류장에서는 버스 도로 밖의 보행 가능 위치로 자동 하차합니다.
             // 도로 전체가 충돌 박스라 도로 위(route.end)에 그대로 두면 이동이 막히는 문제가 있었습니다.
             const dropoff = route.dropoff || route.end;
-            posRef.current = { ...dropoff };
-            setPos({ ...dropoff });
+            const safeDropoff = route.id === "cottonSpa"
+              ? { x: dropoff.x, y: Math.min(dropoff.y, 745) }
+              : { x: dropoff.x, y: Math.max(dropoff.y, 2140) };
+            posRef.current = { ...safeDropoff };
+            setPos({ ...safeDropoff });
             ridingBusRef.current = null;
             setRiding(false);
-            // 하차 직후에도 입력 잠금이 남지 않도록 다음 프레임부터 일반 보행 모드로 확실히 복귀합니다.
             rideRef.current = null;
             rideLock.current = false;
+            keys.current = {};
+            movingRef.current = false;
+            setMoving(false);
             setToast("🚌 도착했습니다! 자동으로 하차합니다.");
           }
           const next = { status: "return", riderId: null, riderName: "", startedAt: wallNow };
@@ -2638,13 +2643,18 @@ function Town({ me, setMe, onKick }) {
             // 도착 정류장에서는 버스 도로 밖의 보행 가능 위치로 자동 하차합니다.
             // 도로 전체가 충돌 박스라 도로 위(route.end)에 그대로 두면 이동이 막히는 문제가 있었습니다.
             const dropoff = route.dropoff || route.end;
-            posRef.current = { ...dropoff };
-            setPos({ ...dropoff });
+            const safeDropoff = route.id === "cottonSpa"
+              ? { x: dropoff.x, y: Math.min(dropoff.y, 745) }
+              : { x: dropoff.x, y: Math.max(dropoff.y, 2140) };
+            posRef.current = { ...safeDropoff };
+            setPos({ ...safeDropoff });
             ridingBusRef.current = null;
             setRiding(false);
-            // 하차 직후에도 입력 잠금이 남지 않도록 다음 프레임부터 일반 보행 모드로 확실히 복귀합니다.
             rideRef.current = null;
             rideLock.current = false;
+            keys.current = {};
+            movingRef.current = false;
+            setMoving(false);
             setToast("🚌 도착했습니다! 자동으로 하차합니다.");
           }
           const next = { status: "return", riderId: null, riderName: "", startedAt: Date.now() };
