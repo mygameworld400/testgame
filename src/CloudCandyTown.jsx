@@ -2681,6 +2681,11 @@ function Town({ me, setMe, onKick }) {
           const d = Math.hypot(p.x - zone.x, p.y - zone.y);
           if (d < zone.r && d < zd) { z = zone.id; zd = d; }
         }
+        /* 미니게임장은 내부 게임기 위치 데이터가 없는 이전 rooms.jsx와도
+           호환되도록 방 자체를 게임기 상호작용 영역으로 사용합니다.
+           건물 입장 자체는 그대로 내부 진입만 하고, 실제 Space/터치에서만 엽니다. */
+        if (!z && room.id === "arcade") z = "arcade";
+
         /* 의자 — 가까이 가면 앉을 수 있어요 */
         if (room.chairs && sitRef.current == null) {
           for (const c of room.chairs) {
