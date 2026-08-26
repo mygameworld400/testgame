@@ -447,7 +447,8 @@ const PARK_IMAGE_TARGETS = [
   { id: "park:lamp", label: "공원 가로등" },
 ];
 const OBJECT_IMAGE_LABELS = new Map([
-  ["bus", "마을 버스"],
+  ["bus:spa", "🚌 찜질스파행 버스"],
+  ["bus:cotton", "🚌 솜사탕행 버스"],
   ...PARK_IMAGE_TARGETS.map((v) => [v.id, v.label]),
 ]);
 const objectImageLabel = (id) => BUILDINGS.find((b) => b.id === id)?.name || OBJECT_IMAGE_LABELS.get(id) || "오브제";
@@ -815,7 +816,8 @@ function ObjectImageSheet({ objectImages = {}, target, setTarget, onApply, onRes
           {BUILDINGS.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
         </optgroup>
         <optgroup label="버스">
-          <option value="bus">🚌 마을 버스</option>
+          <option value="bus:spa">🚌 찜질스파행</option>
+          <option value="bus:cotton">🚌 솜사탕행</option>
         </optgroup>
         <optgroup label="구름공원">
           {PARK_IMAGE_TARGETS.map(v=><option key={v.id} value={v.id}>🌳 {v.label}</option>)}
@@ -3612,7 +3614,7 @@ function Town({ me, setMe, onKick }) {
               const bs = busState[id];
               const bp = busPosition(route, bs, Date.now());
               return <div key={id} data-cc-bus={id} className={"ccBus " + (bs?.status === "toDest" ? "moving" : "") + (bs?.riderId ? "occupied" : "")} style={{ left: bp.x, top: bp.y }}>
-                {objectImages.bus ? <img src={objectImages.bus} alt="" className="ccBusCustomImage" /> : <div className="ccBusBody"><span className="ccBusWindow"/><span className="ccBusWindow second"/><span className="ccBusWheel left"/><span className="ccBusWheel right"/><span className="ccBusLight left"/><span className="ccBusLight right"/></div>}
+                {objectImages[id === "cottonSpa" ? "bus:spa" : "bus:cotton"] ? <img src={objectImages[id === "cottonSpa" ? "bus:spa" : "bus:cotton"]} alt="" className="ccBusCustomImage" /> : <div className="ccBusBody"><span className="ccBusWindow"/><span className="ccBusWindow second"/><span className="ccBusWheel left"/><span className="ccBusWheel right"/><span className="ccBusLight left"/><span className="ccBusLight right"/></div>}
                 {bs?.riderId && <div className="ccBusName">{bs.riderName}</div>}
               </div>;
             })}
