@@ -629,7 +629,7 @@ function readSpaLobbySavedLayout() {
   }
 }
 
-function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleLayout, onBubbleLayout, itemLayout = {}, itemImages = {}, onItemLayout, onSaveLayout }) {
+function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleLayout, onBubbleLayout, itemLayout = {}, itemImages = {}, onItemLayout, onSaveLayout, inventory = { bill:false, key:false }, onInventoryChange }) {
   const [step, setStep] = useState("welcome");
   const [message, setMessage] = useState("목욕하러 오셨나요?");
   const [typedMessage, setTypedMessage] = useState("");
@@ -638,7 +638,6 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
   const typingRef = useRef(null);
   const [showBill, setShowBill] = useState(false);
   const [showKey, setShowKey] = useState(false);
-  const [inventory, setInventory] = useState({ bill: false, key: false });
   const [floorPicker, setFloorPicker] = useState(false);
 
   useEffect(() => {
@@ -674,12 +673,12 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
   const confirm = () => {
     if (balance < 20) { setMessage("별이 부족하시네요."); setTimeout(onExit, 900); return; }
     onPay?.();
-    setInventory({ bill: false, key: false });
+    onInventoryChange?.({ bill: false, key: false });
     setStep("paid");
     setMessage("그럼 안내해드리겠습니다.");
   };
   const collectItem = (kind) => {
-    setInventory((prev) => ({ ...prev, [kind]: true }));
+    onInventoryChange?.({ ...inventory, [kind]: true });
     if (kind === "bill") setShowBill(false);
     if (kind === "key") setShowKey(false);
   };
@@ -703,21 +702,7 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
           <span className="ccLobbyBubbleTail" />
         </div>
 
-        {step === "paid" && <div className="ccSpaInventory" aria-label="찜질스파 인벤토리">
-          <div className="ccSpaInventoryTitle">INVENTORY</div>
-          <div className="ccSpaInventorySlots">
-            <div className={"ccSpaInventorySlot " + (inventory.bill ? "filled" : "")} title={inventory.bill ? "이용권" : "빈 칸"}>
-              {inventory.bill && <img className="ccSpaInventoryThumb" src={itemImages.bill || `${import.meta.env.BASE_URL}bill.png`} alt="이용권" />}
-            </div>
-            <div className={"ccSpaInventorySlot " + (inventory.key ? "filled" : "")} title={inventory.key ? "락커키" : "빈 칸"}>
-              {inventory.key && <img className="ccSpaInventoryThumb" src={itemImages.key || `${import.meta.env.BASE_URL}key.png`} alt="락커키" />}
-            </div>
-            <div className="ccSpaInventorySlot" />
-            <div className="ccSpaInventorySlot" />
-            <div className="ccSpaInventorySlot" />
-            <div className="ccSpaInventorySlot" />
-          </div>
-        </div>}
+        {step === "paid" && <SpaInventory inventory={inventory} itemImages={itemImages} />}
 
         {showBill && <button className="ccSpaPickupItem ccSpaBillPickup" style={itemStyle("bill")} onClick={() => collectItem("bill")} title="이용권을 인벤토리에 넣기">
           <img src={itemImages.bill || `${import.meta.env.BASE_URL}bill.png`} alt="이용권" />
@@ -796,7 +781,25 @@ function CottonCanvas({ fibers, decorations = [], activeColor, decorateMode = fa
   return <canvas ref={ref} className={decorateMode?"ccCottonCanvas ccCottonCanvasDecor":"ccCottonCanvas"} onClick={handleClick}/>;
 }
 
-function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction }) {
+function SpaInventory({ inventory = { bill:false, key:false }, itemImages = {} }) {
+  return <div className="ccSpaInventory" aria-label="찜질스파 인벤토리">
+    <div className="ccSpaInventoryTitle">INVENTORY</div>
+    <div className="ccSpaInventorySlots">
+      <div className={"ccSpaInventorySlot " + (inventory.bill ? "filled" : "")} title={inventory.bill ? "이용권" : "빈 칸"}>
+        {inventory.bill && <img className="ccSpaInventoryThumb" src={itemImages.bill || `${import.meta.env.BASE_URL}bill.png`} alt="이용권" />}
+      </div>
+      <div className={"ccSpaInventorySlot " + (inventory.key ? "filled" : "")} title={inventory.key ? "락커키" : "빈 칸"}>
+        {inventory.key && <img className="ccSpaInventoryThumb" src={itemImages.key || `${import.meta.env.BASE_URL}key.png`} alt="락커키" />}
+      </div>
+      <div className="ccSpaInventorySlot" />
+      <div className="ccSpaInventorySlot" />
+      <div className="ccSpaInventorySlot" />
+      <div className="ccSpaInventorySlot" />
+    </div>
+  </div>;
+}
+
+function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction, inventory = { bill:false, key:false }, itemImages = {} }) {
   const floor = Number((scene || "spa1").replace("spa", "")) || 1;
   const hour = new Date().getHours();
   const night = hour >= 19 || hour < 6;
@@ -819,6 +822,7 @@ function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction }) {
   return <div className={"ccSpaRoom"+(night?" night":"")}>
     <div className="ccSpaHud">
       <div><b>🧖 구름찜질스파</b><span>{floor}층 · {floor===1?"목욕 / 샤워 / 사우나":floor===2?"온천 / 스파":"찜질 / 휴식 / 매점"}</span></div>
+      <SpaInventory inventory={inventory} itemImages={itemImages} />
       <div className="ccSpaFloors"><button className={floor===1?"on":""} onClick={()=>onFloor("spa1")}>1F</button><button className={floor===2?"on":""} onClick={()=>onFloor("spa2")}>2F</button><button className={floor===3?"on":""} onClick={()=>onFloor("spa3")}>3F</button><button onClick={onExit}>나가기</button></div>
     </div>
     <div className="ccSpaViewport">
@@ -1582,6 +1586,7 @@ function Town({ me, setMe, onKick }) {
   // 로비 관리값은 ref에도 항상 최신 상태를 보관합니다.
   const spaLobbyBubbleLayoutRef = useRef(spaLobbySavedLayout.bubble);
   const spaLobbyItemLayoutRef = useRef({ bill: spaLobbySavedLayout.bill, key: spaLobbySavedLayout.key });
+  const [spaInventory, setSpaInventory] = useState({ bill: false, key: false });
   const [objectImageTarget, setObjectImageTarget] = useState(BUILDINGS[0]?.id || "cake");          // 호스트가 올린 캐릭터 이미지
   const [live, setLive] = useState(true);          // 실시간 연결 상태
   const [movie, setMovie] = useState(null);        // 지금 상영 중인 것
@@ -3484,9 +3489,9 @@ function Town({ me, setMe, onKick }) {
             className="ccRoomWrap"
             style={{ width: SCREEN.w, height: SCREEN.h, transform: `translate(-50%,-50%) scale(${roomZoom})` }}
           >
-            {scene === SPA_ENTRY_SCENE ? <SpaLobby balance={balance} onPay={()=>setSpent(v=>v+20)} onFloor={changeSpaFloor} onExit={exitRoom} isHost={me.role === "host"} bubbleLayout={spaLobbyBubbleLayout} onBubbleLayout={updateSpaLobbyBubbleLayout} itemLayout={spaLobbyItemLayout} onItemLayout={updateSpaLobbyItemLayout} onSaveLayout={saveSpaLobbyLayout} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }} /> : scene && scene.startsWith("spa") ? <SpaFloor
+            {scene === SPA_ENTRY_SCENE ? <SpaLobby balance={balance} onPay={()=>setSpent(v=>v+20)} onFloor={changeSpaFloor} onExit={exitRoom} isHost={me.role === "host"} bubbleLayout={spaLobbyBubbleLayout} onBubbleLayout={updateSpaLobbyBubbleLayout} itemLayout={spaLobbyItemLayout} onItemLayout={updateSpaLobbyItemLayout} onSaveLayout={saveSpaLobbyLayout} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }} inventory={spaInventory} onInventoryChange={setSpaInventory} /> : scene && scene.startsWith("spa") ? <SpaFloor
               scene={scene} player={pos} peers={roomPeers} me={me}
-              onFloor={changeSpaFloor} onExit={exitRoom} onAction={setToast}
+              onFloor={changeSpaFloor} onExit={exitRoom} onAction={setToast} inventory={spaInventory} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }}
             /> : scene === "cotton" ? <CottonShopRoom
               step={cottonStep} color={cottonColor} powered={cottonPowered} tufts={cottonTufts} decor={cottonDecor} shelf={cottonShelf} nickname={me.name} guideOpen={cottonGuideOpen} onCloseGuide={()=>setCottonGuideOpen(false)}
               onMachine={cottonStartMachine} onColor={setCottonColor}
@@ -5581,8 +5586,17 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccSpaInventory{z-index:40!important}
 @keyframes ccSpaItemGlow{0%,100%{filter:drop-shadow(0 0 4px rgba(255,245,160,.5));}50%{filter:drop-shadow(0 0 12px rgba(255,245,160,1));}}
 
+/* v36: 찜질스파 인벤토리 — 우측 상단 가로형, 이후 층에서도 유지 */
+.ccSpaInventory{position:absolute;right:18px;top:14px;z-index:45;width:auto;max-width:min(560px,62vw);pointer-events:none}
+.ccSpaInventoryTitle{font-size:12px;font-weight:1000;letter-spacing:2px;color:#4f403a;text-align:right;margin-bottom:5px;text-shadow:2px 2px 0 #fff}
+.ccSpaInventorySlots{display:flex;flex-direction:row;align-items:stretch;gap:7px;background:rgba(255,250,235,.95);border:4px solid #4f403a;padding:7px;box-shadow:5px 5px 0 rgba(63,49,48,.22);width:max-content}
+.ccSpaInventorySlot{width:72px;height:72px;min-width:72px;background:#e7d9bf;border:3px solid #756354;display:flex;align-items:center;justify-content:center;box-shadow:inset 2px 2px 0 rgba(255,255,255,.55);box-sizing:border-box}
+.ccSpaInventorySlot.filled{background:#fff3c9}
+.ccSpaInventoryThumb{display:block!important;width:50px!important;height:50px!important;max-width:50px!important;max-height:50px!important;object-fit:contain!important;transform:none!important;filter:drop-shadow(1px 2px 0 rgba(79,64,58,.18))!important}
+.ccSpaRoom .ccSpaInventory{position:absolute;top:80px;right:18px}
+
 /* v32: 저장된 로비 아이템은 인벤토리에서 작게만 표시하고, 수령하면 화면에서 즉시 사라집니다. */
-.ccSpaInventoryThumb{display:block!important;width:34px!important;height:34px!important;max-width:34px!important;max-height:34px!important;object-fit:contain!important;transform:none!important;filter:drop-shadow(1px 2px 0 rgba(79,64,58,.18))!important}
+.ccSpaInventoryThumb{display:block!important;width:50px!important;height:50px!important;max-width:50px!important;max-height:50px!important;object-fit:contain!important;transform:none!important;filter:drop-shadow(1px 2px 0 rgba(79,64,58,.18))!important}
 .ccSpaPickupItem{min-width:0!important;width:auto!important;min-height:0!important}
 .ccSpaPickupItem img{width:90px!important;height:90px!important;max-width:90px!important;max-height:90px!important}
 .ccSpaPickupItem span{background:#fff7df;border:3px solid #4f403a;padding:3px 7px;font-size:10px;font-weight:1000;box-shadow:3px 3px 0 #4f403a}
