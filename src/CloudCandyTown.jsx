@@ -1,4 +1,4 @@
-/* CloudCandyTown v2 — mobile bus/elevator/spa controls + Pixelify Sans */
+/* CloudCandyTown v5 — mobile joystick restored/enlarged + touch movement fix */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
@@ -196,19 +196,15 @@ const CLEAR_BONUS = 100;
 
 /* 글꼴 — 설정에서 고르면 이 기기에 저장됩니다 */
 const FONTS = [
-  { id: "coding", name: "나눔고딕코딩 (기본)", css: '"Nanum Gothic Coding","DungGeunMo","Malgun Gothic",monospace' },
-  { id: "pixel", name: "둥근모", css: '"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui,sans-serif' },
-  { id: "jua", name: "주아 Jua", css: '"Jua","DungGeunMo","Malgun Gothic",system-ui,sans-serif' },
-  { id: "single", name: "싱글데이 Single Day", css: '"Single Day","DungGeunMo","Malgun Gothic",cursive' },
-  { id: "pixelify", name: "Pixelify Sans", css: '"Pixelify Sans","DungGeunMo","Malgun Gothic",system-ui,sans-serif' },
+  { id: "neo", name: "Neo둥근모", css: '"NeoDunggeunmo",system-ui,sans-serif' },
 ];
-const FONT_DEFAULT = "coding";
+const FONT_DEFAULT = "neo";
 
 function applyFont(id) {
   const f = FONTS.find((x) => x.id === id) || FONTS[0];
   document.documentElement.style.setProperty("--ccFont", f.css);
-  document.body.classList.toggle("ccSmoothFont", f.id !== "pixel");
 }
+
 
 /* 🖱 픽셀 커서 — 끄면 원래 커서로 돌아갑니다 */
 function applyCursor(on) {
@@ -1069,7 +1065,7 @@ function Avatar({ name, slot, x, y, facing, moving, me, msg, scale = 1, swim = f
 
 /* ============================ 조이스틱 ============================ */
 
-const STICK_R = 46;     // 손잡이가 움직일 수 있는 반경
+const STICK_R = 58;     // 손잡이가 움직일 수 있는 반경 (v5 확대)
 const DEADZONE = 0.16;
 
 /* 포인터 이벤트를 지원하는지 — 카카오톡·인스타 같은 인앱 브라우저에서는
@@ -1121,7 +1117,6 @@ function Stick({ onMove }) {
         onPointerMove: (e) => move(e.clientX, e.clientY),
         onPointerUp: end,
         onPointerCancel: end,
-        onPointerLeave: end,
       }
     : {
         onTouchStart: (e) => { const t = e.changedTouches[0]; begin(t.clientX, t.clientY); },
@@ -4263,376 +4258,6 @@ function Town({ me, setMe, onKick }) {
       </div>
 
 
-      {bgmOpen && me.role === "host" && (
-        <div className="ccModalWrap" onClick={() => setBgmOpen(false)}>
-          <BgmSheet
-            roomName={roomFor(scene)?.name || "방"}
-            current={scene ? roomBgmMap[scene] || null : null}
-            onSelect={(next) => {
-              if (!scene) return;
-
-              const normalized = next
-                ? {
-                    ...next,
-                    url: next.url || (next.path ? trackUrl(next.path) : ""),
-                  }
-                : null;
-
-              /* LP바에서 틀던 곡은 방 BGM이 우선합니다. */
-              if (audio.current) {
-                audio.current.pause();
-                audio.current.currentTime = 0;
-              }
-              setQueue([]);
-              setQi(0);
-              setPlName("");
-
-              setRoomBgmMap((m) => ({
-                ...m,
-                [scene]: normalized,
-              }));
-
-              /* 호스트 자신의 BGM도 즉시 교체 */
-              bgmUrlRef.current = normalized?.url || "";
-              if (normalized?.url) {
-                void playRoomBgm("host-select");
-              } else if (bgmAudio.current) {
-                bgmAudio.current.pause();
-                bgmAudio.current.removeAttribute("src");
-                bgmAudio.current.load();
-                setBgmStatus("BGM 꺼짐");
-              }
-
-              /* 호스트가 선택한 BGM을 게스트에게 즉시 전송 */
-              chanRef.current?.roomBgm({
-                scene,
-                bgm: normalized,
-              });
-
-              setBgmOpen(false);
-              blip(normalized ? 820 : 520);
-            }}
-            onClose={() => setBgmOpen(false)}
-          />
-        </div>
-      )}
-
-      {sheet && (
-        <div className="ccModalWrap" onClick={() => setSheet(null)}>
-          {sheet === "lp" && (
-            <MusicSheet
-              hostCode={me.hostCode}
-              isHost={me.role === "host"}
-              playingId={track?.id}
-              onPlay={(items, index, name) => {
-                setQueue(items);
-                setQi(index || 0);
-                setPlName(name || "");
-                doQuest("music");
-              }}
-              onClose={() => setSheet(null)}
-            />
-          )}
-          {sheet === "quiz" && (
-            <QuizSheet
-              hostCode={me.hostCode}
-              isHost={me.role === "host"}
-              mode={teamPack ? "team" : quizMode}
-              fixedPack={teamPack}
-              onFinish={(sc) => {
-                chanRef.current?.fx({ t: "score", id: deviceId(), name: me.name, ok: sc.ok, done: sc.done });
-                doQuest("quiz");
-              }}
-              onClose={() => { setSheet(null); setTeamPack(null); }}
-            />
-          )}
-          {sheet === "menu" && (
-            <MenuSheet
-              balance={balance}
-              holding={holding}
-              onBuy={buyMenu}
-              onClose={() => setSheet(null)}
-            />
-          )}
-          {sheet === "dress" && (
-            <DressSheet
-              look={look}
-              owned={owned}
-              balance={balance}
-              skins={skins}
-              onApply={(next, cost, key) => { applyLook(next, cost, key); doQuest("dress"); }}
-              onClose={() => setSheet(null)}
-            />
-          )}
-          {sheet === "wish" && (
-            <WishSheet
-              box={WISH_BOX}
-              round={roundNo}
-              name={me.name}
-              hostCode={me.hostCode}
-              isHost={me.role === "host"}
-              off={!hasServer || me.role === "solo"}
-              onSent={() => doQuest("wish")}
-              onClose={() => setSheet(null)}
-            />
-          )}
-          {sheet === "idea" && (
-            <WishSheet
-              box={IDEA_BOX}
-              round={roundNo}
-              name={me.name}
-              hostCode={me.hostCode}
-              isHost={me.role === "host"}
-              off={!hasServer || me.role === "solo"}
-              onSent={() => doQuest("idea")}
-              onClose={() => setSheet(null)}
-            />
-          )}
-          {sheet === "feedback" && (
-            <FeedbackSheet
-              round={roundNo}
-              hostCode={me.hostCode}
-              isHost={me.role === "host"}
-              off={!hasServer || me.role === "solo"}
-              onSent={() => doQuest("feedback")}
-              onClose={() => setSheet(null)}
-            />
-          )}
-          {sheet === "arcade" && (
-            <ArcadeSheet
-              me={me}
-              off={!hasServer || me.role === "solo"}
-              onClose={() => setSheet(null)}
-            />
-          )}
-          {sheet === "songs" && (
-            <SongbookSheet
-              hostCode={me.hostCode}
-              isHost={me.role === "host"}
-              off={!hasServer || me.role === "solo"}
-              playingId={track?.id}
-              onPlay={(items, index, name) => {
-                const selected = items?.[index || 0];
-                setQueue(items || []);
-                setQi(index || 0);
-                setPlName(name || "");
-                const url = selected?.url || (selected?.path ? trackUrl(selected.path) : "");
-                const id = youtubeId(url);
-                if (id) {
-                  const data = { title: selected?.title || "노래방", url, by: me.name };
-                  const announcementId = `${deviceId()}-${Date.now()}`;
-                  setKaraoke(data);
-                  chanRef.current?.fx({ t: "karaoke", ...data });
-                  const at = Date.now();
-                  setHistory((h) => [
-                    ...h.slice(-199),
-                    {
-                      id: announcementId,
-                      name: "전체 알림",
-                      text: `${me.name}님이 노래를 시작합니다 ♬`,
-                      r: "",
-                      at,
-                      system: true,
-                    },
-                  ]);
-                  setChatLog((l) => [
-                    ...l.slice(-3),
-                    {
-                      id: announcementId,
-                      name: "전체 알림",
-                      text: `${me.name}님이 노래를 시작합니다 ♬`,
-                      r: "",
-                      at,
-                      system: true,
-                    },
-                  ]);
-                  chanRef.current?.fx({
-                    t: "karaokeStart",
-                    name: me.name,
-                    announcementId,
-                  });
-                  setSheet(null);
-                }
-              }}
-              onClose={() => setSheet(null)}
-            />
-          )}
-          {sheet === "showtime" && (
-            <MovieSheet
-              me={me}
-              hostCode={me.hostCode}
-              isHost={me.role === "host"}
-              off={!hasServer || me.role === "solo"}
-              now={movie}
-              onPlay={() => { loadMovie(); chanRef.current?.fx({ t: "movie" }); }}
-              onClose={() => setSheet(null)}
-            />
-          )}
-          {sheet === "skins" && (
-            <SkinSheet
-              hostCode={me.hostCode}
-              isHost={me.role === "host"}
-              skins={skins}
-              onChanged={loadSkins}
-              onClose={() => setSheet(null)}
-            />
-          )}
-          {sheet === "objects" && me.role === "host" && <ObjectImageSheet
-            objectImages={objectImages}
-            target={objectImageTarget}
-            setTarget={setObjectImageTarget}
-            onApply={applyObjectImage}
-            onReset={(id)=>{ const n={...objectImages}; delete n[id]; setObjectImages(n); try{localStorage.setItem("ccObjectImages",JSON.stringify(n));}catch{} chanRef.current?.fx({t:"objectImages",images:n}); setToast("기본 이미지로 되돌렸어요."); }}
-            onClose={()=>setSheet(null)}
-            isHost={me.role === "host"}
-          />}
-          {sheet === "fortune" && (
-            <FortuneSheet
-              hostCode={me.hostCode}
-              isHost={me.role === "host"}
-              onDraw={() => doQuest("fortune")}
-              onClose={() => setSheet(null)}
-            />
-          )}
-          {sheet === "gacha" && (
-            <GachaSheet
-              hostCode={me.hostCode}
-              isHost={me.role === "host"}
-              onDraw={() => doQuest("gacha")}
-              onClose={() => setSheet(null)}
-            />
-          )}
-          {sheet === "lobby" && (
-            <TeamLobby
-              me={{ id: deviceId(), name: me.name }}
-              games={games}
-              myGid={myGid}
-              packs={packs}
-              results={results}
-              onCreate={createGame}
-              onJoin={joinGame}
-              onLeave={leaveGame}
-              onStart={startGame}
-              onClose={() => setSheet(null)}
-            />
-          )}
-        </div>
-      )}
-
-      {sheet === "starview" && <StarViewSheet onClose={() => setSheet(null)} />}
-
-      {welcome && (
-        <div className="ccWelWrap" onClick={closeWelcome}>
-          <div className="ccWelCard" onClick={(e) => e.stopPropagation()}>
-            <span className="ccWelPin ccWelPinA" />
-            <span className="ccWelPin ccWelPinB" />
-            <span className="ccWelPin ccWelPinC" />
-            <span className="ccWelPin ccWelPinD" />
-            <div className="ccWelChars">
-              {CHARACTERS.slice(1, 5).map((c) => (
-                <Pix key={c.id} map={c.map} palette={c.palette} scale={3} cacheKey={"w-" + c.id} className="ccWelChar" />
-              ))}
-            </div>
-            <div className="ccWelTag">BETA</div>
-            <h2 className="ccWelTitle">베타테스트에<br />오신 걸 환영합니다</h2>
-            <p className="ccWelText">
-              오른쪽 <b className="ccWelHi">투두리스트</b>를 따라<br />게임을 즐겨보세요!
-            </p>
-            <p className="ccWelBonus">다 깨면 별 <b>{CLEAR_BONUS}</b>개 드려요 ⭐</p>
-            <button className="ccBtn ccWelBtn" onClick={closeWelcome}>놀러 가기</button>
-          </div>
-        </div>
-      )}
-
-      {/* 재생바 — 방을 옮겨도 계속 나옵니다 */}
-      {track && (
-        <div className="ccPlayBar">
-          <span className="ccPlayDisc">◉</span>
-          <span className="ccPlayTitle">
-            {track.title}
-            {queue.length > 1 && (
-              <span className="ccPlayOf"> {qi + 1}/{queue.length}{plName ? ` · ${plName}` : ""}</span>
-            )}
-          </span>
-          <button
-            className="ccPlayBtn"
-            title="재생 / 일시정지"
-            onClick={() => { const a = audio.current; if (!a) return; if (a.paused) a.play(); else a.pause(); }}
-          >
-            ⏯
-          </button>
-          <button
-            className="ccPlayBtn"
-            title="다음 곡"
-            onClick={() => setQi((v) => (queue.length ? (v + 1) % queue.length : 0))}
-          >
-            ⏭
-          </button>
-          <button className="ccPlayBtn" title="음소거" onClick={() => setMuted((v) => !v)}>
-            {muted || vol === 0 ? "🔇" : vol < 0.4 ? "🔈" : "🔊"}
-          </button>
-          <input
-            className="ccVol"
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={muted ? 0 : vol}
-            onChange={(e) => { setMuted(false); setVol(Number(e.target.value)); }}
-          />
-          <button className="ccPlayBtn" title="끄기" onClick={() => { setQueue([]); setQi(0); }}>✕</button>
-        </div>
-      )}
-      {track && (
-        <audio
-          ref={audio}
-          src={track.url}
-          autoPlay
-          onEnded={() => {
-            if (qi + 1 < queue.length) setQi(qi + 1);
-            else if (queue.length > 1) setQi(0);      /* 목록이 여러 곡이면 처음부터 다시 */
-            else audio.current?.play();               /* 한 곡이면 반복 */
-          }}
-          onError={() => setToast("곡을 재생하지 못했어요")}
-        />
-      )}
-      <audio ref={bgmAudio} loop preload="auto" />
-
-      {/* 모바일 조작 — 왼쪽 조이스틱, 오른쪽 액션 */}
-      <div className="ccTouch">
-        <Stick onMove={(v) => { stick.current = v; }} />
-        <div className="ccActs">
-          <button
-            className="ccAct ccActMain"
-            onPointerDown={performMobilePrimaryAction}
-            onTouchStart={performMobilePrimaryAction}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-          >
-            {sheet
-              ? "닫기"
-              : scene
-                ? zoneId === "chair"
-                  ? sit == null ? "앉기" : "일어나기"
-                  : zoneId === "exit" || !zoneId
-                    ? "나가기"
-                    : "열기"
-                : "들어가기"}
-          </button>
-          {me.role !== "solo" && (
-            <button className="ccAct" onPointerDown={() => chatBox.current?.focus()}>
-              💬
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* 세로로 들고 있으면 가로 안내 */}
-      <div className="ccRotate">
-        <div className="ccRotateIcon">📱</div>
-        <div className="ccRotateText">가로로 돌려주세요</div>
-      </div>
-
-
 
     </div>
   );
@@ -4643,13 +4268,11 @@ function Town({ me, setMe, onKick }) {
 const CUR = cursorUrls();
 
 const CSS = `
-@import url("https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap");
+@import url("https://cdn.jsdelivr.net/gh/neodgm/neodgm-webfont@1.601/neodgm/style.css");
 *{box-sizing:border-box}
 html,body,#root{height:100%;margin:0}
-body{font-family:var(--ccFont,"DungGeunMo","Galmuri11","Pretendard","Malgun Gothic",system-ui,sans-serif);
+body{font-family:var(--ccFont,"NeoDunggeunmo",system-ui,sans-serif);
   -webkit-font-smoothing:none;letter-spacing:.02em}
-/* 픽셀 글꼴이 아니면 계단현상을 끕니다 */
-body.ccSmoothFont{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:0}
 
 /* 🖱 픽셀 커서 */
 body.ccPixCursor{cursor:url(${CUR.arrow}) 0 0,auto}
@@ -5294,14 +4917,15 @@ body.ccPixCursor button:disabled{cursor:url(${CUR.arrow}) 0 0,not-allowed}
 @keyframes ccSwim{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 
 /* 모바일 조작 */
-.ccTouch{display:none;position:relative;z-index:180;pointer-events:none}
+.ccTouch{display:none;position:fixed;inset:0;width:100vw;height:100vh;z-index:180;pointer-events:none}
 .ccTouch .ccStickZone,.ccTouch .ccActs{pointer-events:auto}
-.ccStickZone{position:absolute;left:0;bottom:0;width:52%;height:74%;touch-action:none;z-index:6}
-.ccStick{position:absolute;left:20px;bottom:calc(24px + var(--kb, 0px));width:124px;height:124px;border-radius:50%;
+.ccStickZone{position:absolute;left:0;bottom:0;width:58%;height:82%;touch-action:none;z-index:6}
+.ccStick{position:absolute;left:28px;bottom:calc(28px + var(--kb, 0px));width:154px;height:154px;border-radius:50%;
   border:4px solid ${C.line};background:rgba(255,255,255,.6);touch-action:none;opacity:.75;
   box-shadow:4px 4px 0 rgba(91,74,99,.25);display:flex;align-items:center;justify-content:center}
-.ccStickOn{opacity:1;background:rgba(255,255,255,.85)}
-.ccStickKnob{width:52px;height:52px;border-radius:50%;border:4px solid ${C.line};background:#ffd45e;
+.ccStickOn{opacity:1;background:rgba(255,255,255,.9)}
+.ccStickZone,.ccStick{overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.ccStickKnob{width:64px;height:64px;border-radius:50%;border:4px solid ${C.line};background:#ffd45e;
   box-shadow:3px 3px 0 rgba(91,74,99,.25);pointer-events:none;transition:transform .04s linear}
 .ccActs{position:absolute;right:20px;bottom:calc(22px + var(--kb, 0px));display:flex;align-items:flex-end;gap:10px}
 .ccAct{position:relative;z-index:200;border:4px solid ${C.line};background:#fff;color:${C.ink};font-family:inherit;font-weight:700;
