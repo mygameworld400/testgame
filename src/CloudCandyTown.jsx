@@ -1,4 +1,4 @@
-/* CloudCandyTown v22 — building image manager uses the existing proven modal/sheet layer */
+/* CloudCandyTown v24 — jjimjilspa lobby photo uses Vite BASE_URL for local/Vercel/GitHub Pages compatibility */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
@@ -600,7 +600,7 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit }) {
   const chooseFloor = (id) => { setFloorPicker(false); onFloor?.(id); };
 
   return <div className="ccSpaLobby">
-    <div className="ccLobbyPerspective ccLobbyPhoto">
+    <div className="ccLobbyPerspective ccLobbyPhoto" style={{ backgroundImage: `url("${import.meta.env.BASE_URL}spa-lobby.png")` }}>
       <div className="ccLobbyDialogue">
         <div className="ccLobbyPortrait"><div className="ccPortraitPixelHead"/><div className="ccPortraitPixelBody"/></div>
         <div className="ccLobbyText">
@@ -5241,7 +5241,7 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccSpaNpc span{filter:saturate(.8);font-size:28px}
 .ccSpaLobby{position:absolute;inset:0;background:#bcae96;overflow:hidden;z-index:40}
 .ccLobbyPerspective{position:absolute;inset:0;overflow:hidden;background:#d9b88d}
-.ccLobbyPhoto{background-image:url("/spa-lobby.png");background-position:center center;background-repeat:no-repeat;background-size:cover;image-rendering:auto}
+.ccLobbyPhoto{background-position:center center;background-repeat:no-repeat;background-size:cover;image-rendering:auto}
 .ccLobbyBackWall{position:absolute;left:30%;top:22%;width:40%;height:22%;text-align:center;background:#efe2c8;border:6px solid #5b4a63;box-shadow:8px 8px 0 rgba(63,49,48,.25);padding-top:26px}
 .ccLobbyLogo{font-size:28px;font-weight:1000;color:#5b4a63;text-shadow:3px 3px 0 #fff}
 .ccLobbySub{margin-top:8px;font-weight:900;color:#8c6f55}
