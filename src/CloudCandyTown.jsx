@@ -994,7 +994,6 @@ function Building({ b, near, objectImages = {} }) {
             <div className="ccCottonWindow" />
             <div className="ccCottonDoor" />
           </div>
-          <div className="ccBuildingTalkBubble">망했음</div>
         </div>
       ) : b.id === "spa" ? (
         <div className={"ccSpaExterior" + (near ? " ccNear" : "")}>
@@ -1002,11 +1001,12 @@ function Building({ b, near, objectImages = {} }) {
           <div className="ccSpaExtWindows"><i/><i/><i/><i/></div>
           <div className="ccSpaExtDoor">자동문</div>
           <div className="ccSpaExtSign">24H · 1F 목욕 · 2F 온천 · 3F 찜질</div>
-          <div className="ccBuildingTalkBubble">공사중.. 입장은가능</div>
         </div>
       ) : (
         <Pix map={sp.map} palette={sp.palette} scale={b.scale} cacheKey={"b-" + (b.sprite || b.id)} className={near ? "ccNear" : ""} />
       )}
+      {b.id === "cotton" && objectImages[b.id] && <div className="ccBuildingTalkBubble">망했음</div>}
+      {b.id === "spa" && objectImages[b.id] && <div className="ccBuildingTalkBubble">공사중.. 입장은가능</div>}
       <div className="ccSign">
         {b.emoji} {b.name}
       </div>
@@ -4364,6 +4364,17 @@ function Town({ me, setMe, onKick }) {
         <span className="ccFbWord">피드백</span>
       </button>
       </div>
+
+      {sheet === "arcade" && (
+        <div className="ccModalWrap" onClick={() => setSheet(null)}>
+          <ArcadeSheet
+            pick="fart"
+            me={me}
+            off={me.role === "solo"}
+            onClose={() => setSheet(null)}
+          />
+        </div>
+      )}
 
       {sheet === "starview" && (
         <StarViewSheet onClose={() => setSheet(null)} />
