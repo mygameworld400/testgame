@@ -607,6 +607,7 @@ const SPA_LOBBY_DEFAULT_LAYOUT = {
   bubble: { x: 50, y: 22, w: 38 },
   bill: { x: 50, y: 48, s: 0.58 },
   key: { x: 50, y: 63, s: 0.58 },
+  inventory: { x: 97, y: 3, s: 0.72 },
 };
 
 function readSpaLobbySavedLayout() {
@@ -616,6 +617,7 @@ function readSpaLobbySavedLayout() {
       bubble: { ...SPA_LOBBY_DEFAULT_LAYOUT.bubble, ...(v.bubble || {}) },
       bill: { ...SPA_LOBBY_DEFAULT_LAYOUT.bill, ...(v.bill || {}) },
       key: { ...SPA_LOBBY_DEFAULT_LAYOUT.key, ...(v.key || {}) },
+      inventory: { ...SPA_LOBBY_DEFAULT_LAYOUT.inventory, ...(v.inventory || {}) },
     };
     const oldBubble = JSON.parse(localStorage.getItem("ccSpaLobbyBubbleLayout") || "null");
     const oldItems = JSON.parse(localStorage.getItem("ccSpaLobbyItemLayout") || "null");
@@ -623,13 +625,14 @@ function readSpaLobbySavedLayout() {
       bubble: { ...SPA_LOBBY_DEFAULT_LAYOUT.bubble, ...(oldBubble || {}) },
       bill: { ...SPA_LOBBY_DEFAULT_LAYOUT.bill, ...(oldItems?.bill || {}) },
       key: { ...SPA_LOBBY_DEFAULT_LAYOUT.key, ...(oldItems?.key || {}) },
+      inventory: { ...SPA_LOBBY_DEFAULT_LAYOUT.inventory, ...(oldItems?.inventory || {}) },
     };
   } catch {
     return SPA_LOBBY_DEFAULT_LAYOUT;
   }
 }
 
-function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleLayout, onBubbleLayout, itemLayout = {}, itemImages = {}, onItemLayout, onSaveLayout, inventory = { bill:false, key:false }, onInventoryChange }) {
+function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleLayout, onBubbleLayout, itemLayout = {}, itemImages = {}, onItemLayout, inventoryLayout = null, onInventoryLayout, onSaveLayout, inventory = { bill:false, key:false }, onInventoryChange }) {
   const [step, setStep] = useState("welcome");
   const [message, setMessage] = useState("목욕하러 오셨나요?");
   const [typedMessage, setTypedMessage] = useState("");
@@ -702,7 +705,7 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
           <span className="ccLobbyBubbleTail" />
         </div>
 
-        {step === "paid" && <SpaInventory inventory={inventory} itemImages={itemImages} />}
+        {step === "paid" && <SpaInventory inventory={inventory} itemImages={itemImages} layout={inventoryLayout} />}
 
         {showBill && <button className="ccSpaPickupItem ccSpaBillPickup" style={itemStyle("bill")} onClick={() => collectItem("bill")} title="이용권을 인벤토리에 넣기">
           <img src={itemImages.bill || `${import.meta.env.BASE_URL}bill.png`} alt="이용권" />
@@ -739,16 +742,18 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
             <label>세로 위치 <input type="range" min="15" max="85" value={keyLayout.y} onChange={e=>onItemLayout?.({ ...itemLayout, key:{...keyLayout,y:Number(e.target.value)} })}/><span>{keyLayout.y}%</span></label>
             <label>크기 <input type="range" min="0.25" max="1.1" step="0.01" value={keyLayout.s} onChange={e=>onItemLayout?.({ ...itemLayout, key:{...keyLayout,s:Number(e.target.value)} })}/><span>{Math.round(keyLayout.s*100)}%</span></label>
           </div>
-          <small>위치와 크기는 바로 미리볼 수 있지만, <b>저장</b>을 눌러야 새로고침·새 버전 배포 후에도 유지돼요.</small>
+          <div className="ccManageSection"><strong>인벤토리</strong>
+            <label>가로 위치 <input type="range" min="55" max="99" value={(inventoryLayout||{x:97}).x} onChange={e=>onInventoryLayout?.({ ...(inventoryLayout||{x:97,y:3,s:.72}), x:Number(e.target.value) })}/><span>{(inventoryLayout||{x:97}).x}%</span></label>
+            <label>세로 위치 <input type="range" min="1" max="35" value={(inventoryLayout||{y:3}).y} onChange={e=>onInventoryLayout?.({ ...(inventoryLayout||{x:97,y:3,s:.72}), y:Number(e.target.value) })}/><span>{(inventoryLayout||{y:3}).y}%</span></label>
+            <label>크기 <input type="range" min="0.35" max="1.25" step="0.01" value={(inventoryLayout||{s:.72}).s} onChange={e=>onInventoryLayout?.({ ...(inventoryLayout||{x:97,y:3,s:.72}), s:Number(e.target.value) })}/><span>{Math.round((inventoryLayout||{s:.72}).s*100)}%</span></label>
+          </div>
+          <small>말풍선·이용권·락커키·인벤토리의 위치와 크기는 호스트가 조절하고 저장할 수 있으며 게스트에게도 적용됩니다.</small>
           <button className="ccLobbyManageSave" onClick={()=>onSaveLayout?.()}>💾 위치·크기 저장</button>
         </div>}
       </>}
 
       {step === "elevator" && <div className="ccLobbyElevatorScene ccElevatorPhotoScene" style={{ backgroundImage: `url("${import.meta.env.BASE_URL}elevator.png")` }}>
-        <div className="ccElevatorSwitchHotspot" aria-label="엘리베이터 스위치">
-          <button aria-label="위로 버튼" onClick={()=>setFloorPicker(true)} />
-          <button aria-label="아래로 버튼" onClick={()=>setFloorPicker(true)} />
-        </div>
+        <button className="ccElevatorSwitchHotspot" aria-label="엘리베이터 층 선택" onClick={()=>setFloorPicker(true)} />
         <div className="ccElevatorHint">버튼을 눌러서 이동하세요</div>
       </div>}
       {floorPicker && <div className="ccFloorPickerOverlay" onClick={()=>setFloorPicker(false)}><div className="ccFloorPicker" onClick={e=>e.stopPropagation()}><b>엘리베이터</b><h2>어느 층으로 갈까요?</h2><div className="ccFloorPickerBtns"><button onClick={()=>chooseFloor("spa1")}>1층<small>목욕 · 샤워 · 사우나</small></button><button onClick={()=>chooseFloor("spa2")}>2층<small>온천 · 스파</small></button><button onClick={()=>chooseFloor("spa3")}>3층<small>찜질 · 휴식</small></button></div><button className="ccMini" onClick={()=>setFloorPicker(false)}>닫기</button></div></div>}
@@ -781,8 +786,10 @@ function CottonCanvas({ fibers, decorations = [], activeColor, decorateMode = fa
   return <canvas ref={ref} className={decorateMode?"ccCottonCanvas ccCottonCanvasDecor":"ccCottonCanvas"} onClick={handleClick}/>;
 }
 
-function SpaInventory({ inventory = { bill:false, key:false }, itemImages = {} }) {
-  return <div className="ccSpaInventory" aria-label="찜질스파 인벤토리">
+function SpaInventory({ inventory = { bill:false, key:false }, itemImages = {}, layout = null }) {
+  const l = layout || { x: 97, y: 3, s: 0.72 };
+  const style = { left: `${l.x}%`, top: `${l.y}%`, right: "auto", transform: `translate(-100%,0) scale(${l.s})`, transformOrigin: "top right" };
+  return <div className="ccSpaInventory" style={style} aria-label="찜질스파 인벤토리">
     <div className="ccSpaInventoryTitle">INVENTORY</div>
     <div className="ccSpaInventorySlots">
       <div className={"ccSpaInventorySlot " + (inventory.bill ? "filled" : "")} title={inventory.bill ? "이용권" : "빈 칸"}>
@@ -799,7 +806,7 @@ function SpaInventory({ inventory = { bill:false, key:false }, itemImages = {} }
   </div>;
 }
 
-function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction, inventory = { bill:false, key:false }, itemImages = {} }) {
+function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction, inventory = { bill:false, key:false }, itemImages = {}, inventoryLayout = null }) {
   const floor = Number((scene || "spa1").replace("spa", "")) || 1;
   const hour = new Date().getHours();
   const night = hour >= 19 || hour < 6;
@@ -822,7 +829,7 @@ function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction, invento
   return <div className={"ccSpaRoom"+(night?" night":"")}>
     <div className="ccSpaHud">
       <div><b>🧖 구름찜질스파</b><span>{floor}층 · {floor===1?"목욕 / 샤워 / 사우나":floor===2?"온천 / 스파":"찜질 / 휴식 / 매점"}</span></div>
-      <SpaInventory inventory={inventory} itemImages={itemImages} />
+      <SpaInventory inventory={inventory} itemImages={itemImages} layout={inventoryLayout} />
       <div className="ccSpaFloors"><button className={floor===1?"on":""} onClick={()=>onFloor("spa1")}>1F</button><button className={floor===2?"on":""} onClick={()=>onFloor("spa2")}>2F</button><button className={floor===3?"on":""} onClick={()=>onFloor("spa3")}>3F</button><button onClick={onExit}>나가기</button></div>
     </div>
     <div className="ccSpaViewport">
@@ -1582,10 +1589,12 @@ function Town({ me, setMe, onKick }) {
   const [spaLobbySavedLayout] = useState(() => readSpaLobbySavedLayout());
   const [spaLobbyBubbleLayout, setSpaLobbyBubbleLayout] = useState(() => spaLobbySavedLayout.bubble);
   const [spaLobbyItemLayout, setSpaLobbyItemLayout] = useState(() => ({ bill: spaLobbySavedLayout.bill, key: spaLobbySavedLayout.key }));
+  const [spaInventoryLayout, setSpaInventoryLayout] = useState(() => spaLobbySavedLayout.inventory);
   // Realtime getPose는 연결 시점의 클로저를 계속 사용할 수 있으므로
   // 로비 관리값은 ref에도 항상 최신 상태를 보관합니다.
   const spaLobbyBubbleLayoutRef = useRef(spaLobbySavedLayout.bubble);
   const spaLobbyItemLayoutRef = useRef({ bill: spaLobbySavedLayout.bill, key: spaLobbySavedLayout.key });
+  const spaInventoryLayoutRef = useRef(spaLobbySavedLayout.inventory);
   const [spaInventory, setSpaInventory] = useState({ bill: false, key: false });
   const [objectImageTarget, setObjectImageTarget] = useState(BUILDINGS[0]?.id || "cake");          // 호스트가 올린 캐릭터 이미지
   const [live, setLive] = useState(true);          // 실시간 연결 상태
@@ -2770,6 +2779,12 @@ function Town({ me, setMe, onKick }) {
     w: Math.max(22, Math.min(70, Number(next?.w) || 38)),
   }), []);
 
+  const normalizeSpaInventoryLayout = useCallback((next) => ({
+    x: Math.max(55, Math.min(99, Number(next?.x) || 97)),
+    y: Math.max(1, Math.min(35, Number(next?.y) || 3)),
+    s: Math.max(.35, Math.min(1.25, Number(next?.s) || .72)),
+  }), []);
+
   const normalizeSpaLobbyItemLayout = useCallback((next) => ({
     bill: { x: Math.max(10, Math.min(90, Number(next?.bill?.x) || 50)), y: Math.max(15, Math.min(85, Number(next?.bill?.y) || 48)), s: Math.max(.25, Math.min(1.1, Number(next?.bill?.s) || .58)) },
     key: { x: Math.max(10, Math.min(90, Number(next?.key?.x) || 50)), y: Math.max(15, Math.min(85, Number(next?.key?.y) || 63)), s: Math.max(.25, Math.min(1.1, Number(next?.key?.s) || .58)) },
@@ -2791,11 +2806,20 @@ function Town({ me, setMe, onKick }) {
     chanRef.current?.fx({ t: "spaLobbyItemLayout", layout: safe });
   }, [me.role, normalizeSpaLobbyItemLayout]);
 
+  const updateSpaInventoryLayout = useCallback((next) => {
+    if (me.role !== "host") return;
+    const safe = normalizeSpaInventoryLayout(next);
+    spaInventoryLayoutRef.current = safe;
+    setSpaInventoryLayout(safe);
+    chanRef.current?.fx({ t: "spaInventoryLayout", layout: safe });
+  }, [me.role, normalizeSpaInventoryLayout]);
+
   const saveSpaLobbyLayout = useCallback(() => {
     if (me.role !== "host") return;
     const bubble = normalizeSpaLobbyBubbleLayout(spaLobbyBubbleLayout);
     const items = normalizeSpaLobbyItemLayout(spaLobbyItemLayout);
-    const payload = { bubble, bill: items.bill, key: items.key, savedAt: Date.now() };
+    const inventory = normalizeSpaInventoryLayout(spaInventoryLayout);
+    const payload = { bubble, bill: items.bill, key: items.key, inventory, savedAt: Date.now() };
     try {
       localStorage.setItem(SPA_LOBBY_LAYOUT_STORAGE_KEY, JSON.stringify(payload));
       // 구버전 키도 같이 갱신해서 기존 코드/탭과 호환됩니다.
@@ -2804,12 +2828,15 @@ function Town({ me, setMe, onKick }) {
     } catch {}
     spaLobbyBubbleLayoutRef.current = bubble;
     spaLobbyItemLayoutRef.current = items;
+    spaInventoryLayoutRef.current = inventory;
     setSpaLobbyBubbleLayout(bubble);
     setSpaLobbyItemLayout(items);
+    setSpaInventoryLayout(inventory);
     chanRef.current?.fx({ t: "spaLobbyBubbleLayout", layout: bubble });
     chanRef.current?.fx({ t: "spaLobbyItemLayout", layout: items });
+    chanRef.current?.fx({ t: "spaInventoryLayout", layout: inventory });
     setToast("찜질스파 로비 위치·크기를 저장했어요.");
-  }, [me.role, normalizeSpaLobbyBubbleLayout, normalizeSpaLobbyItemLayout, spaLobbyBubbleLayout, spaLobbyItemLayout, setToast]);
+  }, [me.role, normalizeSpaLobbyBubbleLayout, normalizeSpaLobbyItemLayout, normalizeSpaInventoryLayout, spaLobbyBubbleLayout, spaLobbyItemLayout, spaInventoryLayout, setToast]);
 
   const applyObjectImage = useCallback(async (id, data) => {
     if (me.role !== "host" || !data) return;
@@ -2846,6 +2873,7 @@ function Town({ me, setMe, onKick }) {
         objImgs: me.role === "host" ? objectImages : undefined,
         spaLobbyBubbleLayout: me.role === "host" ? spaLobbyBubbleLayoutRef.current : undefined,
         spaLobbyItemLayout: me.role === "host" ? spaLobbyItemLayoutRef.current : undefined,
+        spaInventoryLayout: me.role === "host" ? spaInventoryLayoutRef.current : undefined,
       }),
       onPeers: (list) => {
         setPeers(list);
@@ -2861,6 +2889,10 @@ function Town({ me, setMe, onKick }) {
           if (host?.spaLobbyItemLayout && typeof host.spaLobbyItemLayout === "object") {
             spaLobbyItemLayoutRef.current = host.spaLobbyItemLayout;
             setSpaLobbyItemLayout(host.spaLobbyItemLayout);
+          }
+          if (host?.spaInventoryLayout && typeof host.spaInventoryLayout === "object") {
+            spaInventoryLayoutRef.current = host.spaInventoryLayout;
+            setSpaInventoryLayout(host.spaInventoryLayout);
           }
         }
         if (host?.bgmMap && typeof host.bgmMap === "object") {
@@ -2969,6 +3001,12 @@ function Town({ me, setMe, onKick }) {
         if (e.t === "spaLobbyItemLayout" && e.layout && typeof e.layout === "object") {
           spaLobbyItemLayoutRef.current = e.layout;
           setSpaLobbyItemLayout(e.layout);
+          return;
+        }
+
+        if (e.t === "spaInventoryLayout" && e.layout && typeof e.layout === "object") {
+          spaInventoryLayoutRef.current = e.layout;
+          setSpaInventoryLayout(e.layout);
           return;
         }
 
@@ -3489,9 +3527,9 @@ function Town({ me, setMe, onKick }) {
             className="ccRoomWrap"
             style={{ width: SCREEN.w, height: SCREEN.h, transform: `translate(-50%,-50%) scale(${roomZoom})` }}
           >
-            {scene === SPA_ENTRY_SCENE ? <SpaLobby balance={balance} onPay={()=>setSpent(v=>v+20)} onFloor={changeSpaFloor} onExit={exitRoom} isHost={me.role === "host"} bubbleLayout={spaLobbyBubbleLayout} onBubbleLayout={updateSpaLobbyBubbleLayout} itemLayout={spaLobbyItemLayout} onItemLayout={updateSpaLobbyItemLayout} onSaveLayout={saveSpaLobbyLayout} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }} inventory={spaInventory} onInventoryChange={setSpaInventory} /> : scene && scene.startsWith("spa") ? <SpaFloor
+            {scene === SPA_ENTRY_SCENE ? <SpaLobby balance={balance} onPay={()=>setSpent(v=>v+20)} onFloor={changeSpaFloor} onExit={exitRoom} isHost={me.role === "host"} bubbleLayout={spaLobbyBubbleLayout} onBubbleLayout={updateSpaLobbyBubbleLayout} itemLayout={spaLobbyItemLayout} onItemLayout={updateSpaLobbyItemLayout} inventoryLayout={spaInventoryLayout} onInventoryLayout={updateSpaInventoryLayout} onSaveLayout={saveSpaLobbyLayout} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }} inventory={spaInventory} onInventoryChange={setSpaInventory} /> : scene && scene.startsWith("spa") ? <SpaFloor
               scene={scene} player={pos} peers={roomPeers} me={me}
-              onFloor={changeSpaFloor} onExit={exitRoom} onAction={setToast} inventory={spaInventory} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }}
+              onFloor={changeSpaFloor} onExit={exitRoom} onAction={setToast} inventory={spaInventory} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }} inventoryLayout={spaInventoryLayout}
             /> : scene === "cotton" ? <CottonShopRoom
               step={cottonStep} color={cottonColor} powered={cottonPowered} tufts={cottonTufts} decor={cottonDecor} shelf={cottonShelf} nickname={me.name} guideOpen={cottonGuideOpen} onCloseGuide={()=>setCottonGuideOpen(false)}
               onMachine={cottonStartMachine} onColor={setCottonColor}
@@ -5563,9 +5601,8 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 
 .ccLobbyElevatorScene{position:absolute;inset:0;background-color:#dbe9ed;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:25;background-position:center;background-size:100% 100%;background-repeat:no-repeat;image-rendering:pixelated}
 .ccElevatorPhotoScene{background-position:center center}
-.ccElevatorSwitchHotspot{position:absolute;right:16.5%;top:38.2%;width:6.6%;height:18%;z-index:31;display:flex;flex-direction:column;gap:5%;pointer-events:none}
-.ccElevatorSwitchHotspot button{flex:1;min-height:0;border:0;background:transparent;cursor:pointer;pointer-events:auto;padding:0}
-.ccElevatorSwitchHotspot button:hover{background:rgba(255,255,255,.08);outline:3px solid rgba(255,255,255,.18)}
+.ccElevatorSwitchHotspot{position:absolute;right:16.5%;top:38.2%;width:6.6%;height:18%;z-index:31;display:block;margin:0;padding:0;border:0;background:transparent;cursor:pointer;pointer-events:auto;appearance:none;-webkit-appearance:none;outline:none;box-shadow:none}
+.ccElevatorSwitchHotspot:hover,.ccElevatorSwitchHotspot:focus,.ccElevatorSwitchHotspot:active{background:transparent;outline:none;box-shadow:none}
 .ccLobbyElevatorScene .ccElevatorCeiling{position:absolute;top:35px;left:50%;transform:translateX(-50%);font-weight:900;letter-spacing:2px;color:#5b4a63}
 .ccLobbyElevatorScene .ccElevatorFrame{position:relative;width:min(620px,68vw);height:430px;border:12px solid #5b4a63;background:#d8e1e3;box-shadow:0 12px 0 rgba(91,74,99,.2)}
 .ccLobbyElevatorScene .ccElevatorDoor{position:absolute;top:0;bottom:0;width:50%;background:linear-gradient(90deg,#bfcacc,#eef4f4,#b4c2c5);border:4px solid #6b777b}
