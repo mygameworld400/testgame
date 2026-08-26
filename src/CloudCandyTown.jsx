@@ -1,4 +1,4 @@
-/* CloudCandyTown v10 — mobile UI layout editor (F8) */
+/* CloudCandyTown v13 — 1층 스파 배경 + 욕탕 이미지 관리 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchStatus, hasServer, joinRoom, deviceId, rememberHostCode, savedHostCode, setClosed, startNewRound } from "./room.js";
 import { CHAT_MS, joinChannel } from "./realtime.js";
@@ -443,9 +443,17 @@ const PARK_IMAGE_TARGETS = [
   { id: "park:bench", label: "공원 벤치" },
   { id: "park:lamp", label: "공원 가로등" },
 ];
+const SPA_BATH_IMAGE_TARGETS = [
+  { id: "spa:bath:hot", label: "1층 대욕장 · 온탕" },
+  { id: "spa:bath:cold", label: "1층 대욕장 · 냉탕" },
+  { id: "spa:bath:bubble", label: "1층 대욕장 · 거품탕" },
+  { id: "spa:bath:med", label: "1층 대욕장 · 약탕" },
+  { id: "spa:bath:electric", label: "1층 대욕장 · 전기탕" },
+];
 const OBJECT_IMAGE_LABELS = new Map([
   ["bus:spa", "🚌 찜질스파행 버스"],
   ["bus:cotton", "🚌 솜사탕행 버스"],
+  ...SPA_BATH_IMAGE_TARGETS.map((v) => [v.id, v.label]),
   ...PARK_IMAGE_TARGETS.map((v) => [v.id, v.label]),
 ]);
 const objectImageLabel = (id) => BUILDINGS.find((b) => b.id === id)?.name || OBJECT_IMAGE_LABELS.get(id) || (id === "spa:item:bill" ? "이용권" : id === "spa:item:key" ? "락커키" : "오브제");
@@ -803,7 +811,7 @@ function SpaInventory({ inventory = { bill:false, key:false }, itemImages = {}, 
   </div>;
 }
 
-function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction, inventory = { bill:false, key:false }, itemImages = {}, inventoryLayout = null }) {
+function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction, inventory = { bill:false, key:false }, itemImages = {}, objectImages = {}, inventoryLayout = null }) {
   const floor = Number((scene || "spa1").replace("spa", "")) || 1;
   const hour = new Date().getHours();
   const night = hour >= 19 || hour < 6;
@@ -830,14 +838,21 @@ function SpaFloor({ scene, player, peers, me, onFloor, onExit, onAction, invento
       <div className="ccSpaFloors"><button className={floor===1?"on":""} onClick={()=>onFloor("spa1")}>1F</button><button className={floor===2?"on":""} onClick={()=>onFloor("spa2")}>2F</button><button className={floor===3?"on":""} onClick={()=>onFloor("spa3")}>3F</button><button onClick={onExit}>나가기</button></div>
     </div>
     <div className="ccSpaViewport">
-      <div className="ccSpaMap" style={{width:SPA_W,height:SPA_H,transform:`translate(${-camX}px,${-camY}px)`}}>
+      <div className={"ccSpaMap" + (floor === 1 ? " ccSpaMapFloor1" : "")} style={{width:SPA_W,height:SPA_H,transform:`translate(${-camX}px,${-camY}px)`}}>
+        {floor === 1 && <img className="ccSpaFloorPhoto" src={`${import.meta.env.BASE_URL}1f.png`} alt="찜질스파 1층 배경" />}
         <div className="ccSpaCeiling" />
         <div className="ccSpaTitle">CLOUD JIMJIL SPA · {floor}F</div>
         <div className="ccSpaMapLabel ccSpaEntrance">ENTRANCE</div>
         {floor===1 && <>
           <div className="ccSpaArea lockerArea"><h3>👕 탈의실 / 락커</h3><div className="ccLockerGrid">{lockerCols.map((_,i)=><div key={i} className="ccLocker">{String(i+1).padStart(2,"0")}</div>)}</div><div className="ccBench">나무 벤치 · 거울 · 체중계 · 드라이어</div></div>
           <div className="ccSpaArea showerArea"><h3>🚿 샤워실</h3><div className="ccShowerGrid">{showerCols.map((_,i)=><div key={i} className="ccShower"><span>🚿</span><small>샴푸 · 바디워시</small></div>)}</div><div className="ccDrain">배수구　•　•　•　•　•</div></div>
-          <div className="ccSpaArea bathArea"><h3>🛁 대욕장</h3><button className="ccBath bigBath" onClick={()=>onAction("♨️ 온탕에 몸을 담갔어요. 물 온도 41°C.")}><div className="ccWater"><span>♨</span><span>♨</span></div><b>{hot}°C 온탕</b></button><button className="ccBath smallBath cold" onClick={()=>onAction("❄ 냉탕은 생각보다 훨씬 차가워요!")}><b>❄ 냉탕<br/>17°C</b></button><button className="ccBath smallBath bubble" onClick={()=>onAction("🫧 거품이 보글보글 올라와요.")}><b>🫧 거품탕<br/>39°C</b></button><div className="ccBath smallBath med"><b>🌿 약탕<br/>40°C</b></div><div className="ccBath smallBath electric"><b>⚡ 전기탕<br/>38°C</b></div><div className="ccTowelRack">수건 · 바가지 · 물 온도계</div></div>
+          <div className="ccSpaArea bathArea"><h3>🛁 대욕장</h3>
+            <button className="ccBath bigBath" onClick={()=>onAction("♨️ 온탕에 몸을 담갔어요. 물 온도 41°C.")}>{objectImages["spa:bath:hot"] ? <img className="ccSpaBathImage" src={objectImages["spa:bath:hot"]} alt="온탕" /> : <div className="ccWater"><span>♨</span><span>♨</span></div>}<b>{hot}°C 온탕</b></button>
+            <button className="ccBath smallBath cold" onClick={()=>onAction("❄ 냉탕은 생각보다 훨씬 차가워요!")}>{objectImages["spa:bath:cold"] ? <img className="ccSpaBathImage" src={objectImages["spa:bath:cold"]} alt="냉탕" /> : <b>❄ 냉탕<br/>17°C</b>}</button>
+            <button className="ccBath smallBath bubble" onClick={()=>onAction("🫧 거품이 보글보글 올라와요.")}>{objectImages["spa:bath:bubble"] ? <img className="ccSpaBathImage" src={objectImages["spa:bath:bubble"]} alt="거품탕" /> : <b>🫧 거품탕<br/>39°C</b>}</button>
+            <button className="ccBath smallBath med" onClick={()=>onAction("🌿 약탕에 들어갔어요. 은은한 향이 나요.")}>{objectImages["spa:bath:med"] ? <img className="ccSpaBathImage" src={objectImages["spa:bath:med"]} alt="약탕" /> : <b>🌿 약탕<br/>40°C</b>}</button>
+            <button className="ccBath smallBath electric" onClick={()=>onAction("⚡ 전기탕에서 몸이 찌릿찌릿해요.")}>{objectImages["spa:bath:electric"] ? <img className="ccSpaBathImage" src={objectImages["spa:bath:electric"]} alt="전기탕" /> : <b>⚡ 전기탕<br/>38°C</b>}</button>
+            <div className="ccTowelRack">수건 · 바가지 · 물 온도계</div></div>
           <div className="ccSpaArea saunaArea"><h3>🔥 사우나 구역</h3><div className="ccSauna dry"><b>건식 사우나</b><span>86°C</span><div className="ccSaunaBench"/></div><div className="ccSauna kiln"><b>🔥 불가마</b><span>90°C</span><div className="ccFire"/></div><div className="ccSauna salt"><b>🧂 소금방</b><span>소금 결정 벽</span></div><div className="ccSauna clay"><b>🟤 황토방</b><span>따뜻한 황토 벽</span></div></div>
           {p(1120,1030,170,90,"ccSpaStairs",()=>onFloor("spa2"),"2층 온천으로")}
         </>}
@@ -906,7 +921,7 @@ function ObjectImageSheet({ objectImages = {}, target, setTarget, onApply, onRes
     if (!file || !isHost) return;
     setBusy(true);
     try {
-      const data = await removePhotoBackground(file);
+      const data = target.startsWith("spa:bath:") ? await readPhotoData(file) : await removePhotoBackground(file);
       setPreview(data);
       await onApply(target, data);
     } catch { /* handled by caller */ }
@@ -925,6 +940,9 @@ function ObjectImageSheet({ objectImages = {}, target, setTarget, onApply, onRes
         <optgroup label="버스">
           <option value="bus:spa">🚌 찜질스파행</option>
           <option value="bus:cotton">🚌 솜사탕행</option>
+        </optgroup>
+        <optgroup label="찜질스파 1층 욕탕">
+          {SPA_BATH_IMAGE_TARGETS.map(v=><option key={v.id} value={v.id}>♨️ {v.label}</option>)}
         </optgroup>
         <optgroup label="찜질스파 아이템">
           <option value="spa:item:bill">🎫 이용권</option>
@@ -945,6 +963,16 @@ function ObjectImageSheet({ objectImages = {}, target, setTarget, onApply, onRes
       <p className="ccObjectSheetHint">사진의 바깥 배경을 자동으로 투명하게 만든 뒤 건물에 적용합니다. 적용 결과는 접속 중인 게스트에게도 보여요.</p>
     </div>
   );
+}
+
+/* 원본 사진을 그대로 데이터 URL로 읽습니다. 욕탕 사진은 사각형 배경을 보존합니다. */
+function readPhotoData(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
 }
 
 /* 사진 가장자리의 배경색을 기준으로 연결된 배경을 투명하게 만드는 간단한 자동 누끼 */
@@ -3689,7 +3717,7 @@ function Town({ me, setMe, onKick }) {
           >
             {scene === SPA_ENTRY_SCENE ? <SpaLobby balance={balance} onPay={()=>setSpent(v=>v+20)} onFloor={changeSpaFloor} onExit={exitRoom} isHost={me.role === "host"} bubbleLayout={spaLobbyBubbleLayout} onBubbleLayout={updateSpaLobbyBubbleLayout} itemLayout={spaLobbyItemLayout} onItemLayout={updateSpaLobbyItemLayout} inventoryLayout={spaInventoryLayout} onInventoryLayout={updateSpaInventoryLayout} onSaveLayout={saveSpaLobbyLayout} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }} inventory={spaInventory} onInventoryChange={setSpaInventory} /> : scene && scene.startsWith("spa") ? <SpaFloor
               scene={scene} player={pos} peers={roomPeers} me={me}
-              onFloor={changeSpaFloor} onExit={exitRoom} onAction={setToast} inventory={spaInventory} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }} inventoryLayout={spaInventoryLayout}
+              onFloor={changeSpaFloor} onExit={exitRoom} onAction={setToast} inventory={spaInventory} itemImages={{ bill: objectImages["spa:item:bill"], key: objectImages["spa:item:key"] }} objectImages={objectImages} inventoryLayout={spaInventoryLayout}
             /> : scene === "cotton" ? <CottonShopRoom
               step={cottonStep} color={cottonColor} powered={cottonPowered} tufts={cottonTufts} decor={cottonDecor} shelf={cottonShelf} nickname={me.name} guideOpen={cottonGuideOpen} onCloseGuide={()=>setCottonGuideOpen(false)}
               onMachine={cottonStartMachine} onColor={setCottonColor}
@@ -4360,6 +4388,14 @@ function Town({ me, setMe, onKick }) {
         <span className="ccFbWord">피드백</span>
       </button>
       </div>
+
+      {sheet === "objects" && me.role === "host" && (
+        <div className="ccObjectSheetOverlay" onClick={() => setSheet(null)}>
+          <ObjectImageSheet objectImages={objectImages} target={objectImageTarget} setTarget={setObjectImageTarget} onApply={applyObjectImage}
+            onReset={(id) => { const next = { ...objectImages }; delete next[id]; setObjectImages(next); try { localStorage.setItem("ccObjectImages", JSON.stringify(next)); } catch {} chanRef.current?.fx({ t: "objectImages", images: next }); setToast(`${objectImageLabel(id)} 기본 이미지로 되돌렸어요.`); }}
+            onClose={() => setSheet(null)} isHost={me.role === "host"} />
+        </div>
+      )}
 
       {/* 모바일 조작 — 왼쪽 조이스틱, 오른쪽 액션 */}
       <div className="ccTouch">
@@ -5345,6 +5381,12 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccSpaRoom,.ccSpaLobby{font-family:inherit;image-rendering:pixelated;letter-spacing:.1px}
 .ccSpaRoom{background:#d7c9ae!important}
 .ccSpaMap{background:#cdbb9d!important;background-image:repeating-linear-gradient(0deg,rgba(90,70,48,.055) 0 2px,transparent 2px 8px),repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 2px,transparent 2px 12px)!important}
+.ccSpaMapFloor1{background:#cdbb9d!important}
+.ccSpaFloorPhoto{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;z-index:0;pointer-events:none;image-rendering:auto}
+.ccSpaMapFloor1 .ccSpaCeiling{display:none}
+.ccSpaMapFloor1 .ccSpaArea{background:rgba(241,228,207,.18)!important}
+.ccSpaBathImage{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;z-index:0;pointer-events:none}
+.ccBath b{z-index:2;background:rgba(255,255,255,.78);padding:3px 6px;border:2px solid #5b4a63;bottom:14px}
 .ccSpaArea{border:5px solid #5b4a63!important;border-radius:2px!important;box-shadow:7px 7px 0 rgba(63,49,48,.22)!important;background:#f1e4cf!important}
 .ccSpaArea h3{font-family:inherit;text-shadow:2px 2px 0 #fff;letter-spacing:.5px}
 .ccLocker,.ccShower,.ccMat,.ccHeatRooms>div,.ccPrivateTub{border-radius:0!important;box-shadow:inset 3px 3px 0 rgba(255,255,255,.35),3px 3px 0 rgba(63,49,48,.2)!important}
@@ -5449,6 +5491,9 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccSpaPickupItem span{background:#fff7df;border:3px solid #4f403a;padding:3px 7px;font-size:10px;font-weight:1000;box-shadow:3px 3px 0 #4f403a}
 .ccLobbyManageSave{width:100%;margin-top:10px;border:4px solid #4f403a;background:#ffd45e;padding:9px 10px;font-family:inherit;font-weight:1000;cursor:pointer;box-shadow:3px 3px 0 #4f403a}
 .ccLobbyManageSave:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #4f403a}
+
+.ccObjectSheetOverlay{position:fixed;inset:0;z-index:500;background:rgba(45,38,48,.48);display:flex;align-items:center;justify-content:center;padding:20px;pointer-events:auto}
+.ccObjectSheet{position:relative;z-index:501;width:min(520px,92vw);max-height:min(760px,90vh);overflow:auto}
 
 `;
 
