@@ -601,12 +601,27 @@ const SPA_LOBBY_ROOM = { id:"spaLobby", name:"구름찜질스파 로비", emoji:
 const roomFor = (id) => id === "cotton" ? COTTON_ROOM : id === SPA_ENTRY_SCENE ? SPA_LOBBY_ROOM : (SPA_ROOMS_MAP[id] || ROOMS[id]);
 
 
-function SpaLobby({ balance = 0, onPay, onFloor, onExit }) {
+function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleLayout, onBubbleLayout }) {
   const [step, setStep] = useState("welcome");
   const [message, setMessage] = useState("목욕하러 오셨나요?");
+  const [typedMessage, setTypedMessage] = useState("");
+  const [showBubbleSettings, setShowBubbleSettings] = useState(false);
+  const typingRef = useRef(null);
   const [ticket, setTicket] = useState(false);
   const [locker, setLocker] = useState(null);
   const [floorPicker, setFloorPicker] = useState(false);
+
+  useEffect(() => {
+    window.clearInterval(typingRef.current);
+    setTypedMessage("");
+    let i = 0;
+    typingRef.current = window.setInterval(() => {
+      i += 1;
+      setTypedMessage(message.slice(0, i));
+      if (i >= message.length) window.clearInterval(typingRef.current);
+    }, 55);
+    return () => window.clearInterval(typingRef.current);
+  }, [message]);
 
   const no = () => { setMessage("안녕히 가세요."); setTimeout(onExit, 650); };
   const yes = () => { setMessage("한 분 맞으신가요?"); setStep("confirm"); };
@@ -619,18 +634,31 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit }) {
     setMessage("그럼 안내해드리겠습니다.");
   };
   const chooseFloor = (id) => { setFloorPicker(false); onFloor?.(id); };
+  const layout = bubbleLayout || { x: 50, y: 22, w: 38 };
+  const bubbleStyle = { left: `${layout.x}%`, top: `${layout.y}%`, width: `${layout.w}%` };
+  const setLayout = (key, value) => onBubbleLayout?.({ ...layout, [key]: Number(value) });
 
   return <div className="ccSpaLobby">
     <div className="ccLobbyPerspective ccLobbyPhoto" style={{ backgroundImage: `url("${import.meta.env.BASE_URL}spa-lobby.png")` }}>
-      <div className="ccLobbyDialogue">
-        <div className="ccLobbyPortrait"><div className="ccPortraitPixelHead"/><div className="ccPortraitPixelBody"/></div>
-        <div className="ccLobbyText">
-          <b>직원</b><h2>{message}</h2>
-          {step === "welcome" && <div className="ccLobbyYesNo"><button onClick={yes}>네</button><button onClick={no}>아니오</button></div>}
-          {step === "confirm" && <><div className="ccLobbySmallLine">직원 · 한 분 맞으신가요? 이용요금은 20별입니다.</div><div className="ccLobbyYesNo"><button onClick={confirm}>네</button></div></>}
-          {step === "paid" && <><div className="ccSpaTicket">{ticket && <><b>구름찜질스파 이용권</b><span>1인 · 전층 이용</span><span>결제 20별</span><span>이용일 오늘</span></>}</div><div className="ccSpaLocker">🔑 락커키 <b>{locker}</b></div><div className="ccLobbyYesNo"><button onClick={()=>setStep("elevator")}>엘리베이터로 안내받기</button></div></>}
-        </div>
+      <div className="ccLobbyBubble" style={bubbleStyle}>
+        <div className="ccLobbyBubbleName">직원</div>
+        <div className="ccLobbyBubbleText">{typedMessage}<span className="ccTypingCursor">▌</span></div>
+        <span className="ccLobbyBubbleTail" />
       </div>
+      <div className="ccLobbyActions">
+        {step === "welcome" && <div className="ccLobbyYesNo"><button onClick={yes}>네</button><button onClick={no}>아니오</button></div>}
+        {step === "confirm" && <div className="ccLobbyYesNo"><button onClick={confirm}>네</button></div>}
+        {step === "paid" && <><div className="ccSpaTicket">{ticket && <><b>구름찜질스파 이용권</b><span>1인 · 전층 이용</span><span>결제 20별</span><span>이용일 오늘</span></>}</div><div className="ccSpaLocker">🔑 락커키 <b>{locker}</b></div><div className="ccLobbyYesNo"><button onClick={()=>setStep("elevator")}>엘리베이터로 안내받기</button></div></>}
+      </div>
+      {isHost && <>
+        <button className="ccLobbyBubbleGear" onClick={()=>setShowBubbleSettings(v=>!v)} title="말풍선 위치/크기 조절">⚙ 말풍선</button>
+        {showBubbleSettings && <div className="ccLobbyBubbleSettings">
+          <b>말풍선 위치 · 크기</b>
+          <label>가로 위치 <input type="range" min="10" max="90" value={layout.x} onChange={e=>setLayout("x",e.target.value)}/><span>{layout.x}%</span></label>
+          <label>세로 위치 <input type="range" min="5" max="75" value={layout.y} onChange={e=>setLayout("y",e.target.value)}/><span>{layout.y}%</span></label>
+          <label>크기 <input type="range" min="22" max="70" value={layout.w} onChange={e=>setLayout("w",e.target.value)}/><span>{layout.w}%</span></label>
+        </div>}
+      </>}
       {step === "elevator" && <div className="ccLobbyElevatorScene">
         <div className="ccElevatorCeiling">ELV · CLOUD SPA</div>
         <div className="ccElevatorFrame"><div className="ccElevatorDoor left"/><div className="ccElevatorDoor right"/><div className="ccElevatorGap"/></div>
@@ -642,7 +670,6 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit }) {
     </div>
   </div>;
 }
-
 
 
 function CottonCanvasPlaceholder(){};
@@ -1442,6 +1469,9 @@ function Town({ me, setMe, onKick }) {
   const [skins, setSkins] = useState([]);
   const [objectImages, setObjectImages] = useState(() => {
     try { const v = JSON.parse(localStorage.getItem("ccObjectImages") || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; }
+  });
+  const [spaLobbyBubbleLayout, setSpaLobbyBubbleLayout] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("ccSpaLobbyBubbleLayout") || "null") || { x: 50, y: 22, w: 38 }; } catch { return { x: 50, y: 22, w: 38 }; }
   });
   const [objectImageTarget, setObjectImageTarget] = useState(BUILDINGS[0]?.id || "cake");          // 호스트가 올린 캐릭터 이미지
   const [live, setLive] = useState(true);          // 실시간 연결 상태
@@ -2620,6 +2650,18 @@ function Town({ me, setMe, onKick }) {
     return () => cancelAnimationFrame(raf);
   }, [popBall, pressKey, doQuest, startRide]);
 
+  const updateSpaLobbyBubbleLayout = useCallback((next) => {
+    if (me.role !== "host") return;
+    const safe = {
+      x: Math.max(10, Math.min(90, Number(next?.x) || 50)),
+      y: Math.max(5, Math.min(75, Number(next?.y) || 22)),
+      w: Math.max(22, Math.min(70, Number(next?.w) || 38)),
+    };
+    setSpaLobbyBubbleLayout(safe);
+    try { localStorage.setItem("ccSpaLobbyBubbleLayout", JSON.stringify(safe)); } catch {}
+    chanRef.current?.fx({ t: "spaLobbyBubbleLayout", layout: safe });
+  }, [me.role]);
+
   const applyObjectImage = useCallback(async (id, data) => {
     if (me.role !== "host" || !data) return;
     try {
@@ -2653,11 +2695,13 @@ function Town({ me, setMe, onKick }) {
         kml: sceneRef.current === "sing" && me.role === "host" ? karaokeMicLayoutRef.current : undefined,
         bgmMap: me.role === "host" ? roomBgmRef.current : undefined,
         objImgs: me.role === "host" ? objectImages : undefined,
+        spaLobbyBubbleLayout: me.role === "host" ? spaLobbyBubbleLayout : undefined,
       }),
       onPeers: (list) => {
         setPeers(list);
         const host = list.find((p) => p.role === "host");
         if (host?.objImgs && typeof host.objImgs === "object") setObjectImages(host.objImgs);
+        if (host?.spaLobbyBubbleLayout && typeof host.spaLobbyBubbleLayout === "object") setSpaLobbyBubbleLayout(host.spaLobbyBubbleLayout);
         if (host?.bgmMap && typeof host.bgmMap === "object") {
           const normalizedMap = Object.fromEntries(
             Object.entries(host.bgmMap).map(([id, bgm]) => [
@@ -2752,6 +2796,12 @@ function Town({ me, setMe, onKick }) {
         if (e.t === "objectImages" && e.images && typeof e.images === "object") {
           setObjectImages(e.images);
           try { localStorage.setItem("ccObjectImages", JSON.stringify(e.images)); } catch {}
+          return;
+        }
+
+        if (e.t === "spaLobbyBubbleLayout" && e.layout && typeof e.layout === "object") {
+          setSpaLobbyBubbleLayout(e.layout);
+          try { localStorage.setItem("ccSpaLobbyBubbleLayout", JSON.stringify(e.layout)); } catch {}
           return;
         }
 
@@ -3255,7 +3305,7 @@ function Town({ me, setMe, onKick }) {
             className="ccRoomWrap"
             style={{ width: SCREEN.w, height: SCREEN.h, transform: `translate(-50%,-50%) scale(${roomZoom})` }}
           >
-            {scene === SPA_ENTRY_SCENE ? <SpaLobby balance={balance} onPay={()=>setSpent(v=>v+20)} onFloor={changeSpaFloor} onExit={exitRoom} /> : scene && scene.startsWith("spa") ? <SpaFloor
+            {scene === SPA_ENTRY_SCENE ? <SpaLobby balance={balance} onPay={()=>setSpent(v=>v+20)} onFloor={changeSpaFloor} onExit={exitRoom} isHost={me.role === "host"} bubbleLayout={spaLobbyBubbleLayout} onBubbleLayout={updateSpaLobbyBubbleLayout} /> : scene && scene.startsWith("spa") ? <SpaFloor
               scene={scene} player={pos} peers={roomPeers} me={me}
               onFloor={changeSpaFloor} onExit={exitRoom} onAction={setToast}
             /> : scene === "cotton" ? <CottonShopRoom
@@ -5282,7 +5332,12 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccLobbyCounterTop span{font-size:12px;font-weight:1000}.ccLobbyCounterTop b{font-size:24px}
 .ccLobbyCounterFront{height:68%;background:#8a5c43;border:6px solid #4f403a;border-top:0;display:flex;align-items:center;justify-content:center;gap:70px;color:#ffeac7;font-weight:900}
 .ccLobbyPlant{position:absolute;right:10%;bottom:27%;font-size:62px}.ccLobbyShoeRack{position:absolute;left:8%;bottom:22%;font-size:32px;background:#a06f4d;border:5px solid #4f403a;padding:12px 18px;box-shadow:5px 5px 0 #4f403a}.ccLobbyShoeRack small{display:block;font-size:12px;text-align:center;color:#fff}
-.ccLobbyDialogue{position:absolute;left:7%;right:7%;bottom:4%;display:flex;gap:14px;align-items:flex-end;background:#fff7e8;border:6px solid #4f403a;box-shadow:8px 8px 0 rgba(63,49,48,.3);padding:14px}
+.ccLobbyDialogue{display:none}
+.ccLobbyBubble{position:absolute;z-index:32;min-height:64px;transform:translateX(-50%);box-sizing:border-box;background:#fffdf7;border:4px solid #4f403a;border-radius:18px;padding:13px 17px;box-shadow:5px 6px 0 rgba(63,49,48,.22);font-family:inherit;pointer-events:none}
+.ccLobbyBubbleName{font-size:11px;font-weight:1000;color:#b15f72;margin-bottom:4px}.ccLobbyBubbleText{font-size:18px;line-height:1.45;font-weight:900;word-break:keep-all;text-align:center;min-height:27px}.ccLobbyBubbleTail{position:absolute;left:50%;bottom:-16px;width:22px;height:22px;background:#fffdf7;border-right:4px solid #4f403a;border-bottom:4px solid #4f403a;transform:translateX(-50%) rotate(45deg)}
+.ccTypingCursor{display:inline-block;margin-left:2px;animation:ccTypingBlink .65s steps(1,end) infinite}@keyframes ccTypingBlink{50%{opacity:0}}
+.ccLobbyActions{position:absolute;left:50%;bottom:7%;transform:translateX(-50%);z-index:34;display:flex;flex-direction:column;align-items:center;gap:8px;max-width:90%}.ccLobbyActions .ccLobbyYesNo{margin-top:0;justify-content:center}.ccLobbyActions .ccLobbyYesNo button{min-width:82px}.ccLobbyBubbleGear{position:absolute;right:22px;top:20px;z-index:50;border:3px solid #4f403a;background:#fff7e8;padding:7px 10px;font-family:inherit;font-weight:900;cursor:pointer;box-shadow:3px 3px 0 rgba(63,49,48,.25)}
+.ccLobbyBubbleSettings{position:absolute;right:22px;top:62px;width:260px;z-index:51;background:#fffdf7;border:4px solid #4f403a;box-shadow:6px 6px 0 rgba(63,49,48,.25);padding:12px}.ccLobbyBubbleSettings>b{display:block;margin-bottom:8px}.ccLobbyBubbleSettings label{display:grid;grid-template-columns:70px 1fr 42px;gap:7px;align-items:center;font-size:10px;font-weight:900;margin:8px 0}.ccLobbyBubbleSettings input{width:100%}.ccLobbyBubbleSettings span{text-align:right}
 .ccLobbyPortrait{width:82px;height:82px;display:grid;place-items:center;background:#d7b9a0;border:5px solid #4f403a;font-size:46px;flex:none}.ccLobbyText{flex:1}.ccLobbyText>b{font-size:13px;color:#b15f72}.ccLobbyText h2{margin:3px 0 10px;font-size:20px}.ccLobbyChoices,.ccLobbyYesNo{display:flex;gap:8px;flex-wrap:wrap}.ccLobbyChoices button,.ccLobbyYesNo button{border:4px solid #4f403a;background:#f3dfb9;padding:8px 12px;font-family:inherit;font-weight:900;cursor:pointer;box-shadow:3px 3px 0 #4f403a}.ccLobbyChoices button.chosen{background:#f2a86d;transform:translate(2px,2px);box-shadow:1px 1px 0 #4f403a}.ccLobbyYesNo{margin-top:10px}.ccLobbyYesNo button:first-child{background:#8fc9a0}.ccLobbyYesNo button:last-child{background:#e8c4c4}.ccLobbyYesNo button:disabled{opacity:.4;cursor:not-allowed}.ccLobbyExit{position:absolute;right:22px;top:20px;border:4px solid #4f403a;background:#fff7e8;padding:8px 12px;font-weight:900;z-index:3}
 .ccSpaBlush{position:absolute;width:8px;height:5px;background:#ef8d91;image-rendering:pixelated;z-index:30}.ccSpaSteam{position:absolute;color:#fff;font-size:34px;font-weight:1000;z-index:30;animation:ccSteamUp 1s steps(3,end) infinite}@keyframes ccSteamUp{50%{transform:translateY(-12px);opacity:.65}100%{transform:translateY(-22px);opacity:0}}
 .ccSpaClickable .ccBuilding{image-rendering:pixelated}
