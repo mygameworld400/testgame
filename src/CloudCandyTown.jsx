@@ -733,11 +733,12 @@ function SpaLobby({ balance = 0, onPay, onFloor, onExit, isHost = false, bubbleL
         </div>}
       </>}
 
-      {step === "elevator" && <div className="ccLobbyElevatorScene">
-        <div className="ccElevatorCeiling">ELV · CLOUD SPA</div>
-        <div className="ccElevatorFrame"><div className="ccElevatorDoor left"/><div className="ccElevatorDoor right"/><div className="ccElevatorGap"/></div>
-        <div className="ccElevatorSwitch"><button onClick={()=>setFloorPicker(true)}>▲</button><span>층 선택</span><button onClick={()=>setFloorPicker(true)}>▼</button></div>
-        <div className="ccElevatorHint">위·아래 버튼을 누르면 층 선택 창이 열립니다.</div>
+      {step === "elevator" && <div className="ccLobbyElevatorScene ccElevatorPhotoScene" style={{ backgroundImage: `url("${import.meta.env.BASE_URL}elevator.png")` }}>
+        <div className="ccElevatorSwitchHotspot" aria-label="엘리베이터 스위치">
+          <button aria-label="위로 버튼" onClick={()=>setFloorPicker(true)} />
+          <button aria-label="아래로 버튼" onClick={()=>setFloorPicker(true)} />
+        </div>
+        <div className="ccElevatorHint">버튼을 눌러서 이동하세요</div>
       </div>}
       {floorPicker && <div className="ccFloorPickerOverlay" onClick={()=>setFloorPicker(false)}><div className="ccFloorPicker" onClick={e=>e.stopPropagation()}><b>엘리베이터</b><h2>어느 층으로 갈까요?</h2><div className="ccFloorPickerBtns"><button onClick={()=>chooseFloor("spa1")}>1층<small>목욕 · 샤워 · 사우나</small></button><button onClick={()=>chooseFloor("spa2")}>2층<small>온천 · 스파</small></button><button onClick={()=>chooseFloor("spa3")}>3층<small>찜질 · 휴식</small></button></div><button className="ccMini" onClick={()=>setFloorPicker(false)}>닫기</button></div></div>}
       <button className="ccLobbyExit" onClick={onExit}>← 나가기</button>
@@ -5488,7 +5489,11 @@ x;height:340px;pointer-events:auto;cursor:crosshair}.ccDecorCottonWrap{width:340
 .ccFloorPickerBtns button:hover{background:#ffd45e}
 .ccFloorPickerBtns small{display:block;margin-top:6px;font-size:9px;color:#8c7b8d}
 
-.ccLobbyElevatorScene{position:absolute;inset:0;background:linear-gradient(#dbe9ed,#aebfc4);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:25}
+.ccLobbyElevatorScene{position:absolute;inset:0;background-color:#dbe9ed;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:25;background-position:center;background-size:100% 100%;background-repeat:no-repeat;image-rendering:pixelated}
+.ccElevatorPhotoScene{background-position:center center}
+.ccElevatorSwitchHotspot{position:absolute;right:24%;top:37.5%;width:6.2%;height:16.5%;z-index:31;display:flex;flex-direction:column;gap:7%;pointer-events:none}
+.ccElevatorSwitchHotspot button{flex:1;min-height:0;border:0;background:transparent;cursor:pointer;pointer-events:auto;padding:0}
+.ccElevatorSwitchHotspot button:hover{background:rgba(255,255,255,.08);outline:3px solid rgba(255,255,255,.18)}
 .ccLobbyElevatorScene .ccElevatorCeiling{position:absolute;top:35px;left:50%;transform:translateX(-50%);font-weight:900;letter-spacing:2px;color:#5b4a63}
 .ccLobbyElevatorScene .ccElevatorFrame{position:relative;width:min(620px,68vw);height:430px;border:12px solid #5b4a63;background:#d8e1e3;box-shadow:0 12px 0 rgba(91,74,99,.2)}
 .ccLobbyElevatorScene .ccElevatorDoor{position:absolute;top:0;bottom:0;width:50%;background:linear-gradient(90deg,#bfcacc,#eef4f4,#b4c2c5);border:4px solid #6b777b}
