@@ -2229,7 +2229,7 @@ function Town({ me, setMe, onKick }) {
       setSheet("movie");
       return;
     }
-    if (id === "music") {
+    if (id === "music" || id === "lp") {
       doQuest("music");
       setSheet("music");
       return;
@@ -2437,7 +2437,7 @@ function Town({ me, setMe, onKick }) {
         /* LP바 플레이리스트는 PC에서도 현재 zone을 기준으로 직접 엽니다.
            모바일 터치와 달리 키보드는 zone 힌트 버튼의 DOM 이벤트를 거치지 않으므로
            Space 입력이 확실하게 MusicSheet까지 연결되도록 합니다. */
-        if (sceneRef.current && zoneRef.current === "music") {
+        if (sceneRef.current && (zoneRef.current === "music" || zoneRef.current === "lp")) {
           e.preventDefault();
           doQuest("music");
           setSheet("music");
